@@ -2,7 +2,7 @@
 
 > 本体建模 → 大模型落地的开源实现：把任意结构化数据（CSV）自动转成"实体-关系-属性"语义本体，再提供自然语言问答。**换任何工厂/领域，只换数据，代码不动。**
 
-[![Version](https://img.shields.io/badge/version-2.3.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
 [![CI](https://github.com/zhengjinjun1975/factory-ontology/actions/workflows/ci.yml/badge.svg)](https://github.com/zhengjinjun1975/factory-ontology/actions)
@@ -149,6 +149,9 @@ python api_server.py          # http://localhost:8000
 - **鉴权**：设 `FOOD_ADMIN_KEY` / `FOOD_READ_KEY` 后，/api/* 需 `X-API-Key` 头（管理 vs 只读双角色）；不设则内网开放
 - **增量重建**：数据文件 hash 检测，数据未变复用缓存本体，变了才重建——接新数据自动生效
 - **Docker 一键部署**：`docker compose up -d`（`Dockerfile` + `docker-compose.yml`），HTTPS 反代见 `nginx.conf`
+- **数据接入**（v2.4.0）：`python data_import.py <Excel/DB/CSV> --schedule N` 自动同步台账
+- **数据质量**（v2.4.0）：`python data_quality.py` 自动校验异常
+- **PWA**（v2.4.0）：APP 可安装、离线可用
 
 ### 移动端 APP + 语音助手
 

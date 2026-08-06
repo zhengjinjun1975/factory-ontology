@@ -1,0 +1,12 @@
+{
+  "name": "食品企业溯源助手",
+  "short_name": "食品溯源",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#16a34a",
+  "theme_color": "#16a34a",
+  "description": "中小型食品企业知识库：智能问答、扫码溯源、批次追溯",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
