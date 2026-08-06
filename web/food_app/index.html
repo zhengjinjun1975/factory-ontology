@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>食品溯源 · 智能助手</title>
+<title>工厂知识库助手</title>
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" href="/icon.svg">
 <meta name="theme-color" content="#16a34a">
@@ -36,8 +36,8 @@
 </head>
 <body>
 <header>
-  <span class="logo">🥛</span>
-  <div><h1>食品企业溯源助手</h1><div class="sub">问 · 查 · 追 · 溯源</div></div>
+  <span class="logo" id="app-icon">🏭</span>
+  <div><h1 id="app-name">工厂知识库助手</h1><div class="sub">问 · 查 · 追 · 溯源</div></div>
 </header>
 
 <div class="tabs">
@@ -51,7 +51,7 @@
   <div id="pane-ask" class="pane">
     <div class="card">
       <h3>🗣️ 问知识库</h3>
-      <input type="text" id="ask-input" placeholder="例：乳制品的数量 / 保质期最长的是？">
+      <input type="text" id="ask-input" placeholder="输入问题…">
       <button onclick="doAsk()">提问</button>
       <div id="ask-result" class="status"></div>
     </div>
@@ -61,7 +61,7 @@
   <div id="pane-scan" class="pane" style="display:none">
     <div class="card">
       <h3>📷 扫码溯源</h3>
-      <input type="text" id="scan-input" placeholder="输入溯源码，如 P003-B005 或 B001">
+      <input type="text" id="scan-input" placeholder="输入溯源码…">
       <div class="btn-row"><button onclick="doScan('forward')">正向(查原料)</button></div>
       <div id="scan-result" class="status"></div>
     </div>
@@ -71,7 +71,7 @@
   <div id="pane-trace" class="pane" style="display:none">
     <div class="card">
       <h3>🔍 反向追溯（食品安全）</h3>
-      <input type="text" id="trace-input" placeholder="输入原料编号，如 RM008（不合格原料）">
+      <input type="text" id="trace-input" placeholder="输入编号…">
       <div class="btn-row"><button onclick="doTrace('reverse')">追溯受影响批次</button></div>
       <div id="trace-result" class="status"></div>
     </div>
@@ -85,6 +85,23 @@ if ('serviceWorker' in navigator) {
 }
 const BASE = '';
 function el(id){ return document.getElementById(id); }
+
+// 动态加载知识库品牌/示例(去硬编码)
+async function loadAppConfig(){
+  try{
+    const r = await fetch(BASE+'/api/app-config');
+    const d = await r.json();
+    if(!d.ok) return;
+    if(d.name) el('app-name').textContent = d.name;
+    if(d.icon) el('app-icon').textContent = d.icon;
+    if(d.name) document.title = d.name;
+    if(d.examples && d.examples.length){
+      el('ask-input').placeholder = '例：' + d.examples.slice(0,2).join(' / ');
+      el('ask-input').setAttribute('data-examples', JSON.stringify(d.examples));
+    }
+  }catch(e){}
+}
+loadAppConfig();
 
 // 标签切换
 document.querySelectorAll('.tab').forEach(t=>{

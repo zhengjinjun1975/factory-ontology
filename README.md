@@ -2,7 +2,7 @@
 
 > 本体建模 → 大模型落地的开源实现：把任意结构化数据（CSV）自动转成"实体-关系-属性"语义本体，再提供自然语言问答。**换任何工厂/领域，只换数据，代码不动。**
 
-[![Version](https://img.shields.io/badge/version-2.7.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.7.1-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
 [![CI](https://github.com/zhengjinjun1975/factory-ontology/actions/workflows/ci.yml/badge.svg)](https://github.com/zhengjinjun1975/factory-ontology/actions)
@@ -166,6 +166,23 @@ python api_server.py          # http://localhost:8000
 - **移动端 APP**：`GET /`（API 同端口托管）→ 手机浏览器打开即用，含智能问答 / 扫码溯源 / 反向追溯三个面板
 - **语音助手**：`python voice_assistant.py "乳制品的数量"` → edge-tts 中文朗读；`--voice` 可选语音输入（需装 faster-whisper）
 - **部署**：`docs/部署.md` 面向无专职工程师的小型企业，换数据即用
+
+### 添加你的工厂数据（新企业落地）
+
+```bash
+cd codes
+python new_kb.py <知识库名> --name "企业显示名" --icon "🏭"
+# 例: python new_kb.py valve --name "阀门厂" --icon "🔧"
+```
+自动搭建：kbs.json 注册 + 数据目录 + 词典模板 + 表结构说明。
+
+之后三步：
+1. 把企业数据放进 `data_<知识库名>/`（按 README 的表结构：产品/原料/批次/质检/设备 + 批次-原料关联表）
+2. 编辑 `config/lexicon_<知识库名>.json` 设中文字段名
+3. 设 `FOOD_KB=<知识库名>` 启动：`python api_server.py`
+
+验证：`python data_quality.py`（数据质量）+ `python benchmark_graphrag.py`（问答命中率）。
+APP 的品牌/图标/示例问题自动从 kbs.json 读取，无需改代码。
 
 ## 模型配置
 

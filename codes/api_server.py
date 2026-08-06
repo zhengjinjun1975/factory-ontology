@@ -288,6 +288,17 @@ def health():
     return {"status": "ok", "version": "2.1.0"}
 
 
+@app.get("/api/app-config", include_in_schema=False)
+def app_config():
+    """APP 动态配置: 返回当前知识库的品牌/图标/示例问题(去硬编码)。"""
+    return {
+        "ok": True, "kb": KB_NAME,
+        "name": _kb.get("name", "知识库助手"),
+        "icon": _kb.get("icon", "🏭"),
+        "examples": _kb.get("examples", []),
+    }
+
+
 @app.post("/api/ask", dependencies=[Depends(require_key)])
 def ask(req: AskReq):
     """自然语言问答：先规则引擎，命中不了走 GraphRAG，再答不上给引导。"""
@@ -297,8 +308,10 @@ def ask(req: AskReq):
     gans, ctx = gr.answer_graph(req.question, FOOD_NT, depth=2, max_nodes=40, lexicon=D)
     if not gans.startswith("[图检索]"):
         return {"ok": True, "mode": "graphrag", "answer": gans, "context": ctx[:2000]}
-    return {"ok": True, "mode": "miss",
-            "answer": "抱歉，暂未理解该问题。\n可试试问：\n· 乳制品的数量\n· 保质期最长的产品\n· B001 用了哪些原料\n· RM008 用于哪些批次\n· 原味酸奶是什么"}
+    # 答不上: 从 KB 配置读示例引导(去硬编码)
+    examples = _kb.get("examples", ["乳制品的数量", "原味酸奶是什么"])
+    guide = "\n".join(f"· {e}" for e in examples[:5])
+    return {"ok": True, "mode": "miss", "answer": f"抱歉，暂未理解该问题。\n可试试问：\n{guide}"}
 
 
 @app.get("/api/trace/forward", dependencies=[Depends(require_key)])
