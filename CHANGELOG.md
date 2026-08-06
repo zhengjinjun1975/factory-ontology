@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.1] — 2026-08-06
+
+### 规模化/产品（T-D 剩余）
+- **多租户隔离**：`config/kbs.json` 注册多知识库，每企业独立数据/词典；`FOOD_KB` 切换；`GET /api/admin/kbs`
+- **实时数据同步**：`POST /api/admin/sync`（admin）重读数据 + 可选外部源导入 + 重建
+- **图数据库路径**：`graph_store.py`（SQLite 图持久化，10万-100万实体过渡）+ `docs/规模化.md`（内存图→SQLite→Neo4j 三档 + 迁移要点）
+
 ## [2.6.0] — 2026-08-06
 
 ### 重构 + 能力增强 + 规模化

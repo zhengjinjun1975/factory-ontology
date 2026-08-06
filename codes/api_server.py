@@ -39,12 +39,23 @@ import multi_table as mt
 
 # ── 食品知识库配置 ──
 NS = "http://factory.example/ontology#"   # 与 multi_table 建本体一致
-# 多知识库支持(T-D): FOOD_DATA_DIR 指向不同企业的数据目录, 一套部署服务多个知识库
+# 多租户隔离(T-D1): 从 kbs.json 注册表选知识库, 每企业隔离数据目录/词典
 KB_NAME = os.environ.get("FOOD_KB", "food")
-DATA = os.environ.get("FOOD_DATA_DIR", os.path.join(ROOT, "data"))
+KBS_FILE = os.path.join(ROOT, "config", "kbs.json")
+
+
+def _load_kbs():
+    try:
+        return json.load(open(KBS_FILE, encoding="utf-8")).get("kbs", {})
+    except Exception:
+        return {}
+
+
+KBS = _load_kbs()
+_kb = KBS.get(KB_NAME, {})
+DATA = os.environ.get("FOOD_DATA_DIR", os.path.join(ROOT, _kb.get("data_dir", "data")))
 FOOD_NT = os.environ.get("FOOD_NT", os.path.join(ROOT, "output", f"{KB_NAME}.nt"))
-# 问答词典: 默认是食品产品表词典(规则引擎对产品表问答); 可用 FOOD_LEX 覆盖到其他企业词典
-FOOD_LEX = os.environ.get("FOOD_LEX", os.path.join(ROOT, "config", "lexicon_food_products.json"))
+FOOD_LEX = os.environ.get("FOOD_LEX", os.path.join(ROOT, "config", _kb.get("lexicon", "lexicon_food_products.json")))
 
 
 def _find(tail_name):
@@ -173,6 +184,12 @@ async def audit_and_count(request: Request, call_next):
     return response
 
 
+@app.get("/api/admin/kbs", dependencies=[Depends(require_admin)])
+def admin_kbs():
+    """管理操作: 列出所有已注册知识库 + 当前激活的。"""
+    return {"ok": True, "active": KB_NAME, "kbs": list(KBS.keys())}
+
+
 @app.get("/api/admin/audit", dependencies=[Depends(require_admin)])
 def admin_audit(limit: int = Query(50, le=500)):
     """管理操作: 读取最近审计日志。"""
@@ -237,6 +254,27 @@ def admin_rebuild():
     QDATA = v3.build_data(v3.parse_nt(FOOD_NT), D)
     logger.info("本体已重建, 节点=%d", len(graph))
     return {"ok": True, "message": "本体已重建", "nodes": len(graph)}
+
+
+@app.post("/api/admin/sync", dependencies=[Depends(require_admin)])
+def admin_sync():
+    """管理操作: 实时数据同步 — 重读知识库数据目录(若 KB 配置了外部源则先 data_import), 再重建本体。"""
+    global graph, labels, vi, rev, QDATA
+    src = _kb.get("source")
+    imported = None
+    if src:
+        try:
+            from data_import import import_source
+            imported = import_source(os.path.join(ROOT, src))
+        except Exception as e:
+            logger.warning("data_import 失败(用现有数据): %s", e)
+    for f in ["food.nt", "food_data_hash.txt"]:
+        p = os.path.join(os.path.dirname(FOOD_NT), f)
+        if os.path.exists(p):
+            os.remove(p)
+    graph, labels, vi, rev = _load()
+    QDATA = v3.build_data(v3.parse_nt(FOOD_NT), D)
+    return {"ok": True, "kb": KB_NAME, "imported": imported, "nodes": len(graph), "message": "已实时同步"}
 
 
 @app.get("/metrics", include_in_schema=False)

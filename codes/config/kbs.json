@@ -1,0 +1,10 @@
+{
+  "_说明": "多租户知识库注册表: 每个企业一个隔离的数据目录(数据/本体/词典各自独立)。FOOD_KB 环境变量选择激活的知识库。",
+  "kbs": {
+    "food": {
+      "name": "示例食品企业",
+      "data_dir": "data",
+      "lexicon": "lexicon_food_products.json"
+    }
+  }
+}
