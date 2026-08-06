@@ -13,7 +13,6 @@
   python csv_to_owl.py <input.csv> <output.nt> --relations <relations.json>  # 带对象属性
 """
 import sys
-import os
 import json
 from datetime import datetime
 

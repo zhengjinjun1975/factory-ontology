@@ -16,10 +16,8 @@
   python multi_table.py out.nt equipment.csv line.csv sensor.csv
   python multi_table.py out.nt --main equipment.csv line.csv sensor.csv maintenance.csv
 """
-import sys
 import os
-import csv
-import json
+import sys
 import argparse
 from datetime import datetime
 

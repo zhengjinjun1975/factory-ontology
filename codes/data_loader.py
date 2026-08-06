@@ -44,12 +44,16 @@ def load_table(path):
 
     if ext in (".db", ".sqlite", ".sqlite3"):
         import sqlite3
+        import re
         conn = sqlite3.connect(path)
         try:
             tabs = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")]
             if not tabs:
                 raise ValueError(f"SQLite 无表: {path}")
-            table = tabs[0]
+            # 防 SQL 注入：表名只允许合法标识符（表名来自库内, 但拼接进 SQL 前校验）
+            table = next((t for t in tabs if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", t)), None)
+            if table is None:
+                raise ValueError(f"SQLite 表名不合法: {tabs}")
             cur = conn.execute(f'SELECT * FROM "{table}"')
             headers = [d[0] for d in cur.description]
             rows = [dict(zip(headers, ["" if x is None else str(x) for x in row])) for row in cur.fetchall()]

@@ -5,6 +5,11 @@
 ### 新增
 - **多数据源支持**：`data_loader.py` 统一读取 CSV / JSON / SQLite / Excel（前三种标准库零依赖，Excel 可选 openpyxl）；`csv_to_owl.py` 与 `multi_table.py` 均支持
 
+### 修复（CodeAgent 代码审查发现）
+- **data_loader.py**：SQLite 表名拼接前加合法标识符校验，消除 SQL 注入风险（表名来自库内，校验后安全）
+- **multi_table.py**：移除未使用的 `csv` / `json` import（改 data_loader 后的残留）
+- **csv_to_owl.py**：移除未使用的 `os` import
+
 ## [2.0.1] — 2026-08-06
 
 ### 新增
