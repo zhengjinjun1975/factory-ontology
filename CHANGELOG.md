@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.0.2] — 2026-08-06
+
+### 新增
+- **多数据源支持**：`data_loader.py` 统一读取 CSV / JSON / SQLite / Excel（前三种标准库零依赖，Excel 可选 openpyxl）；`csv_to_owl.py` 与 `multi_table.py` 均支持
+
 ## [2.0.1] — 2026-08-06
 
 ### 新增

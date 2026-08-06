@@ -2,7 +2,7 @@
 
 > 本体建模 → 大模型落地的开源实现：把任意结构化数据（CSV）自动转成"实体-关系-属性"语义本体，再提供自然语言问答。**换任何工厂/领域，只换数据，代码不动。**
 
-[![Version](https://img.shields.io/badge/version-2.0.1-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.0.2-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
 
@@ -74,6 +74,20 @@ python multi_table.py output/multi.nt data/equipment.csv data/line.csv data/supp
 3. 目标表 id 列与当前列同名
 
 每个表 → 一个类，每行 → 一个实例，普通列 → 数据属性，外键列 → 对象属性跨表链接。示例表在 `data/line.csv`、`equipment.csv`、`supplier.csv`（合成数据，便于复现）。
+
+### 多数据源（#4）
+
+`data_loader.py` 统一读取 CSV / JSON / SQLite / Excel，`csv_to_owl` 与 `multi_table` 均支持：
+
+```bash
+python csv_to_owl.py data/equipment.json output/equipment.nt      # JSON
+python csv_to_owl.py data/equipment.db  output/equipment.nt       # SQLite(取第一个表)
+python csv_to_owl.py data/equipment.xlsx output/equipment.nt      # Excel(需 pip install openpyxl)
+```
+
+- CSV / JSON / SQLite 用标准库（零依赖）；Excel 可选 `openpyxl`
+- JSON 格式：`[{"col":值,...}]` 或 `{"rows":[...]}` / `{"data":[...]}`
+- SQLite 取库中第一个表
 
 ## Web 前端（web/）
 
