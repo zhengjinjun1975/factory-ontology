@@ -20,7 +20,6 @@ sys.path.insert(0, ROOT)
 import multi_table as mt
 import graph_rag as gr
 import ontology_qa_v3 as v3
-import csv_to_owl as c2o
 
 DATA = os.path.join(ROOT, "data")
 OUT = os.path.join(ROOT, "output")
@@ -109,4 +108,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"❌ 执行失败: {e}")
+        sys.exit(1)

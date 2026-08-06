@@ -141,12 +141,15 @@ def health():
 
 @app.post("/api/ask")
 def ask(req: AskReq):
-    """自然语言问答：先规则引擎，命中不了走 GraphRAG。"""
+    """自然语言问答：先规则引擎，命中不了走 GraphRAG，再答不上给引导。"""
     ans = v3.answer(req.question, QDATA, D)
     if ans != "暂不支持该问题":
         return {"ok": True, "mode": "rule", "answer": ans}
-    gans, ctx = gr.answer_graph(req.question, FOOD_NT, FOOD_LEX, depth=2, max_nodes=40)
-    return {"ok": True, "mode": "graphrag", "answer": gans, "context": ctx[:2000]}
+    gans, ctx = gr.answer_graph(req.question, FOOD_NT, depth=2, max_nodes=40)
+    if not gans.startswith("[图检索]"):
+        return {"ok": True, "mode": "graphrag", "answer": gans, "context": ctx[:2000]}
+    return {"ok": True, "mode": "miss",
+            "answer": "抱歉，暂未理解该问题。\n可试试问：\n· 乳制品的数量\n· 保质期最长的产品\n· B001 用了哪些原料\n· RM008 用于哪些批次\n· 原味酸奶是什么"}
 
 
 @app.get("/api/trace/forward")
