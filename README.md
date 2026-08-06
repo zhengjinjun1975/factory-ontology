@@ -2,7 +2,7 @@
 
 > 本体建模 → 大模型落地的开源实现：把任意结构化数据（CSV）自动转成"实体-关系-属性"语义本体，再提供自然语言问答。**换任何工厂/领域，只换数据，代码不动。**
 
-[![Version](https://img.shields.io/badge/version-2.8.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.9.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
 [![CI](https://github.com/zhengjinjun1975/factory-ontology/actions/workflows/ci.yml/badge.svg)](https://github.com/zhengjinjun1975/factory-ontology/actions)
@@ -183,6 +183,23 @@ python new_kb.py <知识库名> --name "企业显示名" --icon "🏭"
 
 验证：`python data_quality.py`（数据质量）+ `python benchmark_graphrag.py`（问答命中率）。
 APP 的品牌/图标/示例问题自动从 kbs.json 读取，无需改代码。
+
+## 定位与横向对比（诚实）
+
+**它不是**通用 AI 平台（Dify/RAGFlow），**也不是**大规模图 RAG（GraphRAG/LightRAG）。它是 **"KAG 的轻量确定版 + 垂直溯源场景"**——填补"轻量 + 确定性 + 可解释 + 中小厂台账溯源"的空白。
+
+| 产品 | 星数 | 本体建模 | 确定性/零token | 溯源 | 部署 |
+|------|------|:---:|:---:|:---:|:---:|
+| Dify | 151k | ❌ | ❌ | ❌ | 重 |
+| RAGFlow | 87k | ❌ | ❌ | ❌ | 重 |
+| LightRAG | 39k | ❌ | ❌ | ❌ | 中 |
+| GraphRAG(微软) | 35k | ❌ | ❌ | ❌ | 重 |
+| FastGPT | 29k | ❌ | ❌ | ❌ | 重 |
+| KAG(蚂蚁) | 9k | ✅ | ❌ | ❌ | 重 |
+| **factory-ontology** | — | ✅ | **✅** | **✅** | **极轻** |
+
+**差异化**：规则引擎对结构化查询**确定性 100%、零 token、零幻觉**（全社区独有）+ 本体自动建模（换数据即用）+ 垂直溯源（召回核心）+ 可解释 + 全本地化（数据不出厂）。
+**诚实短板**：社区/生态极小、规模受限、LLM 兜底未大规模评测。
 
 ## 模型配置
 
