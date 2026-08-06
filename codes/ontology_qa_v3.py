@@ -325,6 +325,23 @@ def answer(q, data, D):
         cname = cn2cn.get(attr_en, attr_en)
         return "%s信息:\n%s" % (cname, "\n".join(f"  {_display_name(d, aliases, default='')}: {v}" for d, v in matched[:20]))
 
+    # ---- 总数: 一共有多少条记录 ----
+    if ("一共" in q or "总共有" in q or "总共" in q) and ("记录" in q or "多少" in q):
+        return "一共有 %d 条记录" % len(data)
+
+    # ---- 过滤计数: 属性=N 的数量 (机器故障标签=1 的数量) ----
+    m_eq = re.search(r'[=＝]\s*(-?\d+(?:\.\d+)?)\s*的?\s*(数量|多少|共)', q)
+    if attr_en and m_eq:
+        target = m_eq.group(1)
+        tv = float(target)
+        n = sum(1 for d in data.values()
+                if _num(_field(d, attr_en, aliases)) is not None
+                and float(_num(_field(d, attr_en, aliases))) == tv)
+        if n == 0:  # 可能以字符串存储
+            n = sum(1 for d in data.values() if str(_field(d, attr_en, aliases)).strip() == target)
+        cname = cn2cn.get(attr_en, attr_en)
+        return "%s=%s 的数量是 %d" % (cname, target, n)
+
     return "暂不支持该问题"
 
 
