@@ -15,7 +15,7 @@ npm start            # 启动服务 http://localhost:3001
 
 | 端点 | 说明 |
 |------|------|
-| `POST /api/ontology/setup` | 上传 CSV → `run.py setup` 建模（本体+词典） |
+| `POST /api/ontology/setup` | 上传文本数据(CSV/JSON) → `run.py setup` 建模（本体+词典） |
 | `POST /api/ontology/ask` | 自然语言问答（`ontology_qa_v3` 规则 + LLM 兜底） |
 | `GET /api/ontology/schema` | 本体结构图（类/数据属性/对象属性） |
 | `GET /api/ontology/stats` | 聚合统计看板（类型/状态/产线分布） |
@@ -25,7 +25,8 @@ npm start            # 启动服务 http://localhost:3001
 ## 说明
 
 - 后端通过 `child_process` 调用仓库 `codes/` 下的 Python 套件（路径全相对，无硬编码私有路径）
-- **上传→建模→问答** 主流程适用于任意 CSV；分析/看板面板按"工厂设备 + 产线"场景设计，读 `data/equipment.csv` + `line.csv`
+- **上传→建模→问答** 主流程适用于任意 CSV / JSON（文本格式）；二进制 SQLite / Excel 请在命令行用 `codes/` 套件（`python run.py setup <文件>`）
+- 分析/看板面板按"工厂设备 + 产线"场景设计，读 `data/equipment.csv` + `line.csv`
 - 模型在 `codes/config/model_config.json` 配置，前端顶部下拉可切换
 - 依赖：Node 18+、Python 3.9+（模型调用可选）
 

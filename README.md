@@ -101,7 +101,7 @@ npm start            # 启动服务 http://localhost:3001
 ```
 
 - 后端 `server/` 通过 child_process 调用仓库 `codes/` 套件（已去除硬编码私有路径，全相对）
-- 上传任意 CSV → `run.py setup` 建模 → `ontology_qa_v3` 问答
+- 上传文本数据（CSV/JSON）→ `run.py setup` 建模 → `ontology_qa_v3` 问答；二进制 SQLite/Excel 走命令行
 - 含模型切换、知识图谱结构图、分析看板
 - 注意：分析面板目前按"工厂设备 + 产线"场景设计（读 `data/equipment.csv` + `line.csv`）；用自定义数据时，**上传→建模→问答**主流程不受影响
 
