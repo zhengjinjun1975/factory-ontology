@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.7.0] — 2026-08-06
+
+### 精炼化（去除冗余能力）
+- **删除早期研究框架的冗余层**（10 个模块）：`pipeline` / `factory_agent` / `aggregate` / `analysis` / `model_schema` / `ontology_depth` + 4 个死 agent（enhance/ingest/ops/query）
+- 保留 `agents/lexicon_agent`（run.py 自动词典用）+ `core/base_agent`（其依赖）+ `csv_to_owl`（单表建本体）
+- 根目录收敛为**精炼核心路径**：data_loader → multi_table → ontology_qa_v3 + graph_rag → api_server
+- README 核心组件表更新，定位为"本体在中小工厂的具体实施"参考
+
 ## [2.6.2] — 2026-08-06
 
 ### 短板推进（测试加固 + 实证）
