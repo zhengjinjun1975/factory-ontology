@@ -58,6 +58,22 @@ python factory_agent.py setup 你的数据.csv
 
 **问答逻辑不绑定具体词表，靠词典驱动。换数据源只换词典，代码不动。**
 
+### 多表自动关联建本体（#3）
+
+`multi_table.py` 从多个关联 CSV 表**自动检测外键**并生成统一跨表本体，无需手写 relations.json：
+
+```bash
+# 自动检测 equipment.line_id -> line, 生成 hasLine 对象属性链接
+python multi_table.py output/multi.nt data/equipment.csv data/line.csv data/supplier.csv
+```
+
+外键自动检测规则（任一命中即判为外键，生成 owl:ObjectProperty）：
+1. 列名 = `<目标表名>_id` / `<目标表名>Id`（如 `line_id` → line 表）
+2. 列名去掉 `_id` 后 == 目标表的 id 列名
+3. 目标表 id 列与当前列同名
+
+每个表 → 一个类，每行 → 一个实例，普通列 → 数据属性，外键列 → 对象属性跨表链接。示例表在 `data/line.csv`、`equipment.csv`、`supplier.csv`（合成数据，便于复现）。
+
 ## 核心组件
 
 | 模块 | 作用 |

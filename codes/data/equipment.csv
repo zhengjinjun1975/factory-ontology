@@ -1,0 +1,6 @@
+id,device_name,device_type,line_id,power_kw,status
+E1,CNC铣床-1,加工中心,L1,22.5,running
+E2,焊机-1,焊接设备,L2,15.0,stopped
+E3,CNC铣床-2,加工中心,L1,22.5,running
+E4,装配机器人-1,机器人,L2,8.0,running
+E5,质检仪-01,检测设备,L3,3.5,idle
