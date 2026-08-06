@@ -1,0 +1,5 @@
+node_modules/
+web_state.json
+data/
+dist/
+.env
