@@ -1,0 +1,50 @@
+{
+  "status_cn2en": {
+    "正常": "0",
+    "故障": "1"
+  },
+  "type_cn2en": {},
+  "zone_cn2en": {},
+  "attr_cn2en": {
+    "udi": "UDI",
+    "air温度": "Air_temperature_",
+    "process温度": "Process_temperature_",
+    "转速转速": "Rotational_speed_",
+    "扭矩": "Torque_",
+    "toolwear": "Tool_wear_",
+    "机器故障": "Machine_failure",
+    "twf": "TWF",
+    "hdf": "HDF",
+    "pwf": "PWF",
+    "osf": "OSF",
+    "rnf": "RNF"
+  },
+  "attr_en2cn": {
+    "UDI": "udi",
+    "Air_temperature_": "air温度",
+    "Process_temperature_": "process温度",
+    "Rotational_speed_": "转速转速",
+    "Torque_": "扭矩",
+    "Tool_wear_": "toolwear",
+    "Machine_failure": "机器故障",
+    "TWF": "twf",
+    "HDF": "hdf",
+    "PWF": "pwf",
+    "OSF": "osf",
+    "RNF": "rnf"
+  },
+  "field_aliases": {
+    "deviceType": [
+      "Type"
+    ],
+    "status": [
+      "Machine_failure",
+      "MachineFailure"
+    ]
+  },
+  "relations_cn2en": {},
+  "value_fields": {
+    "Type": "Type"
+  },
+  "description": "由 LexiconAgent 全自动生成 (ai4i, 14字段)"
+}

@@ -1,0 +1,59 @@
+{
+  "status_cn2en": {
+    "运行中": "running", "运行": "running", "正常": "running",
+    "空闲": "idle", "闲置": "idle",
+    "报警": "alarm", "故障": "alarm", "异常": "alarm",
+    "维修": "maintenance", "保养": "maintenance",
+    "离线": "offline", "停机": "offline"
+  },
+  "type_cn2en": {
+    "空压机": "air_compressor",
+    "焊接机器人": "welding_robot", "机器人": "welding_robot",
+    "注塑机": "injection_molding",
+    "CNC": "cnc_machining", "铣床": "cnc_machining", "加工中心": "cnc_machining",
+    "装配线": "assembly_line", "装配": "assembly_line",
+    "视觉检测": "inspection_cam", "检测": "inspection_cam", "质检": "inspection_cam",
+    "配电柜": "power_dist",
+    "制冷机组": "cooling_unit", "制冷": "cooling_unit",
+    "AGV": "agv", "叉车": "forklift", "电动叉车": "forklift",
+    "输送线": "conveyor", "输送带": "conveyor"
+  },
+  "attr_cn2en": {
+    "功率": "powerKw", "传感器": "sensorCount", "状态": "status",
+    "位置": "location", "厂商": "manufacturer", "厂家": "manufacturer",
+    "产线": "lineId", "安装日期": "installDate", "设备类型": "deviceType",
+    "能耗": "energyKwhToday", "电耗": "energyKwhToday",
+    "良品率": "yieldRatePct", "合格率": "yieldRatePct", "良率": "yieldRatePct",
+    "运行小时": "runHours", "运行时长": "runHours",
+    "负责人": "owner", "区域": "zone", "车间": "zone",
+    "下次维护": "nextMaintenance", "维护周期": "maintenanceCycleDays",
+    "优先级": "priority", "数量": "quantity", "单价": "unitPrice",
+    "库存": "quantity", "补货线": "reorderLevel", "供应商": "vendor",
+    "运行小时": "runHours", "运行时长": "runHours", "小时": "runHours"
+  },
+  "attr_en2cn": {
+    "powerKw": "功率", "sensorCount": "传感器数", "status": "状态",
+    "location": "位置", "manufacturer": "厂商", "lineId": "产线",
+    "installDate": "安装日期", "deviceType": "设备类型",
+    "energyKwhToday": "今日能耗", "yieldRatePct": "良品率",
+    "runHours": "运行小时", "owner": "负责人", "zone": "区域",
+    "nextMaintenance": "下次维护", "maintenanceCycleDays": "维护周期",
+    "priority": "优先级", "quantity": "数量", "unitPrice": "单价",
+    "reorderLevel": "补货线", "vendor": "供应商"
+  },
+  "zone_cn2en": {
+    "机加": "机加", "加工": "机加", "注塑": "注塑",
+    "焊接": "焊接", "装配": "装配", "质检": "质检", "质量": "质检",
+    "动力": "动力", "物流": "物流", "仓储": "物流"
+  },
+  "value_fields": {
+    "status": "状态", "deviceType": "设备类型"
+  },
+  "field_aliases": {
+    "status": ["status", "state", "condition", "运行状态"],
+    "deviceType": ["deviceType", "device_type", "category", "type", "class"],
+    "deviceName": ["deviceName", "device_name", "item_name", "name", "设备名称"],
+    "location": ["location", "zone", "area", "region", "车间", "区域"]
+  },
+  "description": "默认词典。status/type 字段值的中文↔英文映射，供规则问答引擎匹配。value_fields 标注哪些字段是枚举值(用于LLM自动生成词表)。field_aliases 让引擎跨数据源识别标准字段(状态/类型/名称)。"
+}

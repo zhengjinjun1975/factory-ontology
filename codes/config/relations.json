@@ -1,0 +1,27 @@
+{
+  "_comment": "对象属性配置：声明 CSV 中哪些列是'引用其他实体'的外键，而非普通数据属性。csv_to_owl 据此生成 owl:ObjectProperty 而非 DatatypeProperty。",
+  "equipment": {
+    "object_properties": {
+      "device_type": {
+        "rel": "http://factory.example/ontology#hasType",
+        "target_class": "DeviceType",
+        "label": "设备类型"
+      },
+      "location": {
+        "rel": "http://factory.example/ontology#locatedIn",
+        "target_class": "Location",
+        "label": "位于"
+      },
+      "line_id": {
+        "rel": "http://factory.example/ontology#belongsToLine",
+        "target_class": "Line",
+        "label": "属于产线"
+      },
+      "manufacturer": {
+        "rel": "http://factory.example/ontology#manufacturedBy",
+        "target_class": "Manufacturer",
+        "label": "制造商"
+      }
+    }
+  }
+}

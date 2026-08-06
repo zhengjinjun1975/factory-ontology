@@ -1,0 +1,49 @@
+{
+  "status_cn2en": {
+    "正常": "0",
+    "故障": "1"
+  },
+  "type_cn2en": {},
+  "zone_cn2en": {},
+  "attr_cn2en": {
+    "样本唯一标识": "UDI",
+    "空气温度": "Air_temperature_",
+    "工艺温度": "Process_temperature_",
+    "转速": "Rotational_speed_",
+    "扭矩": "Torque_",
+    "刀具磨损度": "Tool_wear_",
+    "机器故障标签": "Machine_failure",
+    "刀具磨损故障": "TWF",
+    "热缺陷故障": "HDF",
+    "过程磨损故障": "PWF",
+    "操作停止故障": "OSF",
+    "粗糙噪声故障": "RNF"
+  },
+  "attr_en2cn": {
+    "UDI": "样本唯一标识",
+    "Air_temperature_": "空气温度",
+    "Process_temperature_": "工艺温度",
+    "Rotational_speed_": "转速",
+    "Torque_": "扭矩",
+    "Tool_wear_": "刀具磨损度",
+    "Machine_failure": "机器故障标签",
+    "TWF": "刀具磨损故障",
+    "HDF": "热缺陷故障",
+    "PWF": "过程磨损故障",
+    "OSF": "操作停止故障",
+    "RNF": "粗糙噪声故障"
+  },
+  "field_aliases": {
+    "deviceType": [
+      "Type"
+    ],
+    "status": [
+      "Machine_failure",
+      "MachineFailure"
+    ]
+  },
+  "value_fields": {
+    "Type": "Type"
+  },
+  "description": "由 LexiconAgent 全自动生成 (ai4i, 14字段)"
+}

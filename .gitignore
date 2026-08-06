@@ -1,0 +1,18 @@
+# 数据与运行态（含工厂真实数据，不纳入开源）
+codes/data/*.csv
+!codes/data/ai4i.csv
+current.json
+web_state.json
+output/
+*.nt
+
+# Python
+__pycache__/
+*.pyc
+*.bak*
+.venv/
+.env
+
+# 前端/节点
+node_modules/
+dist/
