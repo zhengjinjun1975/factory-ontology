@@ -3,6 +3,9 @@ codes/data/*.csv
 !codes/data/ai4i.csv
 !codes/data/library_inventory.csv
 !codes/data/energy_station.csv
+!codes/data/line.csv
+!codes/data/equipment.csv
+!codes/data/supplier.csv
 current.json
 web_state.json
 output/
