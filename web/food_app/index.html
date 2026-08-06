@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>食品溯源 · 智能助手</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; background:#f5f7fa; color:#1f2937; }
+  header { background:#16a34a; color:#fff; padding:14px 16px; display:flex; align-items:center; gap:10px; }
+  header .logo { font-size:22px; }
+  header h1 { font-size:17px; font-weight:600; }
+  header .sub { font-size:11px; opacity:.85; }
+  .tabs { display:flex; background:#fff; border-bottom:1px solid #e5e7eb; position:sticky; top:0; z-index:10; }
+  .tab { flex:1; text-align:center; padding:11px 0; font-size:14px; color:#6b7280; cursor:pointer; border-bottom:2px solid transparent; }
+  .tab.active { color:#16a34a; border-bottom-color:#16a34a; font-weight:600; }
+  main { padding:16px; max-width:520px; margin:0 auto; }
+  .card { background:#fff; border-radius:12px; padding:16px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+  .card h3 { font-size:14px; margin-bottom:10px; color:#374151; }
+  input[type=text] { width:100%; padding:11px 12px; border:1px solid #d1d5db; border-radius:8px; font-size:15px; }
+  button { background:#16a34a; color:#fff; border:none; padding:11px; border-radius:8px; font-size:15px; cursor:pointer; width:100%; margin-top:8px; font-weight:600; }
+  button.secondary { background:#f3f4f6; color:#374151; }
+  .btn-row { display:flex; gap:8px; } .btn-row button { flex:1; }
+  .result { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:12px; margin-top:10px; font-size:14px; white-space:pre-wrap; }
+  .result.err { background:#fef2f2; border-color:#fecaca; color:#b91c1c; }
+  .kv { display:grid; grid-template-columns:auto 1fr; gap:4px 10px; font-size:13px; }
+  .kv .k { color:#6b7280; }
+  .chip { display:inline-block; background:#dcfce7; color:#15803d; border-radius:20px; padding:3px 10px; font-size:12px; margin:3px 3px 0 0; }
+  .status { font-size:12px; color:#9ca3af; text-align:center; margin-top:6px; }
+</style>
+</head>
+<body>
+<header>
+  <span class="logo">🥛</span>
+  <div><h1>食品企业溯源助手</h1><div class="sub">问 · 查 · 追 · 溯源</div></div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-tab="ask">智能问答</div>
+  <div class="tab" data-tab="scan">扫码溯源</div>
+  <div class="tab" data-tab="trace">批次追溯</div>
+</div>
+
+<main>
+  <!-- 问答 -->
+  <div id="pane-ask" class="pane">
+    <div class="card">
+      <h3>🗣️ 问知识库</h3>
+      <input type="text" id="ask-input" placeholder="例：乳制品的数量 / 保质期最长的是？">
+      <button onclick="doAsk()">提问</button>
+      <div id="ask-result" class="status"></div>
+    </div>
+  </div>
+
+  <!-- 扫码溯源 -->
+  <div id="pane-scan" class="pane" style="display:none">
+    <div class="card">
+      <h3>📷 扫码溯源</h3>
+      <input type="text" id="scan-input" placeholder="输入溯源码，如 P003-B005 或 B001">
+      <div class="btn-row"><button onclick="doScan('forward')">正向(查原料)</button></div>
+      <div id="scan-result" class="status"></div>
+    </div>
+  </div>
+
+  <!-- 批次追溯 -->
+  <div id="pane-trace" class="pane" style="display:none">
+    <div class="card">
+      <h3>🔍 反向追溯（食品安全）</h3>
+      <input type="text" id="trace-input" placeholder="输入原料编号，如 RM008（不合格原料）">
+      <div class="btn-row"><button onclick="doTrace('reverse')">追溯受影响批次</button></div>
+      <div id="trace-result" class="status"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+const BASE = '';
+function el(id){ return document.getElementById(id); }
+
+// 标签切换
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    ['ask','scan','trace'].forEach(p=>{ el('pane-'+p).style.display = (p===t.dataset.tab)?'':'none'; });
+  };
+});
+
+async function api(path){
+  const r = await fetch(BASE+path);
+  return r.json();
+}
+async function apiPost(path, body){
+  const r = await fetch(BASE+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  return r.json();
+}
+
+function show(domId, data, err){
+  const box = el(domId);
+  if (err){ box.className='result err'; box.textContent = err; return; }
+  box.className='result'; box.textContent = data;
+}
+
+async function doAsk(){
+  const q = el('ask-input').value.trim(); if(!q) return;
+  const r = await apiPost('/api/ask',{question:q});
+  show('ask-result', r.answer || r.error, r.error&&!r.answer?r.error:null);
+}
+
+async function doScan(dir){
+  const code = el('scan-input').value.trim(); if(!code) return;
+  const r = await api('/api/scan?code='+encodeURIComponent(code));
+  if(!r.ok){ show('scan-result', null, r.error||r.detail||'未找到'); return; }
+  const chips = (r.raw_materials||[]).map(x=>`<span class="chip">${x.split('_').pop()}</span>`).join('');
+  el('scan-result').className='result';
+  el('scan-result').innerHTML =
+    `<b>批次 ${r.batch}</b>（${r.produce_date||''}）<br>产品: ${(r.product||[]).join(',')}<br><br>原料批次: ${chips||'—'}`;
+}
+
+async function doTrace(dir){
+  const raw = el('trace-input').value.trim(); if(!raw) return;
+  const r = await api('/api/trace/reverse?raw='+encodeURIComponent(raw));
+  if(!r.ok){ show('trace-result', null, r.error||r.detail||'未找到'); return; }
+  const rows = (r.affected_batches||[]).map(b=>`· 批次 ${b.batch.split('_').pop()} → ${b.product}（${b.produce_date}）`).join('\n')||'无受影响批次';
+  show('trace-result', `${r.raw_material.split('_').pop()} 影响：\n${rows}`);
+}
+</script>
+</body>
+</html>
