@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知识库管理后台</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#f5f7fa;color:#1f2937;padding:16px}
+  h1{font-size:18px;margin-bottom:12px}
+  .card{background:#fff;border-radius:12px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .card h3{font-size:14px;margin-bottom:10px;color:#374151}
+  label{font-size:13px;display:block;margin:6px 0 4px}
+  select,input[type=file],input[type=text]{width:100%;padding:9px;border:1px solid #d1d5db;border-radius:8px;font-size:14px}
+  button{background:#16a34a;color:#fff;border:none;padding:9px 14px;border-radius:8px;font-size:14px;cursor:pointer;margin-top:8px}
+  .row{display:flex;gap:8px;align-items:center}
+  pre{background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:10px;font-size:12px;overflow:auto;white-space:pre-wrap}
+  .stat{display:inline-block;background:#dcfce7;color:#15803d;border-radius:8px;padding:6px 12px;font-size:13px;margin:4px 6px 4px 0}
+  .status{font-size:12px;color:#9ca3af;margin-top:6px}
+</style>
+</head>
+<body>
+<h1>⚙️ 知识库管理后台</h1>
+
+<div class="card">
+  <h3>📊 知识库统计</h3>
+  <div id="stats"></div>
+</div>
+
+<div class="card">
+  <h3>📤 上传数据（CSV → 重建本体）</h3>
+  <label>目标表</label>
+  <select id="table">
+    <option value="products">products 产品</option>
+    <option value="raw_materials">raw_materials 原料/零部件</option>
+    <option value="batches">batches 批次</option>
+    <option value="ingredient">ingredient 批次-原料</option>
+    <option value="qc">qc 质检</option>
+    <option value="equipment">equipment 设备</option>
+  </select>
+  <label>CSV 文件</label>
+  <input type="file" id="file" accept=".csv">
+  <button onclick="upload()">上传并重建</button>
+  <div id="up-status" class="status"></div>
+</div>
+
+<div class="card">
+  <h3>🧠 当前词典（config/lexicon_*.json）</h3>
+  <pre id="lexicon">加载中…</pre>
+</div>
+
+<div class="card">
+  <h3>📋 最近审计日志</h3>
+  <pre id="audit">加载中…</pre>
+</div>
+
+<script>
+const BASE='';
+async function j(u){const r=await fetch(BASE+u);const d=await r.json();if(!r.ok)throw new Error(d.detail||d.error||('HTTP '+r.status));return d;}
+async function load(){
+  try{
+    const s=await j('/api/stats');
+    el('stats').innerHTML=Object.entries(s).filter(([k])=>typeof s[k]==='number').map(([k,v])=>`<span class="stat">${k}: ${v}</span>`).join('');
+  }catch(e){el('stats').textContent='加载失败: '+e.message;}
+  try{
+    const d=await j('/api/app-config');
+    el('lexicon').textContent=JSON.stringify({kb:d.kb,name:d.name,examples:d.examples},null,2);
+  }catch(e){el('lexicon').textContent='加载失败: '+e.message;}
+  try{
+    const d=await j('/api/admin/audit?limit=20');
+    el('audit').textContent=JSON.stringify(d.audit||[],null,2);
+  }catch(e){el('audit').textContent='加载失败(需admin Key?): '+e.message;}
+}
+async function upload(){
+  const f=el('file').files[0]; if(!f){el('up-status').textContent='请选CSV';return;}
+  const fd=new FormData(); fd.append('file',f);
+  const table=el('table').value;
+  try{
+    const r=await fetch(BASE+'/api/admin/upload?table='+table,{method:'POST',body:fd});
+    const d=await r.json();
+    el('up-status').textContent = r.ok ? `✅ 上传 ${d.file} → ${d.table}, 本体节点 ${d.nodes}` : ('❌ '+ (d.detail||d.error));
+    if(r.ok) load();
+  }catch(e){el('up-status').textContent='❌ '+e.message;}
+}
+function el(id){return document.getElementById(id);}
+load();
+</script>
+</body>
+</html>

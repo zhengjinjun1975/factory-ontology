@@ -29,8 +29,8 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("food-api")
 
-from fastapi import FastAPI, HTTPException, Query, Header, Request, Depends
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi import FastAPI, HTTPException, Query, Header, Request, Depends, UploadFile, File
+from fastapi.responses import HTMLResponse, FileResponse, PlainTextResponse
 from pydantic import BaseModel
 
 import graph_rag as gr
@@ -128,6 +128,14 @@ app = FastAPI(title="食品企业知识库 API", version="2.2.0",
 
 # ── 托管移动端食品溯源 APP（与 API 同源，一套部署） ──
 FOOD_APP_HTML = os.path.join(os.path.dirname(ROOT), "web", "food_app", "index.html")
+ADMIN_HTML = os.path.join(os.path.dirname(ROOT), "web", "admin.html")
+
+
+@app.get("/admin", include_in_schema=False)
+def admin_page():
+    """管理后台页(需要 admin Key 调 /api/admin/*, 页面本身静态)。"""
+    if os.path.exists(ADMIN_HTML):
+        return HTMLResponse(open(ADMIN_HTML, encoding="utf-8").read())
 
 
 @app.get("/", include_in_schema=False)
@@ -195,6 +203,51 @@ async def audit_and_count(request: Request, call_next):
     return response
 
 
+@app.get("/api/export/reverse", dependencies=[Depends(require_key)])
+def export_reverse(raw: str = Query(..., description="原料编号，如 RM008"), fmt: str = Query("csv", pattern="^(csv|txt)$")):
+    """溯源报告导出: 原料 → 受影响批次 → 产品(食品召回/合规)。"""
+    data = _reverse_trace(raw)
+    raw_name = _resolve_readable(data["raw_material"])
+    lines = [["原料", raw_name], [], ["受影响批次", "产品", "生产日期"]]
+    for ab in data["affected_batches"]:
+        prod = _resolve_readable(ab["product"]) if ab.get("product") else ""
+        lines.append([ab["batch"], prod, ab.get("produce_date", "")])
+    if fmt == "txt":
+        body = "\n".join("\t".join(map(str, r)) for r in lines)
+        return PlainTextResponse(body, media_type="text/plain",
+                                 headers={"Content-Disposition": f"attachment; filename=trace_{raw}.txt"})
+    import io, csv as _csv
+    buf = io.StringIO()
+    w = _csv.writer(buf)
+    w.writerows(lines)
+    return PlainTextResponse(buf.getvalue(), media_type="text/csv",
+                             headers={"Content-Disposition": f"attachment; filename=trace_{raw}.csv"})
+
+
+@app.post("/api/admin/upload", dependencies=[Depends(require_admin)])
+async def admin_upload(file: UploadFile = File(...), table: str = Query("products", description="目标表,如 products/raw_materials/batches/ingredient/qc/equipment")):
+    """管理操作: 上传 CSV 到指定表 + 重建本体。"""
+    fname = file.filename or "upload.csv"
+    if not fname.endswith(".csv"):
+        raise HTTPException(400, "仅支持 CSV")
+    target = table if table.startswith("food_") else f"food_{table}"
+    dest = os.path.join(DATA, f"{target}.csv")
+    os.makedirs(DATA, exist_ok=True)
+    content = await file.read()
+    with open(dest, "wb") as f:
+        f.write(content)
+    # 重建(强制, 让新数据生效)
+    for fn in ["food.nt", "food_data_hash.txt"]:
+        p = os.path.join(os.path.dirname(FOOD_NT), fn)
+        if os.path.exists(p):
+            os.remove(p)
+    global graph, labels, vi, rev, QDATA
+    graph, labels, vi, rev = _load()
+    QDATA = v3.build_data(v3.parse_nt(FOOD_NT), D)
+    logger.info("上传 %s -> %s, 本体已重建", fname, dest)
+    return {"ok": True, "file": fname, "table": target, "nodes": len(graph)}
+
+
 @app.get("/api/admin/kbs", dependencies=[Depends(require_admin)])
 def admin_kbs():
     """管理操作: 列出所有已注册知识库 + 当前激活的。"""
@@ -213,6 +266,25 @@ def admin_audit(limit: int = Query(50, le=500)):
 
 def _label(uri):
     return labels.get(uri, gr.tail(uri))
+
+
+def _resolve_readable(tail_name):
+    """按实体 ID(tail) 找 URI 并返回可读名。"""
+    if not tail_name:
+        return ""
+    uri = _find(tail_name)
+    return _readable_name(uri) if uri else tail_name
+
+
+def _readable_name(uri):
+    """从图的数据属性解析实体可读名(产品名/原料名/设备名), 供导出/展示。"""
+    if not uri:
+        return ""
+    props = graph.get(uri, {})
+    for rel in ("productName", "rawName", "deviceName", "name"):
+        if props.get(rel):
+            return str(props[rel][0])
+    return _label(uri)
 
 
 def _forward_trace(batch_id):

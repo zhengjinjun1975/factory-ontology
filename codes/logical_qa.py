@@ -220,6 +220,14 @@ def execute_query(query, data, D):
     def num_items(recs):
         return [(n, _num(_field(d, attr_en, aliases))) for n, d in recs.items()]
 
+    def disp(n):
+        """实体名解析为可读名(产品名/名称回退, 兼容驼峰/下划线)。"""
+        d = data.get(n, {})
+        for k in ("productName", "product_name", "name", "deviceName", "device_name", "rawName", "raw_name"):
+            if d.get(k):
+                return str(d[k])
+        return str(n)
+
     # ---- extreme: 求最值 ----
     if intent == "extreme":
         items = [(n, v) for n, v in num_items(filtered) if v is not None]
@@ -228,7 +236,7 @@ def execute_query(query, data, D):
         is_max = query.get("extreme_dir", "max") != "min"
         best = max(items, key=lambda x: x[1]) if is_max else min(items, key=lambda x: x[1])
         label = "%s（%s）" % (attr_cn or attr_en, "最高" if is_max else "最低")
-        return "%s的记录: %s (%s=%s)" % (label, best[0], attr_cn or attr_en, best[1])
+        return "%s的记录: %s (%s=%s)" % (label, disp(best[0]), attr_cn or attr_en, best[1])
 
     # ---- topn: 前 N 个 ----
     if intent == "topn":
@@ -240,7 +248,7 @@ def execute_query(query, data, D):
         is_max = query.get("extreme_dir", "max") != "min"
         items.sort(key=lambda x: x[1], reverse=is_max)
         cname = attr_cn or attr_en
-        rows = ["  - %s (%s=%s)" % (n, cname, v) for n, v in items[:n]]
+        rows = ["  - %s (%s=%s)" % (disp(n), cname, v) for n, v in items[:n]]
         return "%s%s的%d个:\n%s" % ("最高" if is_max else "最低", cname, n, "\n".join(rows))
 
     # ---- filter: 属性过滤 ----

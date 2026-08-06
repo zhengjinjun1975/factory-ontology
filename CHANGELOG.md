@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.9.0] — 2026-08-06
+
+### 平台化 + 多源 + 定位（A+B+D1）
+- **逻辑桥评测**（`benchmark_logical.py`）：命中率 5/5=100%；`logical_qa` 补实体名解析（极值/排序返回中文名）
+- **ERP 多源接入**（`db_loader.py`）：直连 MySQL/PostgreSQL，缺驱动清晰报错
+- **Web 管理后台**：`/admin` 页面 + `POST /api/admin/upload`（CSV 上传 → 重建本体）+ 统计/词典/审计视图
+- **溯源导出**：`GET /api/export/reverse`（CSV/TXT，可读名：原料→批次→产品→日期）
+- **定位与横向对比**：README 加生态定位表（vs Dify/RAGFlow/GraphRAG/KAG）
+
 ## [2.8.0] — 2026-08-06
 
 ### 逻辑推理 + 可解释 + 全本地化（A+B+C，多 Agent 实现）

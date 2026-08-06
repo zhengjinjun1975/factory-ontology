@@ -56,14 +56,14 @@ def test_execute_extreme_max():
     q = {"intent": "extreme", "attr": "expiry_days", "extreme_dir": "max",
          "filter_cn": None, "rel": None, "n": None}
     ans = execute_query(q, _data(), _D())
-    assert ans is not None and "D" in ans and "180" in ans
+    assert ans is not None and "奶酪" in ans and "180" in ans
 
 
 def test_execute_extreme_min_with_filter():
     q = {"intent": "extreme", "attr": "price", "extreme_dir": "min",
          "filter_cn": "乳制品", "rel": None, "n": None}
     ans = execute_query(q, _data(), _D())
-    assert ans is not None and "8.0" in ans and "B" in ans
+    assert ans is not None and "8.0" in ans and "酸奶" in ans
 
 
 # ── total: 总记录数 ──
@@ -84,7 +84,7 @@ def test_execute_filter():
 def test_execute_topn():
     q = {"intent": "topn", "attr": "expiry_days", "filter_cn": None, "rel": None, "n": 2}
     ans = execute_query(q, _data(), _D())
-    assert ans is not None and "D" in ans and "A" in ans
+    assert ans is not None and "奶酪" in ans and "纯牛奶" in ans
 
 
 # ── 无法执行 → None ──
