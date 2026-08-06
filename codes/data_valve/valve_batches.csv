@@ -1,0 +1,5 @@
+id,product_id,produce_date,quantity,raw_parts,team,status
+VB01,V01,2026-07-01,50,RM01;RM02,装配一班,已入库
+VB02,V02,2026-07-02,40,RM02;RM03,装配二班,已入库
+VB03,V05,2026-07-03,30,RM02;RM05,装配一班,已入库
+VB04,V03,2026-07-05,60,RM01;RM04,装配二班,检验中
