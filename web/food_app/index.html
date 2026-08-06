@@ -130,7 +130,12 @@ function show(domId, data, err){
 async function doAsk(){
   const q = el('ask-input').value.trim(); if(!q) return;
   const r = await apiPost('/api/ask',{question:q});
-  show('ask-result', r.answer || r.error, r.error&&!r.answer?r.error:null);
+  let evHtml = '';
+  if(r.evidence && r.evidence.entities && r.evidence.entities.length && (r.mode==='rule'||r.mode==='logical')){
+    const names = r.evidence.entities.map(e=>`<span class="chip">${e.name||''}</span>`).join('');
+    evHtml = `<div class="status" style="margin-top:8px;text-align:left;font-size:12px">🎯 命中 ${r.evidence.entities.length} 条（${r.evidence.rule||''}）：${names}</div>`;
+  }
+  show('ask-result', (r.answer||'') + evHtml, r.error&&!r.answer?r.error:null);
 }
 
 async function doScan(dir){

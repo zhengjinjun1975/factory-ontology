@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.8.0] — 2026-08-06
+
+### 逻辑推理 + 可解释 + 全本地化（A+B+C，多 Agent 实现）
+- **逻辑推理桥**（`logical_qa.py`）：LLM 转逻辑查询 → 确定性执行器（借鉴 KAG logical-form 模式）。规则引擎 miss 后先走逻辑桥，覆盖更多开放式问题而不失确定性
+- **答案溯源/可解释**（`evidence.py`）：提取命中实体/属性/值证据，`/api/ask` 返回 `evidence`，APP 展示"答为什么"
+- **全本地化**（Ollama）：`model_config` 加 `local_ollama`，`model_llm` 支持 base_url 离线——数据不出厂
+- ask 流程：规则 → 逻辑桥 → GraphRAG → 引导（pytest 10→24 项）
+
 ## [2.7.2] — 2026-08-06
 
 ### 交付测试修复

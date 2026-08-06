@@ -312,14 +312,35 @@ def app_config():
 
 @app.post("/api/ask", dependencies=[Depends(require_key)])
 def ask(req: AskReq):
-    """自然语言问答：先规则引擎，命中不了走 GraphRAG，再答不上给引导。"""
+    """自然语言问答：规则引擎 → 逻辑推理桥(确定性) → GraphRAG → 引导。返回答案+证据(可解释)。"""
+    # 1. 规则引擎(确定性, 结构化查询)
     ans = v3.answer(req.question, QDATA, D)
     if ans != "暂不支持该问题":
-        return {"ok": True, "mode": "rule", "answer": ans}
+        try:
+            import evidence
+            ev = evidence.extract_evidence(req.question, QDATA, D, ans)
+        except Exception:
+            ev = {}
+        return {"ok": True, "mode": "rule", "answer": ans, "evidence": ev}
+    # 2. 逻辑推理桥(LLM转逻辑查询→确定性执行, 借鉴KAG; 覆盖更多开放式问题而不失确定性)
+    try:
+        import logical_qa
+        lres = logical_qa.answer(req.question, QDATA, D)
+        if lres:
+            lans, lmode = lres
+            try:
+                import evidence
+                ev = evidence.extract_evidence(req.question, QDATA, D, lans)
+            except Exception:
+                ev = {}
+            return {"ok": True, "mode": "logical", "answer": lans, "evidence": ev}
+    except Exception:
+        pass  # 逻辑桥不可用则跳过
+    # 3. GraphRAG(LLM 兜底)
     gans, ctx = gr.answer_graph(req.question, FOOD_NT, depth=2, max_nodes=40, lexicon=D)
     if not gans.startswith("[图检索]"):
         return {"ok": True, "mode": "graphrag", "answer": gans, "context": ctx[:2000]}
-    # 答不上: 从 KB 配置读示例引导(去硬编码)
+    # 4. 答不上: 从 KB 配置读示例引导(去硬编码)
     examples = _kb.get("examples", ["乳制品的数量", "原味酸奶是什么"])
     guide = "\n".join(f"· {e}" for e in examples[:5])
     return {"ok": True, "mode": "miss", "answer": f"抱歉，暂未理解该问题。\n可试试问：\n{guide}"}

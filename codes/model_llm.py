@@ -29,7 +29,8 @@ def _load_config():
 def get_model_config(model_key=None):
     """返回当前生效的模型配置 dict。model_key 可选 'local'/'cloud'，默认读 active。"""
     cfg = _load_config()
-    key = model_key or cfg.get("active", "local")
+    # 优先命令行/环境变量 FOOD_MODEL 覆盖，其次显式 model_key，最后读配置 active
+    key = model_key or os.environ.get("FOOD_MODEL") or cfg.get("active", "local")
     m = cfg.get("models", {}).get(key)
     if not m:
         # 回退到 local
@@ -75,11 +76,13 @@ def llm_generate(prompt, temperature=0.3, max_tokens=800, model_key=None):
 
     try:
         if mtype == "openai":
-            # 智谱 / DeepSeek / OpenAI 兼容
+            # 智谱 / DeepSeek / OpenAI 兼容（含本地 Ollama OpenAI 端点）
             if not api_key:
                 return "[模型错误] 云端模型未配置 API Key（model_config.json 或环境变量 ZHIPU_API_KEY/DEEPSEEK_API_KEY）"
+            # 若 base_url 只给到 /v1（Ollama OpenAI 兼容端点），自动补全 /chat/completions
+            url = base if base.rstrip("/").endswith("/chat/completions") else base.rstrip("/") + "/chat/completions"
             resp = requests.post(
-                base,
+                url,
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
                 json={
                     "model": model,
