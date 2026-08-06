@@ -1,0 +1,8 @@
+id,device_name,device_type,workshop,power_kw,status
+EQ001,灌装机-01,灌装设备,乳品车间,25.0,running
+EQ002,烘焙炉-1,烘烤设备,烘焙车间,80.0,running
+EQ003,冷库机组-01,制冷设备,冷藏库,120.0,running
+EQ004,封口机-01,包装设备,包装车间,15.0,stopped
+EQ005,搅拌罐-1,搅拌设备,乳品车间,30.0,running
+EQ006,杀菌机-01,杀菌设备,乳品车间,55.0,running
+EQ007,速冻隧道-1,速冻设备,冷冻车间,200.0,running

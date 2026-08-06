@@ -215,11 +215,11 @@ def answer(q, data, D):
 
     # ---- 数量: 状态/类型/区域 ----
     st_en, st_cn = _find_enum(D, q, "status")
-    if st_en and "多少" in q:
+    if st_en and ("多少" in q or "数量" in q):
         n = sum(1 for d in data.values() if _field(d, "status", aliases) == st_en)
         return "有 %d %s的" % (n, st_cn)
     ty_en, ty_cn = _find_enum(D, q, "type")
-    if ty_en and "多少" in q:
+    if ty_en and ("多少" in q or "数量" in q):
         n = sum(1 for d in data.values() if _field(d, "deviceType", aliases) == ty_en)
         return "有 %d %s" % (n, ty_cn)
 
