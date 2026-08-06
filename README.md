@@ -2,7 +2,7 @@
 
 > 本体建模 → 大模型落地的开源实现：把任意结构化数据（CSV）自动转成"实体-关系-属性"语义本体，再提供自然语言问答。**换任何工厂/领域，只换数据，代码不动。**
 
-[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
 [![CI](https://github.com/zhengjinjun1975/factory-ontology/actions/workflows/ci.yml/badge.svg)](https://github.com/zhengjinjun1975/factory-ontology/actions)
@@ -117,12 +117,30 @@ npm start            # 启动服务 http://localhost:3001
 | `factory_agent.py` | 一站式入口：自动建模 + 问答 |
 | `ontology_qa_v3.py` | **canonical 通用问答引擎**（规则优先 + 词典驱动） |
 | `benchmark.py` | 对照评测（规则引擎 / GraphRAG vs 纯 LLM） |
+| `api_server.py` | **REST API**（FastAPI）：问答 + 正/反向溯源 + 扫码 + 统计 |
 | `ontology_depth.py` | 深度增强（时序观测、状态/优先级推断） |
 | `analysis.py` | 智能分析（统计摘要 + LLM 洞察） |
 | `agents/lexicon_agent.py` | 全自动词典生成（LLM 推断字段语义） |
 | `config/` | 模型配置 + 词典 + 关系外置（换领域只换配置） |
 
 > 问答引擎以 `ontology_qa_v3.py` 为唯一 canonical 核心；`ontology_qa.py` / `ontology_qa_v2.py` / `ontology_query.py` / `ontology_relation_qa.py` 为历史遗留（已标注 DEPRECATED，仅供回退，勿在新代码引用）。
+
+### REST API（api_server.py）
+
+FastAPI 服务，APP / 语音 / Web 的统一入口（以食品企业知识库为例）：
+
+```bash
+cd codes && pip install fastapi uvicorn
+python api_server.py          # http://localhost:8000
+```
+
+| 端点 | 说明 |
+|------|------|
+| `POST /api/ask` | 自然语言问答（规则引擎 → GraphRAG 兜底） |
+| `GET /api/trace/forward?batch=B001` | 正向溯源：批次 → 产品 + 原料 |
+| `GET /api/trace/reverse?raw=RM008` | **反向溯源**（食品安全）：原料 → 受影响批次 → 产品 |
+| `GET /api/scan?code=P003-B005` | 扫码溯源（识别产品批次） |
+| `GET /api/stats` | 知识库统计 |
 
 ## 模型配置
 

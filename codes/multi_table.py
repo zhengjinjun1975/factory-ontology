@@ -143,12 +143,18 @@ def build_nt(tables, rels, outpath):
                 continue
             vals = [r[h] for r in tinfo["rows"] if h in r and r[h].strip()]
             prop_types[h] = guess_type(vals[0]) if vals else "xsd:string"
+        seen_ids = set()
         for i, row in enumerate(tinfo["rows"]):
             inst_id = row.get(id_col) or f"{i+1}"
+            # join 表 id 列非唯一时去重(追加行号), 避免 URI 碰撞
+            if inst_id in seen_ids:
+                inst_id = f"{inst_id}_{i}"
+            seen_ids.add(inst_id)
             inst_uri = f"{cls_uri}_{inst_id}"
             L.append(f"<{inst_uri}> {RDF_TYPE} <{cls_uri}> .")
             for h in tinfo["headers"]:
-                if h == id_col or h not in row or not row[h].strip():
+                # id 列仅作标识时跳过; 若 id 列同时在 relations 里则作为对象属性发出
+                if (h == id_col and h not in t_rels) or h not in row or not row[h].strip():
                     continue
                 if h in t_rels:
                     cfg = t_rels[h]
