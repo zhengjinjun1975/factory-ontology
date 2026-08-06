@@ -1,0 +1,17 @@
+{
+  "name": "factory-ontology-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "工厂本体问答 Web 应用 — CSV上传→本体建模→自然语言问答",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "start": "node server/index.js"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.0.0",
+    "svelte": "^5.0.0",
+    "vite": "^6.0.0"
+  }
+}

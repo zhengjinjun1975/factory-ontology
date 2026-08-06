@@ -1,0 +1,208 @@
+// ontology.js — 桥接 Python 本体问答套件
+// 通过 child_process 调用仓库 codes/ 下的 Python 脚本
+import { execFile } from 'child_process';
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+// 本仓库 codes/ 套件目录（相对本文件：web/server -> ../codes）
+const KIT = join(__dirname, '..', '..', 'codes');
+const PY = 'python';
+// Web 应用自己的状态文件（不依赖套件全局 current.json，避免被测试/其他调用覆盖）
+const WEB_STATE = join(__dirname, '..', 'web_state.json');
+
+function loadWebState() {
+  try {
+    if (existsSync(WEB_STATE)) return JSON.parse(readFileSync(WEB_STATE, 'utf-8'));
+  } catch (e) { /* 忽略 */ }
+  return null;
+}
+
+function saveWebState(state) {
+  try { writeFileSync(WEB_STATE, JSON.stringify(state, null, 2), 'utf-8'); } catch (e) { /* 忽略 */ }
+}
+
+function run(cmd, args, cwd) {
+  return new Promise((resolve) => {
+    execFile(cmd, args, { cwd, timeout: 180000, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
+      if (err) {
+        resolve({ ok: false, error: (stderr || err.message || '').trim().split('\n').pop() });
+      } else {
+        resolve({ ok: true, output: stdout });
+      }
+    });
+  });
+}
+
+/**
+ * 上传并建模：把 CSV 写入套件 data/，调用 run.py setup 生成本体+词典
+ * @param {string} csvName 文件名 (如 equipment.csv)
+ * @param {string} csvContent CSV 内容
+ * @returns {Promise<{ok, table?, attrs?, error?}>}
+ */
+export async function setupOntology(csvName, csvContent) {
+  try {
+    // 安全：只允许 .csv，去掉路径分隔符防目录穿越
+    const safeName = csvName.split(/[\\/]/).pop().replace(/[^\w.\-\u4e00-\u9fff]/g, '_');
+    if (!safeName.endsWith('.csv')) {
+      return { ok: false, error: '仅支持 .csv 文件' };
+    }
+    const dataDir = join(KIT, 'data');
+    if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
+    const csvPath = join(dataDir, safeName);
+    writeFileSync(csvPath, csvContent, 'utf-8');
+
+    const table = safeName.replace(/\.csv$/i, '');
+    const r = await run(PY, ['run.py', 'setup', csvPath], KIT);
+    if (!r.ok) return { ok: false, error: r.error || '建模失败' };
+
+    // 解析词典概要：形如 "  power_kw = 功率" 的行 → 提取 {字段: 中文名}
+    const attrs = [];
+    const lines = r.output.split('\n');
+    let inAttrs = false;
+    for (const line of lines) {
+      if (line.includes('词典概要')) { inAttrs = true; continue; }
+      if (inAttrs && line.includes('=')) {
+        const m = line.match(/\s*(\S+)\s*=\s*(.+)/);
+        if (m) attrs.push({ field: m[1].trim(), cn: m[2].trim() });
+      }
+      // 概要结束：遇到建模完成后的空行或下一段
+      if (inAttrs && !line.trim()) inAttrs = false;
+    }
+    // 记录 Web 应用自己的状态（防 current.json 被覆盖）
+    saveWebState({ table, nt: `output/${table}_deep.nt`, lexicon: `config/lexicon_${table}.json` });
+    return { ok: true, table, attrs, output: r.output.slice(-2000) };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+/**
+ * 自然语言问答
+ * @param {string} question
+ * @returns {Promise<{ok, answer?, error?}>}
+ */
+export async function askOntology(question) {
+  try {
+    const r = await run(PY, ['run.py', 'ask', question], KIT);
+    if (!r.ok) return { ok: false, error: r.error || '问答失败' };
+    return { ok: true, answer: r.output.trim() };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+/**
+ * 聚合统计（多表 join + 分布 + 故障率）供前端可视化
+ * @returns {Promise<{ok, stats?, error?}>}
+ */
+export async function statsOntology() {
+  try {
+    const dataDir = join(KIT, 'data');
+    const eqPath = join(dataDir, 'equipment.csv');
+    const linePath = join(dataDir, 'line.csv');
+    const r = await run(PY, ['aggregate.py', eqPath, linePath], KIT);
+    if (!r.ok) return { ok: false, error: r.error || '统计失败' };
+    const stats = JSON.parse(r.output);
+    return { ok: true, stats };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+/**
+ * 产线属性查询（多表 join：产线→设备）
+ * @param {string} lineId 如 L1
+ * @returns {Promise<{ok, line?, error?}>}
+ */
+export async function lineInfo(lineId) {
+  try {
+    const r = await statsOntology();
+    if (!r.ok) return r;
+    const line = (r.stats.line_stats || []).find(l => l.line === lineId);
+    if (!line) return { ok: false, error: `未找到产线 ${lineId}` };
+    return { ok: true, line };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+/**
+ * 模型结构（本体 schema：类/数据属性/对象属性/实例数），供前端画结构图
+ * 根据 current.json 读取当前建模的本体和词典（动态，建模什么就显示什么）
+ * @returns {Promise<{ok, schema?, error?}>}
+ */
+export async function schemaOntology() {
+  try {
+    // 优先读 Web 应用自己的状态（防套件 current.json 被测试覆盖）
+    const web = loadWebState();
+    let nt, lex;
+    if (web && web.nt) {
+      nt = web.nt; lex = web.lexicon || 'config/lexicon_equipment.json';
+    } else {
+      const cur = JSON.parse(readFileSync(join(KIT, 'current.json'), 'utf-8'));
+      nt = cur.nt || 'output/equipment.nt';
+      lex = cur.lexicon || 'config/lexicon_equipment.json';
+    }
+    const r = await run(PY, ['model_schema.py', nt, lex], KIT);
+    if (!r.ok) return { ok: false, error: r.error || '模型结构解析失败' };
+    const schema = JSON.parse(r.output);
+    return { ok: true, schema };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+/**
+ * 智能分析（统计摘要 + LLM 洞察），返回结构化数据供前端画图+展示报告
+ * @param {string} question 分析类问题
+ * @returns {Promise<{ok, report?, stats?, error?}>}
+ */
+export async function analyzeOntology(question) {
+  try {
+    const dataDir = join(KIT, 'data');
+    const eqPath = join(dataDir, 'equipment.csv');
+    const linePath = join(dataDir, 'line.csv');
+    const r = await run(PY, ['analysis.py', eqPath, linePath, question], KIT);
+    if (!r.ok) return { ok: false, error: r.error || '分析失败' };
+    const res = JSON.parse(r.output);
+    return { ok: true, report: res.report, stats: res.stats };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+/**
+ * 读取当前生效模型配置
+ * @returns {Promise<{ok, active?, models?, error?}>}
+ */
+export async function getModel() {
+  try {
+    const cfg = JSON.parse(readFileSync(join(KIT, 'config', 'model_config.json'), 'utf-8'));
+    const models = Object.entries(cfg.models || {}).map(([k, v]) => ({ key: k, name: v.name, model: v.model, type: v.type }));
+    return { ok: true, active: cfg.active, models };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+/**
+ * 切换当前生效模型
+ * @param {string} key 'local' | 'cloud'
+ * @returns {Promise<{ok, active?, error?}>}
+ */
+export async function setModel(key) {
+  try {
+    const cfgPath = join(KIT, 'config', 'model_config.json');
+    const cfg = JSON.parse(readFileSync(cfgPath, 'utf-8'));
+    if (!cfg.models || !cfg.models[key]) {
+      return { ok: false, error: `未知模型 key: ${key}（可用: ${Object.keys(cfg.models||{}).join(', ')}）` };
+    }
+    cfg.active = key;
+    writeFileSync(cfgPath, JSON.stringify(cfg, null, 2), 'utf-8');
+    return { ok: true, active: key };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
