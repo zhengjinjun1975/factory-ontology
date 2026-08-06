@@ -15,8 +15,11 @@
 """
 import os
 import sys
+import json
+import time
 import hashlib
 import logging
+from datetime import datetime
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
@@ -135,15 +138,46 @@ def require_admin(x_api_key: str = Header(default="")):
     if ADMIN_KEY and not _valid(x_api_key, ADMIN_KEY):
         raise HTTPException(401, "需要管理权限 (admin API Key)")
 
-# ── 请求计数(M1.3 metrics) ──
+# ── 请求计数(M1.3 metrics) + 审计日志(T3.1) ──
 from collections import Counter as _Counter
 REQ_COUNT = _Counter()
+AUDIT_FILE = os.path.join(ROOT, "output", "audit.log")
+
+
+def _audit(record):
+    """追加审计日志(JSONL)。"""
+    try:
+        os.makedirs(os.path.dirname(AUDIT_FILE), exist_ok=True)
+        with open(AUDIT_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
 
 
 @app.middleware("http")
-async def count_requests(request: Request, call_next):
+async def audit_and_count(request: Request, call_next):
     REQ_COUNT[request.url.path] += 1
-    return await call_next(request)
+    start = time.time()
+    response = await call_next(request)
+    _audit({
+        "ts": datetime.now().isoformat(),
+        "method": request.method,
+        "path": request.url.path,
+        "status": response.status_code,
+        "client": request.client.host if request.client else "",
+        "ms": int((time.time() - start) * 1000),
+    })
+    return response
+
+
+@app.get("/api/admin/audit", dependencies=[Depends(require_admin)])
+def admin_audit(limit: int = Query(50, le=500)):
+    """管理操作: 读取最近审计日志。"""
+    lines = []
+    if os.path.exists(AUDIT_FILE):
+        with open(AUDIT_FILE, encoding="utf-8") as f:
+            lines = [json.loads(l) for l in f if l.strip()][-limit:]
+    return {"ok": True, "count": len(lines), "audit": lines}
 
 
 def _label(uri):
