@@ -1,3 +1,4 @@
+# 【已弃用 DEPRECATED】旧版问答引擎。请用 ontology_qa_v3.py（词典驱动的通用方法论核心）。本文件保留仅供历史引用/回退。
 #!/usr/bin/env python3
 """ontology_qa.py — 基于本体的中文问答（零依赖，纯标准库）。
 

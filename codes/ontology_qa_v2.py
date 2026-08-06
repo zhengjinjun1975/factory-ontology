@@ -1,3 +1,4 @@
+# 【已弃用 DEPRECATED】v2 版本。请用 ontology_qa_v3.py（canonical 核心）。
 #!/usr/bin/env python3
 """ontology_qa_v2.py — 进阶版：规则优先 + LLM 语义兜底的中文问答。
 

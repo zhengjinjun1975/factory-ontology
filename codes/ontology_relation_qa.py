@@ -1,3 +1,4 @@
+# 【已弃用 DEPRECATED】关系问答。功能已并入 ontology_qa_v3.py 的组合/过滤计数模板。
 #!/usr/bin/env python3
 """ontology_relation_qa.py — 关系问答模块（对象属性：设备→位于→车间 / 属于→产线 / 制造商 / 类型）。
 

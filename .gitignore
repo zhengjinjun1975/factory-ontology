@@ -9,7 +9,10 @@ codes/data/*.csv
 current.json
 web_state.json
 output/
-*.nt
+__pycache__/
+.pytest_cache/
+*.pyc
+.env
 
 # Python
 __pycache__/

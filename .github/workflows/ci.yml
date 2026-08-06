@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: codes
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+      - name: 运行单测(数据加载/本体生成/规则问答/GraphRAG)
+        run: |
+          python -m pytest tests/ -v --tb=short
+      - name: 运行对照评测(规则引擎零模型)
+        run: |
+          # benchmark 需先建本体; 用 data_loader 直接建(无需 LLM 词典的路径已由单测覆盖)
+          python -c "import sys; sys.path.insert(0,'.'); import csv_to_owl as c; import os; \
+            [c.build_nt(os.path.join('data',f), os.path.join('output',f.replace('.csv','.nt'))) for f in ['ai4i.csv','library_inventory.csv','energy_station.csv']]"
+          python benchmark.py data/library_inventory.csv | tail -2
+          python benchmark.py data/energy_station.csv | tail -2
