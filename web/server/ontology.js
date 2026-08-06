@@ -35,26 +35,30 @@ function run(cmd, args, cwd) {
   });
 }
 
+// Web 上传支持的文本格式(文本可直接传输; 二进制 sqlite/xlsx 走命令行 codes/ 套件)
+const TEXT_EXT = ['.csv', '.json'];
+
 /**
- * 上传并建模：把 CSV 写入套件 data/，调用 run.py setup 生成本体+词典
- * @param {string} csvName 文件名 (如 equipment.csv)
- * @param {string} csvContent CSV 内容
+ * 上传并建模：把文本格式文件(CSV/JSON)写入套件 data/，调用 run.py setup 生成本体+词典
+ * @param {string} fileName 文件名 (如 equipment.csv / equipment.json)
+ * @param {string} fileContent 文件内容(文本)
  * @returns {Promise<{ok, table?, attrs?, error?}>}
  */
-export async function setupOntology(csvName, csvContent) {
+export async function setupOntology(fileName, fileContent) {
   try {
-    // 安全：只允许 .csv，去掉路径分隔符防目录穿越
-    const safeName = csvName.split(/[\\/]/).pop().replace(/[^\w.\-\u4e00-\u9fff]/g, '_');
-    if (!safeName.endsWith('.csv')) {
-      return { ok: false, error: '仅支持 .csv 文件' };
+    // 安全：只允许文本格式(.csv/.json)，去掉路径分隔符防目录穿越
+    const safeName = fileName.split(/[\\/]/).pop().replace(/[^\w.\-\u4e00-\u9fff]/g, '_');
+    const ext = safeName.slice(safeName.lastIndexOf('.')).toLowerCase();
+    if (!TEXT_EXT.includes(ext)) {
+      return { ok: false, error: `仅支持 ${TEXT_EXT.join('/')} 文本格式；二进制 sqlite/xlsx 请在命令行用 codes/ 套件（python run.py setup <文件>）` };
     }
     const dataDir = join(KIT, 'data');
     if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
-    const csvPath = join(dataDir, safeName);
-    writeFileSync(csvPath, csvContent, 'utf-8');
+    const filePath = join(dataDir, safeName);
+    writeFileSync(filePath, fileContent, 'utf-8');
 
-    const table = safeName.replace(/\.csv$/i, '');
-    const r = await run(PY, ['run.py', 'setup', csvPath], KIT);
+    const table = safeName.replace(/\.(csv|json)$/i, '');
+    const r = await run(PY, ['run.py', 'setup', filePath], KIT);
     if (!r.ok) return { ok: false, error: r.error || '建模失败' };
 
     // 解析词典概要：形如 "  power_kw = 功率" 的行 → 提取 {字段: 中文名}

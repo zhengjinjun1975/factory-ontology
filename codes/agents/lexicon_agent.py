@@ -80,10 +80,10 @@ class LexiconAgent(BaseAgent):
     # ---------------- 数据加载与分析 ----------------
 
     def _load_csv(self, src):
-        with open(src, newline="", encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f)
-            rows = list(reader)
-        return rows, list(rows[0].keys()) if rows else []
+        """统一读取源数据(CSV/JSON/SQLite/Excel, 复用 data_loader)"""
+        from data_loader import load_table
+        _, headers, rows = load_table(src)
+        return rows, headers
 
     def _analyze_fields(self, rows, headers):
         """分析每字段: 取值集合 + 是否数值。"""

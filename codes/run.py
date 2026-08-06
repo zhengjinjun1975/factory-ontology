@@ -5,7 +5,7 @@
 纯标准库，无第三方依赖（LLM 兜底需 requests + 本地 Ollama，可选）。
 
 用法:
-  python run.py setup <data.csv> [表名]   # 自动建模(本体+词典+验证)
+  python run.py setup <数据文件> [表名]   # 自动建模(本体+词典+验证)，支持 csv/json/sqlite/xlsx
   python run.py ask "<问题>"              # 交互问答(规则+LLM兜底)
   python run.py test                       # 自检示例数据
 """
@@ -30,24 +30,24 @@ def _load(mod, path):
     return m
 
 
-def _name(csv_path):
-    return os.path.splitext(os.path.basename(csv_path))[0]
+def _name(source_path):
+    return os.path.splitext(os.path.basename(source_path))[0]
 
 
-def setup(csv_path, table=None, use_llm=True):
+def setup(source_path, table=None, use_llm=True):
     os.makedirs(OUT, exist_ok=True)
-    table = table or _name(csv_path)
+    table = table or _name(source_path)
     nt = os.path.join(OUT, f"{table}.nt")
     lex = os.path.join(CFG, f"lexicon_{table}.json")
 
     print(f"\n[工厂智能体] 建模: {table}")
-    print(f"[1/3] 转本体 {csv_path}")
+    print(f"[1/3] 转本体 {source_path}")
     csv2owl = _load("csv_to_owl", os.path.join(ROOT, "csv_to_owl.py"))
     old = sys.argv
     # 若有对象属性配置则传入 --relations
     rel_path = os.path.join(CFG, "relations.json")
     rel_args = ["--relations", rel_path] if os.path.exists(rel_path) else []
-    sys.argv = ["csv_to_owl", csv_path, nt] + rel_args
+    sys.argv = ["csv_to_owl", source_path, nt] + rel_args
     try:
         csv2owl.main()
     except SystemExit:
@@ -58,7 +58,7 @@ def setup(csv_path, table=None, use_llm=True):
 
     print("[2/3] 自动词典 (LLM推断字段语义)...")
     from agents.lexicon_agent import LexiconAgent
-    r = LexiconAgent().run({"source_csv": csv_path, "out_lexicon": lex,
+    r = LexiconAgent().run({"source_csv": source_path, "out_lexicon": lex,
                             "use_llm": use_llm, "table_name": table})
     if not r.ok:
         print(f"⚠️ 词典: {r.error}")
@@ -81,7 +81,7 @@ def setup(csv_path, table=None, use_llm=True):
             import subprocess
             deep_nt = os.path.join(OUT, f"{table}_deep.nt")
             r = subprocess.run([sys.executable, os.path.join(ROOT, "ontology_depth.py"),
-                                csv_path, line_csv, nt, deep_nt],
+                                source_path, line_csv, nt, deep_nt],
                                capture_output=True, text=True, timeout=120)
             if os.path.exists(deep_nt):
                 nt = deep_nt
@@ -97,7 +97,7 @@ def setup(csv_path, table=None, use_llm=True):
 
 def ask(question, nt=None, lex=None):
     if not os.path.exists(STATE):
-        print("请先运行: python run.py setup <data.csv>")
+        print("请先运行: python run.py setup <数据文件>")
         return
     st = json.load(open(STATE, encoding="utf-8"))
     nt = nt or st["nt"]
@@ -155,7 +155,7 @@ def main():
         print(__doc__); return
     if args[0] == "setup":
         if len(args) < 2:
-            print("用法: python run.py setup <data.csv> [表名]"); return
+            print("用法: python run.py setup <数据文件> [表名]"); return
         setup(args[1], args[2] if len(args) > 2 else None)
     elif args[0] == "ask":
         if len(args) < 2:
