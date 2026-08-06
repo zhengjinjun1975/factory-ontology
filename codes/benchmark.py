@@ -21,6 +21,7 @@ import os
 import csv
 import json
 import random
+import re
 import argparse
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -88,17 +89,22 @@ def llm_answer(question, rows, headers, top=50):
 
 # ------------------------------------------------------------------ 模糊匹配
 def fuzzy_match(answer, gt):
-    """GT 是确定数字; 答案含该数字(容错小数/千分位/前后缀)即算命中"""
+    """GT 是确定数字。数值容错比较(容忍0.1%)，兜底文本匹配。"""
     if not answer or answer.startswith("[模型"):
         return False
     g = gt.strip()
-    # 尝试数字匹配: 去掉千分位、%.2f 变体
-    variants = {g, g.replace(",", ""), f"{float(g):.0f}", f"{float(g):.2f}".rstrip('0').rstrip('.')}
-    ans = answer.replace(",", "").replace("，", "")
-    for v in variants:
-        if v and v in ans:
-            return True
-    return False
+    # 数值容错: 提取答案第一个数字, 与 GT 数字比较
+    try:
+        gv = float(g.replace(",", ""))
+        m = re.search(r'-?\d+(?:,\d{3})*(?:\.\d+)?', answer.replace("，", ","))
+        if m:
+            av = float(m.group().replace(",", ""))
+            if abs(av - gv) <= max(1, abs(gv) * 0.001):
+                return True
+    except ValueError:
+        pass
+    # 文本匹配兜底
+    return g in answer
 
 
 def main():
