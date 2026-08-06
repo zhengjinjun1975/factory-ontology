@@ -29,14 +29,6 @@ def _load_v3():
     return m
 
 
-def _load_v2():
-    v2_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "ontology_qa_v2.py")
-    spec = importlib.util.spec_from_file_location("ontology_qa_v2", v2_path)
-    m = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(m)
-    return m
-
-
 class QueryAgent(BaseAgent):
     name = "query"
 
@@ -80,11 +72,11 @@ class QueryAgent(BaseAgent):
             return self._ok({"answer": rule_ans, "mode": "rule"}, "query")
         if task.get("use_llm", True):
             try:
-                v2 = _load_v2()
-                llm_ans = v2.llm_answer(q, data)
-                return self._ok({"answer": llm_ans, "mode": "llm"}, "query")
+                from graph_rag import answer_graph
+                gans, _ = answer_graph(q, nt)
+                return self._ok({"answer": gans, "mode": "graphrag"}, "query")
             except Exception as e:
-                return self._err(f"LLM 兜底失败: {e}")
+                return self._err(f"图检索兜底失败: {e}")
         return self._ok({"answer": "暂不支持该问题", "mode": "unsupported"}, "query")
 
 

@@ -39,9 +39,12 @@ import multi_table as mt
 
 # ── 食品知识库配置 ──
 NS = "http://factory.example/ontology#"   # 与 multi_table 建本体一致
-DATA = os.path.join(ROOT, "data")
-FOOD_NT = os.path.join(ROOT, "output", "food.nt")
-FOOD_LEX = os.path.join(ROOT, "config", "lexicon_food_products.json")
+# 多知识库支持(T-D): FOOD_DATA_DIR 指向不同企业的数据目录, 一套部署服务多个知识库
+KB_NAME = os.environ.get("FOOD_KB", "food")
+DATA = os.environ.get("FOOD_DATA_DIR", os.path.join(ROOT, "data"))
+FOOD_NT = os.environ.get("FOOD_NT", os.path.join(ROOT, "output", f"{KB_NAME}.nt"))
+# 问答词典: 默认是食品产品表词典(规则引擎对产品表问答); 可用 FOOD_LEX 覆盖到其他企业词典
+FOOD_LEX = os.environ.get("FOOD_LEX", os.path.join(ROOT, "config", "lexicon_food_products.json"))
 
 
 def _find(tail_name):
@@ -253,7 +256,7 @@ def ask(req: AskReq):
     ans = v3.answer(req.question, QDATA, D)
     if ans != "暂不支持该问题":
         return {"ok": True, "mode": "rule", "answer": ans}
-    gans, ctx = gr.answer_graph(req.question, FOOD_NT, depth=2, max_nodes=40)
+    gans, ctx = gr.answer_graph(req.question, FOOD_NT, depth=2, max_nodes=40, lexicon=D)
     if not gans.startswith("[图检索]"):
         return {"ok": True, "mode": "graphrag", "answer": gans, "context": ctx[:2000]}
     return {"ok": True, "mode": "miss",

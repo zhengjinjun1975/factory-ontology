@@ -80,8 +80,9 @@ def build_graph(nt_file):
     return graph, labels, value_index, reverse
 
 
-def find_seeds(question, graph, labels, value_index, top=8):
-    """从问题关键词定位种子实体(子串匹配)。返回 [实体URI]。"""
+def find_seeds(question, graph, labels, value_index, top=8, lexicon=None):
+    """从问题关键词定位种子实体(子串匹配 + 词典引导)。
+    lexicon 提供 attr_cn2en/type_cn2en, 问题提到属性/类型时加权有该属性/类型的实体。"""
     q = question.lower()
     scored = defaultdict(float)
     # 1. 值/标签/ID 子串匹配: value_index 的键若出现在问题里 (单字中文也允许, 如"盐")
@@ -97,6 +98,26 @@ def find_seeds(question, graph, labels, value_index, top=8):
         lb = lbl.lower()
         if len(lb) >= 2 and (lb in q or tail(ent).lower() in q):
             scored[ent] += 0.8
+    # 3. 词典引导(实体链接增强): 问题含属性/类型中文名时, 加权有该字段的实体
+    if lexicon:
+        def _norm(s):
+            return str(s).lower().replace("_", "")
+        try:
+            attrs = lexicon.get("attr_cn2en", {})
+            types = lexicon.get("type_cn2en", {})
+            for cn, en in attrs.items():
+                if len(cn) >= 2 and cn in q:
+                    for ent, props in graph.items():
+                        if any(_norm(en) == _norm(rel) or _norm(en) in _norm(rel) for rel in props):
+                            scored[ent] += 0.5
+            for cn, en in types.items():
+                if len(cn) >= 2 and cn in q:
+                    for ent, props in graph.items():
+                        if any(_norm(en) in _norm(str(v)) for v in props.get("deviceType", [])) or \
+                           any(_norm(en) in _norm(str(v)) for v in props.get("category", [])):
+                            scored[ent] += 0.5
+        except Exception:
+            pass
     ranked = sorted(scored.items(), key=lambda x: -x[1])
     return [e for e, _ in ranked[:top]]
 
@@ -140,10 +161,10 @@ def serialize_subgraph(sub, labels):
     return "\n".join(lines)
 
 
-def answer_graph(question, nt_file, depth=1, max_nodes=40, model_key=None):
-    """GraphRAG 主入口：种子->子图->LLM生成。返回 (答案, 子图文本)。"""
+def answer_graph(question, nt_file, depth=1, max_nodes=40, model_key=None, lexicon=None):
+    """GraphRAG 主入口：种子(词典引导)->子图->LLM生成。返回 (答案, 子图文本)。"""
     graph, labels, value_index, reverse = build_graph(nt_file)
-    seeds = find_seeds(question, graph, labels, value_index)
+    seeds = find_seeds(question, graph, labels, value_index, lexicon=lexicon)
     if not seeds:
         return "[图检索] 未定位到相关实体，请换种问法", ""
     sub = extract_subgraph(graph, reverse, seeds, depth=depth, max_nodes=max_nodes)

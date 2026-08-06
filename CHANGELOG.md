@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.0] — 2026-08-06
+
+### 重构 + 能力增强 + 规模化
+- **删除 4 个弃用 QA 引擎**（ontology_qa/v2/query/relation_qa，~771 行，含 eval/exec 隐患）——全部迁移到 canonical v3 + GraphRAG 兜底，run.py/factory_agent/query_agent 一致
+- **GraphRAG 实体链接增强**（T-C）：`find_seeds` 支持词典引导，问题提到属性/类型时加权有该字段的实体（归一化下划线匹配驼峰）
+- **多知识库支持**（T-D）：`FOOD_DATA_DIR` / `FOOD_KB` 环境变量切换，一套部署服务多个企业知识库
+
 ## [2.5.0] — 2026-08-06
 
 ### 规模化/合规（T3）
