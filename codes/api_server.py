@@ -75,15 +75,26 @@ def _data_hash():
     return h.hexdigest()
 
 
+def _has_required_relations(nt_file):
+    """校验缓存本体含跨表对象属性(produces/belongsToBatch/usesRawMaterial)。缺失=被污染/损坏, 需重建。"""
+    if not os.path.exists(nt_file):
+        return False
+    try:
+        txt = open(nt_file, encoding="utf-8").read()
+        return all(r in txt for r in ("#produces", "#belongsToBatch", "#usesRawMaterial"))
+    except Exception:
+        return False
+
+
 def _ensure_food_ontology():
-    """若本体已存在且数据未变则复用(增量); 否则重建。"""
+    """若本体已存在且数据未变且关系完整则复用(增量); 否则重建。"""
     cur = _data_hash()
     state = os.path.join(os.path.dirname(FOOD_NT), "food_data_hash.txt")
     prev = open(state).read().strip() if os.path.exists(state) else ""
-    if os.path.exists(FOOD_NT) and prev == cur:
-        logger.info("本体已是最新(数据未变), 复用缓存, 增量模式")
+    if os.path.exists(FOOD_NT) and prev == cur and _has_required_relations(FOOD_NT):
+        logger.info("本体已是最新(数据未变+关系完整), 复用缓存, 增量模式")
         return
-    logger.info("检测到数据变化或首次构建, 重建本体...")
+    logger.info("检测到数据变化/首次构建/关系缺失, 重建本体...")
     def load(t):
         return mt.load_table(os.path.join(DATA, f"{t}.csv"))
     tables = {}
