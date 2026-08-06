@@ -24,6 +24,9 @@ import tempfile
 import urllib.request
 import json
 
+# STT 本地模型目录(避免从 HuggingFace 下载被墙; 用 curl 从 hf-mirror 预置)
+WHISPER_MODEL_DIR = os.path.join(os.path.expanduser("~"), "whisper-tiny")
+
 
 def ask_api(question, base_url="http://localhost:8000"):
     """调用食品知识库 REST API 问答。"""
@@ -71,7 +74,7 @@ def record_and_transcribe(timeout=6, lang="zh"):
         sr = 16000
         audio = sd.rec(int(sr * timeout), samplerate=sr, channels=1, dtype="int16")
         sd.wait()
-        model = WhisperModel("small", device="cpu", compute_type="int8")
+        model = WhisperModel(WHISPER_MODEL_DIR, device="cpu", compute_type="int8")
         segments, _ = model.transcribe(audio.flatten(), language=lang)
         return "".join(s.text for s in segments).strip() or None
     except Exception as e:
