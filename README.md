@@ -201,6 +201,28 @@ APP 的品牌/图标/示例问题自动从 kbs.json 读取，无需改代码。
 **差异化**：规则引擎对结构化查询**确定性 100%、零 token、零幻觉**（全社区独有）+ 本体自动建模（换数据即用）+ 垂直溯源（召回核心）+ 可解释 + 全本地化（数据不出厂）。
 **诚实短板**：社区/生态极小、规模受限、LLM 兜底未大规模评测。
 
+## 系统架构与落地路线
+
+> 三张图：系统级架构设计、数据走向逻辑、工厂落地路线。源文件在 `docs/diagrams/`，GitHub 自动渲染。
+
+### 系统级架构设计
+
+<img src="docs/diagrams/architecture.svg" width="880" alt="系统级架构设计图">
+
+**分层**：交付层（APP/语音/管理后台）→ API 层（FastAPI，业务集中）→ 问答推理层（规则→逻辑桥→GraphRAG，确定性优先）→ 本体层（本体图 + 词典外置）→ 数据层（多格式 + ERP 直连）→ 模型层（云 DeepSeek / 本地 Ollama 可切换）。
+
+### 数据走向逻辑
+
+<img src="docs/diagrams/dataflow.svg" width="880" alt="数据走向逻辑图">
+
+**链路**：企业台账（CSV/Excel/ERP）→ 数据接入（data_loader/db_loader/data_import + 质量校验）→ 本体构建（multi_table → food.nt）→ 问答检索（规则→逻辑桥→GraphRAG）→ API → 输出（APP/语音/导出/证据）。
+
+### 工厂落地路线图
+
+<img src="docs/diagrams/roadmap.svg" width="880" alt="工厂落地路线图">
+
+**六步**：① 建知识库骨架（new_kb）→ ② 接入数据 → ③ 配置词典（领域适配）→ ④ 部署上线（Docker）→ ⑤ 使用（手机/语音/后台）→ ⑥ 运维与合规（审计/监控/质量/导出）。
+
 ## 模型配置
 
 `codes/config/model_config.json` 统一管理，`active` 切换即可：

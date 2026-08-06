@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="920" viewBox="0 0 1280 920">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b1120"/><stop offset="1" stop-color="#16203a"/>
+    </linearGradient>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#6fcf97"/>
+    </marker>
+    <filter id="sh"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.35"/></filter>
+  </defs>
+  <rect width="1280" height="920" fill="url(#bg)"/>
+  <text x="640" y="52" fill="#e8eefb" font-size="42" font-weight="bold" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">数据走向逻辑图</text>
+  <text x="640" y="80" fill="#8fa3c8" font-size="16" text-anchor="middle">从企业台账到用户答案的完整链路</text>
+
+  <!-- 数据源 -->
+  <rect x="120" y="110" width="1040" height="90" rx="14" fill="#1a2336" opacity="0.9" stroke="#3498db" stroke-width="1.5" filter="url(#sh)"/>
+  <text x="150" y="140" fill="#7fb8e8" font-size="20" font-weight="bold">① 数据源（企业台账）</text>
+  <rect x="150" y="152" width="300" height="38" rx="8" fill="#24304d"/><text x="178" y="177" fill="#e8eefb" font-size="16">CSV / Excel 台账</text>
+  <rect x="490" y="152" width="300" height="38" rx="8" fill="#24304d"/><text x="518" y="177" fill="#e8eefb" font-size="16">ERP 数据库(MySQL/PG)</text>
+  <rect x="830" y="152" width="300" height="38" rx="8" fill="#24304d"/><text x="858" y="177" fill="#e8eefb" font-size="16">Web 上传(/admin)</text>
+
+  <!-- 箭头到 数据接入 -->
+  <line x1="640" y1="200" x2="640" y2="225" stroke="#6fcf97" stroke-width="2" marker-end="url(#ar)"/>
+
+  <rect x="120" y="230" width="1040" height="80" rx="14" fill="#1a2336" opacity="0.9" stroke="#27ae60" stroke-width="1.5" filter="url(#sh)"/>
+  <text x="150" y="260" fill="#6fcf97" font-size="20" font-weight="bold">② 数据接入</text>
+  <text x="150" y="290" fill="#e8eefb" font-size="16">data_loader（多格式）· db_loader（ERP 直连）· data_import（定时同步）· data_quality（质量校验）</text>
+
+  <line x1="640" y1="310" x2="640" y2="335" stroke="#6fcf97" stroke-width="2" marker-end="url(#ar)"/>
+
+  <!-- 本体构建 -->
+  <rect x="120" y="340" width="1040" height="80" rx="14" fill="#1a2336" opacity="0.9" stroke="#9b59b6" stroke-width="1.5" filter="url(#sh)"/>
+  <text x="150" y="370" fill="#c39bd3" font-size="20" font-weight="bold">③ 本体构建</text>
+  <text x="150" y="400" fill="#e8eefb" font-size="16">multi_table 多表关联建本体（外键 → 跨表对象属性）→ food.nt（实体-关系-属性）</text>
+
+  <line x1="640" y1="420" x2="640" y2="445" stroke="#6fcf97" stroke-width="2" marker-end="url(#ar)"/>
+
+  <!-- 问答/检索 -->
+  <rect x="120" y="450" width="1040" height="115" rx="14" fill="#1a2336" opacity="0.9" stroke="#e67e22" stroke-width="1.5" filter="url(#sh)"/>
+  <text x="150" y="480" fill="#f5b041" font-size="20" font-weight="bold">④ 问答/检索（问题进来）</text>
+  <rect x="150" y="493" width="320" height="58" rx="8" fill="#3a2f1d"/><text x="178" y="516" fill="#e8eefb" font-size="17">规则引擎</text><text x="178" y="538" fill="#8fa3c8" font-size="14">结构化确定性 100%</text>
+  <rect x="490" y="493" width="320" height="58" rx="8" fill="#3a2f1d"/><text x="518" y="516" fill="#e8eefb" font-size="17">逻辑桥</text><text x="518" y="538" fill="#8fa3c8" font-size="14">LLM→逻辑→执行</text>
+  <rect x="830" y="493" width="300" height="58" rx="8" fill="#3a2f1d"/><text x="858" y="516" fill="#e8eefb" font-size="17">GraphRAG</text><text x="858" y="538" fill="#8fa3c8" font-size="14">图遍历 + LLM 兜底</text>
+
+  <line x1="640" y1="565" x2="640" y2="590" stroke="#6fcf97" stroke-width="2" marker-end="url(#ar)"/>
+
+  <!-- API -->
+  <rect x="120" y="595" width="1040" height="70" rx="14" fill="#1a2336" opacity="0.9" stroke="#3498db" stroke-width="1.5" filter="url(#sh)"/>
+  <text x="150" y="625" fill="#7fb8e8" font-size="20" font-weight="bold">⑤ API 层（FastAPI）</text>
+  <text x="150" y="652" fill="#e8eefb" font-size="15">/api/ask（答案+证据）· /trace（溯源）· /scan · /export · /admin（上传/重建）· 鉴权 + 审计</text>
+
+  <line x1="640" y1="665" x2="640" y2="690" stroke="#6fcf97" stroke-width="2" marker-end="url(#ar)"/>
+
+  <!-- 输出 -->
+  <rect x="120" y="695" width="1040" height="90" rx="14" fill="#1a2336" opacity="0.9" stroke="#e74c3c" stroke-width="1.5" filter="url(#sh)"/>
+  <text x="150" y="725" fill="#f1948a" font-size="20" font-weight="bold">⑥ 输出（用户拿到答案）</text>
+  <rect x="150" y="737" width="240" height="38" rx="8" fill="#3a2226"/><text x="178" y="762" fill="#e8eefb" font-size="16">📱 APP 问答/溯源</text>
+  <rect x="410" y="737" width="240" height="38" rx="8" fill="#3a2226"/><text x="438" y="762" fill="#e8eefb" font-size="16">🎤 语音朗读</text>
+  <rect x="670" y="737" width="240" height="38" rx="8" fill="#3a2226"/><text x="698" y="762" fill="#e8eefb" font-size="16">📄 溯源导出(CSV)</text>
+  <rect x="930" y="737" width="200" height="38" rx="8" fill="#3a2226"/><text x="958" y="762" fill="#e8eefb" font-size="16">🧠 证据(可解释)</text>
+</svg>
