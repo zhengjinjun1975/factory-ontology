@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="920" viewBox="0 0 1280 920">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b1120"/><stop offset="1" stop-color="#16203a"/>
+    </linearGradient>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#6fcf97"/>
+    </marker>
+    <filter id="sh"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.35"/></filter>
+  </defs>
+  <rect width="1280" height="920" fill="url(#bg)"/>
+  <text x="640" y="52" fill="#e8eefb" font-size="42" font-weight="bold" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">工厂落地路线图</text>
+  <text x="640" y="80" fill="#8fa3c8" font-size="16" text-anchor="middle">六步从零到被使用（每步都有工具支撑）</text>
+
+  <!-- 阶段1 -->
+  <rect x="120" y="110" width="1040" height="105" rx="14" fill="#1a2336" opacity="0.9" stroke="#3498db" stroke-width="1.5" filter="url(#sh)"/>
+  <circle cx="170" cy="145" r="22" fill="#3498db"/><text x="170" y="152" fill="#fff" font-size="22" font-weight="bold" text-anchor="middle">1</text>
+  <text x="215" y="142" fill="#7fb8e8" font-size="20" font-weight="bold">建知识库骨架</text>
+  <text x="215" y="172" fill="#e8eefb" font-size="16">new_kb.py 一键搭建：kbs.json 注册 + 数据目录 + 词典模板 + 表结构说明</text>
+  <text x="215" y="198" fill="#8fa3c8" font-size="14">命令：python new_kb.py valve --name "阀门厂" --icon "🔧"</text>
+
+  <line x1="640" y1="215" x2="640" y2="240" stroke="#6fcf97" stroke-width="2" marker-end="url(#ar)"/>
+
+  <!-- 阶段2 -->
+  <rect x="120" y="245" width="1040" height="105" rx="14" fill="#1a2336" opacity="0.9" stroke="#27ae60" stroke-width="1.5" filter="url(#sh)"/>
+  <circle cx="170" cy="280" r="22" fill="#27ae60"/><text x="170" y="287" fill="#fff" font-size="22" font-weight="bold" text-anchor="middle">2</text>
+  <text x="215" y="277" fill="#6fcf97" font-size="20" font-weight="bold">接入企业数据</text>
+  <text x="215" y="307" fill="#e8eefb" font-size="16">CSV/Excel 台账（data_import）· ERP 直连（db_loader）· Web 上传（/admin/upload）</text>
+  <text x="215" y="333" fill="#8fa3c8" font-size="14">所有路径统一走 multi_table 建本体，自动增量重建</text>
+
+  <line x1="640" y1="350" x2="640" y2="375" stroke="#6fcf97" stroke-width="2" marker-end="url(#ar)"/>
+
+  <!-- 阶段3 -->
+  <rect x="120" y="380" width="1040" height="105" rx="14" fill="#1a2336" opacity="0.9" stroke="#9b59b6" stroke-width="1.5" filter="url(#sh)"/>
+  <circle cx="170" cy="415" r="22" fill="#9b59b6"/><text x="170" y="422" fill="#fff" font-size="22" font-weight="bold" text-anchor="middle">3</text>
+  <text x="215" y="412" fill="#c39bd3" font-size="20" font-weight="bold">配置词典（领域适配）</text>
+  <text x="215" y="442" fill="#e8eefb" font-size="16">编辑 config/lexicon_*.json 设中文字段名（如阀门的型号/压力等级/材质/检验项）</text>
+  <text x="215" y="468" fill="#8fa3c8" font-size="14">换领域只换词典，代码不动 · 可配 LLM 自动生成词典</text>
+
+  <line x1="640" y1="485" x2="640" y2="510" stroke="#6fcf97" stroke-width="2" marker-end="url(#ar)"/>
+
+  <!-- 阶段4 -->
+  <rect x="120" y="515" width="1040" height="105" rx="14" fill="#1a2336" opacity="0.9" stroke="#e67e22" stroke-width="1.5" filter="url(#sh)"/>
+  <circle cx="170" cy="550" r="22" fill="#e67e22"/><text x="170" y="557" fill="#fff" font-size="22" font-weight="bold" text-anchor="middle">4</text>
+  <text x="215" y="547" fill="#f5b041" font-size="20" font-weight="bold">部署上线</text>
+  <text x="215" y="577" fill="#e8eefb" font-size="16">docker compose up -d（一键）· 角色化鉴权（FOOD_ADMIN_KEY/READ_KEY）· HTTPS 反代（nginx.conf）</text>
+  <text x="215" y="603" fill="#8fa3c8" font-size="14">全本地化选项：FOOD_MODEL=local_ollama → 数据不出厂</text>
+
+  <line x1="640" y1="620" x2="640" y2="645" stroke="#6fcf97" stroke-width="2" marker-end="url(#ar)"/>
+
+  <!-- 阶段5 -->
+  <rect x="120" y="650" width="1040" height="105" rx="14" fill="#1a2336" opacity="0.9" stroke="#e74c3c" stroke-width="1.5" filter="url(#sh)"/>
+  <circle cx="170" cy="685" r="22" fill="#e74c3c"/><text x="170" y="692" fill="#fff" font-size="22" font-weight="bold" text-anchor="middle">5</text>
+  <text x="215" y="682" fill="#f1948a" font-size="20" font-weight="bold">使用（手机/语音/后台）</text>
+  <text x="215" y="712" fill="#e8eefb" font-size="16">📱 手机 APP 问答/扫码溯源 · 🎤 语音查询 · ⚙️ 管理后台 · 📄 溯源导出</text>
+  <text x="215" y="738" fill="#8fa3c8" font-size="14">品牌/示例问题自动从 kbs.json 适配 · 答案带证据（可解释）</text>
+
+  <line x1="640" y1="755" x2="640" y2="780" stroke="#6fcf97" stroke-width="2" marker-end="url(#ar)"/>
+
+  <!-- 阶段6 -->
+  <rect x="120" y="785" width="1040" height="90" rx="14" fill="#1a2336" opacity="0.9" stroke="#3498db" stroke-width="1.5" filter="url(#sh)"/>
+  <circle cx="170" cy="815" r="22" fill="#3498db"/><text x="170" y="822" fill="#fff" font-size="22" font-weight="bold" text-anchor="middle">6</text>
+  <text x="215" y="812" fill="#7fb8e8" font-size="20" font-weight="bold">运维与合规</text>
+  <text x="215" y="842" fill="#e8eefb" font-size="16">审计日志（/admin/audit）· 监控看门狗（monitor.py）· 数据质量（data_quality）· 溯源导出（召回合规）</text>
+</svg>
