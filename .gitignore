@@ -1,6 +1,8 @@
 # 数据与运行态（含工厂真实数据，不纳入开源）
 codes/data/*.csv
 !codes/data/ai4i.csv
+!codes/data/library_inventory.csv
+!codes/data/energy_station.csv
 current.json
 web_state.json
 output/
