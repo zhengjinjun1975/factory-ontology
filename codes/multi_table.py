@@ -68,12 +68,9 @@ def _uri(x):
 
 
 def load_table(path):
-    with open(path, newline="", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-        rows = list(reader)
-        headers = list(reader.fieldnames) if reader.fieldnames else []
-    name = os.path.splitext(os.path.basename(path))[0]
-    return name, headers, rows
+    """统一加载表(复用 data_loader, 支持 csv/json/sqlite/xlsx)。返回 (表名, 列名, 行)"""
+    from data_loader import load_table as _load
+    return _load(path)
 
 
 def detect_id_column(headers, table):

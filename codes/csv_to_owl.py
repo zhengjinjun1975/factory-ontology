@@ -13,10 +13,11 @@
   python csv_to_owl.py <input.csv> <output.nt> --relations <relations.json>  # 带对象属性
 """
 import sys
-import csv
 import os
 import json
 from datetime import datetime
+
+from data_loader import load_table
 
 NS = "http://factory.example/ontology#"
 RDF_TYPE = "<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"
@@ -78,16 +79,11 @@ def load_relations(relations_path):
 
 def build_nt(inpath, outpath, relations=None):
     """核心转换逻辑。relations: {表名:{object_properties:{列:{rel,target_class,label}}}}"""
-    with open(inpath, newline="", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-        rows = list(reader)
-        headers = reader.fieldnames
+    table, headers, rows = load_table(inpath)
 
     if not rows:
         print("空表，无本体可建")
         return
-
-    table = os.path.splitext(os.path.basename(inpath))[0]
     cls = table.capitalize()
     cls_uri = NS + cls
 
