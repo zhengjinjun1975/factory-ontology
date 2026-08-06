@@ -1,3 +1,4 @@
+# 【已弃用 DEPRECATED】轻量查询。功能已并入 ontology_qa_v3.py。
 #!/usr/bin/env python3
 """ontology_query.py — 团队 Agent 可调用的本体查询入口。
 

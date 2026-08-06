@@ -2,9 +2,10 @@
 
 > 本体建模 → 大模型落地的开源实现：把任意结构化数据（CSV）自动转成"实体-关系-属性"语义本体，再提供自然语言问答。**换任何工厂/领域，只换数据，代码不动。**
 
-[![Version](https://img.shields.io/badge/version-2.0.2-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
+[![CI](https://github.com/zhengjinjun1975/factory-ontology/actions/workflows/ci.yml/badge.svg)](https://github.com/zhengjinjun1975/factory-ontology/actions)
 
 ## 它解决什么问题
 
@@ -110,12 +111,18 @@ npm start            # 启动服务 http://localhost:3001
 | 模块 | 作用 |
 |------|------|
 | `csv_to_owl.py` | 数据→本体（零依赖，类型自动推断，N-Triples） |
+| `multi_table.py` | 多表自动关联建本体（自动外键检测 → 跨表对象属性） |
+| `data_loader.py` | 统一读取 CSV/JSON/SQLite/Excel |
+| `graph_rag.py` | **GraphRAG-lite**：建图 + 图遍历检索 + LLM 生成（开放式/关系问题） |
 | `factory_agent.py` | 一站式入口：自动建模 + 问答 |
-| `ontology_qa_v3.py` | 通用问答引擎（规则优先 + 词典驱动） |
+| `ontology_qa_v3.py` | **canonical 通用问答引擎**（规则优先 + 词典驱动） |
+| `benchmark.py` | 对照评测（规则引擎 / GraphRAG vs 纯 LLM） |
 | `ontology_depth.py` | 深度增强（时序观测、状态/优先级推断） |
 | `analysis.py` | 智能分析（统计摘要 + LLM 洞察） |
 | `agents/lexicon_agent.py` | 全自动词典生成（LLM 推断字段语义） |
 | `config/` | 模型配置 + 词典 + 关系外置（换领域只换配置） |
+
+> 问答引擎以 `ontology_qa_v3.py` 为唯一 canonical 核心；`ontology_qa.py` / `ontology_qa_v2.py` / `ontology_query.py` / `ontology_relation_qa.py` 为历史遗留（已标注 DEPRECATED，仅供回退，勿在新代码引用）。
 
 ## 模型配置
 

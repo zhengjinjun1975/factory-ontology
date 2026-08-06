@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.1.0] — 2026-08-06
+
+### 新增
+- **GraphRAG-lite 层**（`graph_rag.py`）：本体建图 + 图遍历检索（BFS 正反向邻域）+ LLM 生成，补开放式/关系问题路径
+- **GitHub Actions CI**（`ci.yml`）：自动跑 pytest 单测 + 对照评测
+- **持久化 pytest 单测**（`tests/test_core.py`）：数据加载/本体生成/规则问答/GraphRAG 检索，5 项全过
+- **图查询接口**：graph_rag 提供 build_graph / find_seeds / extract_subgraph / serialize（图查询即接口）
+
+### 重构
+- 定 `ontology_qa_v3.py` 为唯一 canonical 问答引擎；`ontology_qa.py` / v2 / ontology_query / relation_qa 标注 DEPRECATED（保留供回退，不硬删）
+
 ## [2.0.2] — 2026-08-06
 
 ### 新增
