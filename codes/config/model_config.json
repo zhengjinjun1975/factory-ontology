@@ -15,6 +15,13 @@
       "base_url": "https://api.deepseek.com/v1/chat/completions",
       "model": "deepseek-chat",
       "api_key": ""
+    },
+    "local_ollama": {
+      "name": "本地 Ollama (离线)",
+      "type": "openai",
+      "base_url": "http://localhost:11434/v1",
+      "model": "qwen2.5:7b",
+      "api_key": "ollama"
     }
   }
 }
