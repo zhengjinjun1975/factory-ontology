@@ -118,12 +118,10 @@ def ask(question, nt_path, lex_path):
         return
     ans = v3.answer(question, data, D)
     if ans == "暂不支持该问题":
-        # LLM 兜底
-        try:
-            v2 = _load("ontology_qa_v2", os.path.join(SRC, "ontology_qa_v2.py"))
-            print(v2.llm_answer(question, data))
-        except Exception as e:
-            print(f"暂不支持(LLM兜底失败: {e})")
+        # 图检索兜底(与 API 层一致): 开放式/关系问题走 GraphRAG
+        from graph_rag import answer_graph
+        gans, _ = answer_graph(question, nt_path)
+        print(gans)
     else:
         print(ans)
 

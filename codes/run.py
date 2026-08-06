@@ -14,7 +14,7 @@ import os
 import sys
 import json
 
-__version__ = "2.5.0"
+__version__ = "2.6.0"
 import importlib.util
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -112,25 +112,10 @@ def ask(question, nt=None, lex=None):
         print("本体无实例"); return
     ans = v3.answer(question, data, D)
     if ans == "暂不支持该问题":
-        # 关系问答（对象属性反查：车间A的设备/L1产线的设备）
-        try:
-            rel = _load("ontology_relation_qa", os.path.join(ROOT, "ontology_relation_qa.py"))
-            rel_ans = rel.relation_answer(question, data, D)
-            if rel_ans:
-                print(rel_ans)
-                return
-        except Exception:
-            pass  # 关系问答不可用则跳过，走 LLM 兜底
-        try:
-            v2 = _load("ontology_qa_v2", os.path.join(ROOT, "ontology_qa_v2.py"))
-            # Text-to-Query 优先（生成可执行查询，确定性结果），纯LLM问答兜底
-            code_ans, _mode = v2.code_answer(question, data)
-            if not code_ans.startswith("[LLM") and not code_ans.startswith("[查询"):
-                print(code_ans)
-            else:
-                print(v2.llm_answer(question, data))
-        except Exception as e:
-            print(f"暂不支持(LLM兜底失败: {e})")
+        # 图检索兜底(与 API 层一致): 开放式/关系问题走 GraphRAG
+        from graph_rag import answer_graph
+        gans, _ = answer_graph(question, nt)
+        print(gans)
     else:
         print(ans)
 
