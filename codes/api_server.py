@@ -15,11 +15,18 @@
 """
 import os
 import sys
+import hashlib
+import logging
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
 
-from fastapi import FastAPI, HTTPException, Query
+# ── 结构化日志 ──
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s %(levelname)s %(name)s %(message)s")
+logger = logging.getLogger("food-api")
+
+from fastapi import FastAPI, HTTPException, Query, Header, Request, Depends
 from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
 
@@ -42,10 +49,24 @@ def _find(tail_name):
     return None
 
 
+def _data_hash():
+    """数据文件集合的哈希(用于增量重建检测)。"""
+    h = hashlib.md5()
+    for f in sorted(os.listdir(DATA)):
+        if f.startswith("food_") and f.endswith(".csv"):
+            h.update(open(os.path.join(DATA, f), "rb").read())
+    return h.hexdigest()
+
+
 def _ensure_food_ontology():
-    """若 food.nt 不存在则现场构建（多表+溯源关系）。"""
-    if os.path.exists(FOOD_NT):
+    """若本体已存在且数据未变则复用(增量); 否则重建。"""
+    cur = _data_hash()
+    state = os.path.join(os.path.dirname(FOOD_NT), "food_data_hash.txt")
+    prev = open(state).read().strip() if os.path.exists(state) else ""
+    if os.path.exists(FOOD_NT) and prev == cur:
+        logger.info("本体已是最新(数据未变), 复用缓存, 增量模式")
         return
+    logger.info("检测到数据变化或首次构建, 重建本体...")
     def load(t):
         return mt.load_table(os.path.join(DATA, f"{t}.csv"))
     tables = {}
@@ -61,6 +82,7 @@ def _ensure_food_ontology():
     }
     os.makedirs(os.path.dirname(FOOD_NT), exist_ok=True)
     mt.build_nt(tables, rels, FOOD_NT)
+    open(state, "w").write(cur)  # 记录当前数据hash, 下次比对
 
 
 def _load():
@@ -90,6 +112,38 @@ def app_home():
 
 class AskReq(BaseModel):
     question: str
+
+
+# ── 角色化鉴权(M1.2): FOOD_ADMIN_KEY 管理 / FOOD_READ_KEY 只读 ──
+ADMIN_KEY = os.environ.get("FOOD_ADMIN_KEY", "").strip()
+READ_KEY = os.environ.get("FOOD_READ_KEY", "").strip()
+
+
+def _valid(key, target):
+    """key 是否匹配目标(或已配置的角色 key)。空=该角色未配置。"""
+    return target != "" and key == target
+
+
+def require_key(x_api_key: str = Header(default="")):
+    """只读端点鉴权: 配置了任一 key 时, 需匹配 read 或 admin key; 均未配置则开放。"""
+    if (ADMIN_KEY or READ_KEY) and not (_valid(x_api_key, ADMIN_KEY) or _valid(x_api_key, READ_KEY)):
+        raise HTTPException(401, "无效或缺失 API Key (需 X-API-Key 头)")
+
+
+def require_admin(x_api_key: str = Header(default="")):
+    """管理端点鉴权: 需匹配 admin key(配置时)。"""
+    if ADMIN_KEY and not _valid(x_api_key, ADMIN_KEY):
+        raise HTTPException(401, "需要管理权限 (admin API Key)")
+
+# ── 请求计数(M1.3 metrics) ──
+from collections import Counter as _Counter
+REQ_COUNT = _Counter()
+
+
+@app.middleware("http")
+async def count_requests(request: Request, call_next):
+    REQ_COUNT[request.url.path] += 1
+    return await call_next(request)
 
 
 def _label(uri):
@@ -134,12 +188,32 @@ def _reverse_trace(raw_id):
     return {"raw_material": _label(r), "affected_batches": affected}
 
 
+@app.post("/api/admin/rebuild", dependencies=[Depends(require_admin)])
+def admin_rebuild():
+    """管理操作: 强制重建本体(接新数据后调用)。"""
+    global graph, labels, vi, rev, QDATA
+    for f in ["food.nt", "food_data_hash.txt"]:
+        p = os.path.join(os.path.dirname(FOOD_NT), f)
+        if os.path.exists(p):
+            os.remove(p)
+    graph, labels, vi, rev = _load()
+    QDATA = v3.build_data(v3.parse_nt(FOOD_NT), D)
+    logger.info("本体已重建, 节点=%d", len(graph))
+    return {"ok": True, "message": "本体已重建", "nodes": len(graph)}
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics():
+    """轻量指标: 各端点请求计数(供监控/排障)。"""
+    return {"ok": True, "requests": dict(REQ_COUNT), "total": sum(REQ_COUNT.values())}
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "version": "2.1.0"}
 
 
-@app.post("/api/ask")
+@app.post("/api/ask", dependencies=[Depends(require_key)])
 def ask(req: AskReq):
     """自然语言问答：先规则引擎，命中不了走 GraphRAG，再答不上给引导。"""
     ans = v3.answer(req.question, QDATA, D)
@@ -152,17 +226,17 @@ def ask(req: AskReq):
             "answer": "抱歉，暂未理解该问题。\n可试试问：\n· 乳制品的数量\n· 保质期最长的产品\n· B001 用了哪些原料\n· RM008 用于哪些批次\n· 原味酸奶是什么"}
 
 
-@app.get("/api/trace/forward")
+@app.get("/api/trace/forward", dependencies=[Depends(require_key)])
 def trace_forward(batch: str = Query(..., description="生产批次号，如 B001")):
     return {"ok": True, "direction": "forward", **_forward_trace(batch)}
 
 
-@app.get("/api/trace/reverse")
+@app.get("/api/trace/reverse", dependencies=[Depends(require_key)])
 def trace_reverse(raw: str = Query(..., description="原料编号，如 RM008")):
     return {"ok": True, "direction": "reverse", **_reverse_trace(raw)}
 
 
-@app.get("/api/scan")
+@app.get("/api/scan", dependencies=[Depends(require_key)])
 def scan(code: str = Query(..., description="溯源码，如 P003-B005 或 B001")):
     """扫码溯源：识别产品批次或批次号。"""
     parts = code.split("-")
@@ -170,7 +244,7 @@ def scan(code: str = Query(..., description="溯源码，如 P003-B005 或 B001"
     return {"ok": True, "code": code, **_forward_trace(batch_id)}
 
 
-@app.get("/api/stats")
+@app.get("/api/stats", dependencies=[Depends(require_key)])
 def stats():
     """知识库统计。"""
     n_products = sum(1 for k in graph if gr.tail(k).startswith("Food_products_P"))
