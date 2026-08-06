@@ -6,6 +6,12 @@ codes/data/*.csv
 !codes/data/line.csv
 !codes/data/equipment.csv
 !codes/data/supplier.csv
+!codes/data/food_products.csv
+!codes/data/food_raw_materials.csv
+!codes/data/food_batches.csv
+!codes/data/food_qc.csv
+!codes/data/food_equipment.csv
+!codes/data/food_batch_ingredient.csv
 current.json
 web_state.json
 output/
