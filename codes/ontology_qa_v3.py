@@ -31,7 +31,7 @@ import sys
 import os
 import re
 import json
-from collections import Counter, defaultdict
+from collections import defaultdict
 
 
 # ------------------------------------------------------------------ 词典加载
@@ -175,6 +175,26 @@ def _fmt_names(names, limit=20):
 
 # ------------------------------------------------------------------ 问答主逻辑
 
+_EXTREME = re.compile(r"最(大|高|多|低|小|少|长|短|贵|便宜|快|慢|久|重|轻|新|老|早|晚|近)")
+_EXTREME_MAX = ("最大","最高","最多","最长","最贵","最快","最久","最重","最新","最老")
+_EXTREME_MIN = ("最小","最低","最少","最短","最慢","最轻","最早","最便宜")
+
+
+def _is_max(q):
+    """问题是否求极值中的最大值。MIN 词(最便宜/最短/最慢等)优先按最小。"""
+    if _is_min(q):
+        return False
+    for k in _EXTREME_MAX:
+        if k in q:
+            return True
+    # 含"最"但未列出的, 按常识多数求最大
+    return _EXTREME.search(q) is not None
+
+
+def _is_min(q):
+    return any(k in q for k in _EXTREME_MIN)
+
+
 def answer(q, data, D):
     """词典 D 驱动的通用问答。"""
     aliases = D.get("field_aliases", {})
@@ -235,22 +255,22 @@ def answer(q, data, D):
             return "列出所有%<仓库内路径>" % (ty_cn, _fmt_names(names(matched))) if matched else "无%s" % ty_cn
 
     # ---- TopN (属性最高/最低的N个) ----
-    if attr_en and re.search(r'\d+\s*[台个条]', q) and any(k in q for k in ("最高", "最大", "最低", "最小")):
+    if attr_en and re.search(r'\d+\s*[台个条]', q) and _EXTREME.search(q):
         n = int(_extract_nums(q)[0]) if _extract_nums(q) else 3
         items = [(d, _num(_field(d, attr_en, aliases))) for d in data.values()]
         items = [(d, v) for d, v in items if v is not None]
-        is_max = any(k in q for k in ("最高", "最大"))
+        is_max = _is_max(q)
         items.sort(key=lambda x: x[1], reverse=is_max)
         cname = cn2cn.get(attr_en, attr_en)
         rows = ["  - %s (%s=%s)" % (_display_name(d, aliases, default=""), cname, v) for d, v in items[:n]]
         return "%s%s的%d个:\n%s" % ("最高" if is_max else "最低", cname, n, "\n".join(rows))
 
-    # ---- 单极值 (属性最大/最小) ----
-    if attr_en and any(k in q for k in ("最大", "最高", "最多", "最低", "最小", "最少")):
+    # ---- 单极值 (属性最大/最小/最长/最贵等) ----
+    if attr_en and _EXTREME.search(q):
         items = [(d, _num(_field(d, attr_en, aliases))) for d in data.values()]
         items = [(d, v) for d, v in items if v is not None]
         if items:
-            is_max = any(k in q for k in ("最大", "最高", "最多"))
+            is_max = _is_max(q)
             best = max(items, key=lambda x: x[1]) if is_max else min(items, key=lambda x: x[1])
             cname = cn2cn.get(attr_en, attr_en)
             return "%s%s的记录: %s (%s=%s)" % ("最" if is_max else "最", cname, _display_name(best[0], aliases, default=""), cname, best[1])

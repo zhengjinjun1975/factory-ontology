@@ -16,8 +16,6 @@ GraphRAG 层回答开放式/关系/模糊问题——两者互补。
 """
 import sys
 import os
-import re
-import json
 from collections import defaultdict, deque
 
 
@@ -86,11 +84,14 @@ def find_seeds(question, graph, labels, value_index, top=8):
     """从问题关键词定位种子实体(子串匹配)。返回 [实体URI]。"""
     q = question.lower()
     scored = defaultdict(float)
-    # 1. 值/标签/ID 子串匹配: value_index 的键若出现在问题里
+    # 1. 值/标签/ID 子串匹配: value_index 的键若出现在问题里 (单字中文也允许, 如"盐")
     for key, ents in value_index.items():
-        if key and len(key) >= 2 and key in q:
-            for e in ents:
-                scored[e] += 1.0
+        if not key or key not in q:
+            continue
+        if len(key) < 2 and not (len(key) == 1 and '\u4e00' <= key <= '\u9fff'):
+            continue
+        for e in ents:
+            scored[e] += 1.0
     # 2. 实体标签匹配
     for ent, lbl in labels.items():
         lb = lbl.lower()
@@ -139,7 +140,7 @@ def serialize_subgraph(sub, labels):
     return "\n".join(lines)
 
 
-def answer_graph(question, nt_file, lex_file=None, depth=1, max_nodes=40, model_key=None):
+def answer_graph(question, nt_file, depth=1, max_nodes=40, model_key=None):
     """GraphRAG 主入口：种子->子图->LLM生成。返回 (答案, 子图文本)。"""
     graph, labels, value_index, reverse = build_graph(nt_file)
     seeds = find_seeds(question, graph, labels, value_index)
@@ -176,7 +177,7 @@ def main():
         print("用法: python graph_rag.py <nt文件> '<问题>' [--depth N] [--max-nodes N]")
         sys.exit(1)
     nt, q = args[0], args[1]
-    ans, ctx = answer_graph(q, nt, lex, depth=depth, max_nodes=max_nodes)
+    ans, ctx = answer_graph(q, nt, depth=depth, max_nodes=max_nodes)
     print(ans)
     if os.environ.get("GRAPH_DEBUG"):
         print("\n--- 检索到的子图 ---\n" + ctx)
