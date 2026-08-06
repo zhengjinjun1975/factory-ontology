@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""e2e_test.py — factory-ontology v2.9.0 端到端测试
+"""e2e_test.py — factory-ontology v2.9.3 端到端测试
 
 覆盖: 问答(规则/逻辑/引导) + 溯源(正/反/扫码) + 导出 + 管理(上传/统计/词典/审计) + 多源 + 多租户 + 一致性
 用法: python e2e_test.py  (退出码 0=全过, 1=有失败)
