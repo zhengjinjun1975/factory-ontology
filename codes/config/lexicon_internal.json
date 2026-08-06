@@ -1,5 +1,5 @@
 {
-  "description": "三油科技设备/合同词典（合成示例）— 内部知识管理",
+  "description": "企业内部设备/合同词典（合成示例）— 内部知识管理",
   "attr_cn2en": {"设备名": "device_name", "型号": "model", "口径": "size_mm", "压力等级": "pressure_mpa", "材质": "material", "客户": "customer", "金额": "amount", "合同号": "contract_no", "价格": "amount"},
   "attr_en2cn": {"device_name": "设备名", "model": "型号", "customer": "客户", "amount": "金额", "status": "状态"},
   "status_cn2en": {"运行中": "运行中", "待检修": "待检修", "保修期内": "保修期内", "已回款": "已回款", "未回款": "未回款"},
