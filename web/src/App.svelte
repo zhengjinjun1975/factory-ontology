@@ -9,7 +9,7 @@
   // ─── 状态 ───
   let activeTab = $state('model');   // model | query | dashboard
   let fileName = $state('');
-  let csvContent = $state('');
+  let fileContent = $state('');
   let modeling = $state(false);
   let modelResult = $state(null);   // {table, attrs}
   let question = $state('');
@@ -69,22 +69,22 @@
   function onFileChange(e) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      setStatus('err', '仅支持 .csv 文件'); return;
+    if (!/\.(csv|json)$/i.test(file.name)) {
+      setStatus('err', '仅支持 .csv / .json 文本文件'); return;
     }
     fileName = file.name;
     const reader = new FileReader();
-    reader.onload = () => { csvContent = reader.result; };
+    reader.onload = () => { fileContent = reader.result; };
     reader.readAsText(file, 'utf-8');
   }
 
   // ─── 上传建模 ───
   async function doSetup() {
-    if (!fileName || !csvContent || modeling) return;
+    if (!fileName || !fileContent || modeling) return;
     modeling = true; status = 'modeling';
     setStatus('info', `正在建模 ${fileName} …`);
     try {
-      const res = await setupOntology(fileName, csvContent);
+      const res = await setupOntology(fileName, fileContent);
       if (!res.ok) {
         setStatus('err', res.error || '建模失败'); status = 'idle';
       } else {
@@ -195,16 +195,16 @@
       <div class="pane-title">数据建模</div>
 
       <div class="form-group">
-        <label class="form-label">数据文件（CSV）</label>
+        <label class="form-label">数据文件（CSV/JSON）</label>
         <label class="file-input">
-          <input type="file" accept=".csv" onchange={onFileChange} />
+          <input type="file" accept=".csv,.json" onchange={onFileChange} />
           <span class="file-icon">📄</span>
-          <span class="file-name">{fileName || '选择 CSV 文件…'}</span>
+          <span class="file-name">{fileName || '选择 CSV/JSON 文件…'}</span>
         </label>
       </div>
 
       <div class="form-group">
-        <button class="btn-action" onclick={doSetup} disabled={modeling || !fileName || !csvContent}>
+        <button class="btn-action" onclick={doSetup} disabled={modeling || !fileName || !fileContent}>
           <span class="btn-icon">{modeling ? '⏳' : '⚙'}</span>
           {modeling ? '建模进行中…' : '上传并建模'}
         </button>
