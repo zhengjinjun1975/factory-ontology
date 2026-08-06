@@ -9,7 +9,7 @@ import sys
 import json
 import csv
 
-codes = r"E:\open-source\factory-ontology-kit\codes"
+codes = os.path.dirname(os.path.abspath(__file__))  # 相对路径, 任意位置可运行
 sys.path.insert(0, codes)
 os.chdir(codes)
 
@@ -80,7 +80,7 @@ def main():
     r = subprocess.run([sys.executable, "-m", "pytest", "tests/", "-q"], capture_output=True, text=True, timeout=120)
     ck("pytest 全过", r.returncode == 0 and "passed" in r.stdout, r.stdout[-80:])
     import run
-    ck("版本 2.9.0", run.__version__ == "2.9.0")
+    ck("版本 2.9.3", run.__version__ == "2.9.3")
 
     print(f"\n══ E2E 结果: {TOTAL - FAILED}/{TOTAL} 通过 ══")
     return 1 if FAILED else 0
