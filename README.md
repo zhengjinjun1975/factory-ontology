@@ -2,6 +2,7 @@
 
 > 本体建模 → 大模型落地的开源实现：把任意结构化数据（CSV）自动转成"实体-关系-属性"语义本体，再提供自然语言问答。**换任何工厂/领域，只换数据，代码不动。**
 
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
 
