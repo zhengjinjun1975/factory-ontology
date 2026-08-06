@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.2] — 2026-08-06
+
+### 短板推进（测试加固 + 实证）
+- **测试加固**：`tests/test_api.py` 新增 API/多租户/graph_store/data_import 测试，pytest 6→10 项
+- **LLM 兜底评测**（`benchmark_graphrag.py`）：GraphRAG 开放式问题命中率 **8/8 = 100%**（实证）
+- **规模实证**：20 万实体合成图，SQLite 图持久化 1.58s / 加载 1.76s / 67MB（规模化路径实测可行）
+
 ## [2.6.1] — 2026-08-06
 
 ### 规模化/产品（T-D 剩余）
