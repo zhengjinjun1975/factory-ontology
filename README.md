@@ -2,7 +2,7 @@
 
 > 本体建模 → 大模型落地的开源实现：把任意结构化数据（CSV）自动转成"实体-关系-属性"语义本体，再提供自然语言问答。**换任何工厂/领域，只换数据，代码不动。**
 
-[![Version](https://img.shields.io/badge/version-2.9.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.9.2-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
 [![CI](https://github.com/zhengjinjun1975/factory-ontology/actions/workflows/ci.yml/badge.svg)](https://github.com/zhengjinjun1975/factory-ontology/actions)
@@ -222,6 +222,22 @@ APP 的品牌/图标/示例问题自动从 kbs.json 读取，无需改代码。
 <img src="docs/diagrams/roadmap.svg" width="880" alt="工厂落地路线图">
 
 **六步**：① 建知识库骨架（new_kb）→ ② 接入数据 → ③ 配置词典（领域适配）→ ④ 部署上线（Docker）→ ⑤ 使用（手机/语音/后台）→ ⑥ 运维与合规（审计/监控/质量/导出）。
+
+### 阀门行业示例（石油/阀门领域适用性）
+
+> `data_valve/` 为**合成示例数据**（非真实数据），实证框架"换领域即用"——作者供职的北京三油科技主营石油/阀门相关业务，本示例展示框架对该行业的天然契合（设备台账/质检/零部件溯源）。
+
+```bash
+cd codes
+python valve_demo.py
+```
+输出示例：
+- **规则问答**：`一共有多少个阀门` → 6；`价格最贵的阀门` → 安全阀A42Y（3980元）
+- **逻辑桥**：`有多少种球阀` → 1（LLM转逻辑→确定性执行）
+- **反向溯源（质量召回核心）**：`密封圈RM03(不合格) → VB02 → V02 球阀`
+- **benchmark**：13/13 = 100%（规则引擎确定性）
+
+数据：`data_valve/*.csv`（阀门产品/零部件/批次/质检/设备 + 批次-部件关联）+ `config/lexicon_valve.json`（阀门词典）。
 
 ## 模型配置
 
