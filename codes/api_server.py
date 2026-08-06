@@ -20,6 +20,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
 
 import graph_rag as gr
@@ -72,8 +73,19 @@ graph, labels, vi, rev = _load()
 D = v3.load_dict(FOOD_LEX)
 QDATA = v3.build_data(v3.parse_nt(FOOD_NT), D)
 
-app = FastAPI(title="食品企业知识库 API", version="2.1.0",
+app = FastAPI(title="食品企业知识库 API", version="2.2.0",
               description="本体驱动的食品企业问答 + 溯源检索（中小型食品企业场景）")
+
+# ── 托管移动端食品溯源 APP（与 API 同源，一套部署） ──
+FOOD_APP_HTML = os.path.join(os.path.dirname(ROOT), "web", "food_app", "index.html")
+
+
+@app.get("/", include_in_schema=False)
+def app_home():
+    """食品溯源移动端 APP 首页。"""
+    if os.path.exists(FOOD_APP_HTML):
+        return FileResponse(FOOD_APP_HTML, media_type="text/html")
+    return HTMLResponse("食品溯源 APP 未找到（web/food_app/index.html）", status_code=404)
 
 
 class AskReq(BaseModel):

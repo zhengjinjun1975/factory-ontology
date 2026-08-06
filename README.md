@@ -142,6 +142,14 @@ python api_server.py          # http://localhost:8000
 | `GET /api/scan?code=P003-B005` | 扫码溯源（识别产品批次） |
 | `GET /api/stats` | 知识库统计 |
 
+### 移动端 APP + 语音助手
+
+一套部署，三层消费：API / 移动端 APP / 语音助手。
+
+- **移动端 APP**：`GET /`（API 同端口托管）→ 手机浏览器打开即用，含智能问答 / 扫码溯源 / 反向追溯三个面板
+- **语音助手**：`python voice_assistant.py "乳制品的数量"` → edge-tts 中文朗读；`--voice` 可选语音输入（需装 faster-whisper）
+- **部署**：`docs/部署.md` 面向无专职工程师的小型企业，换数据即用
+
 ## 模型配置
 
 `codes/config/model_config.json` 统一管理，`active` 切换即可：
@@ -188,6 +196,7 @@ python api_server.py          # http://localhost:8000
 - `docs/交付方法论.md` / `docs/交付白皮书.md` — 现场落地方法
 - `docs/开源调研.md` — 本体/知识图谱开源生态调研
 - `codes/food_demo.py` — 食品企业溯源可复现案例（一键运行）
+- `docs/部署.md` — 小型企业部署指南（API + APP + 语音，换数据即用）
 
 ## 实测验证
 
