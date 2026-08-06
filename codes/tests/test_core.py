@@ -110,3 +110,34 @@ def test_graph_rag_retrieval(tmp_path):
     sub = gr.extract_subgraph(graph, reverse, seeds, depth=1, max_nodes=20)
     ctx = gr.serialize_subgraph(sub, labels)
     assert "产线A" in ctx or "Line_L1" in ctx  # 反向遍历能找到产线
+
+
+# ── multi_table join 表修复 (ID去重 + id_col外键) ──
+def test_multi_table_join_dedup_and_fk(tmp_path):
+    import multi_table as mt
+    import graph_rag as gr
+    ntp = str(tmp_path / "join.nt")
+    # join 表 batch_ingredient: batch_id 非唯一 + 既是id列又是外键
+    tables = {
+        "batch_ingredient": {
+            "headers": ["batch_id", "raw_id"],
+            "rows": [{"batch_id": "B1", "raw_id": "R1"}, {"batch_id": "B1", "raw_id": "R2"},
+                     {"batch_id": "B2", "raw_id": "R1"}],
+            "id_col": "batch_id"},
+        "batch": {"headers": ["id"], "rows": [{"id": "B1"}, {"id": "B2"}], "id_col": "id"},
+        "raw": {"headers": ["id"], "rows": [{"id": "R1"}, {"id": "R2"}], "id_col": "id"},
+    }
+    rels = {
+        "batch_ingredient": {
+            "batch_id": {"target_class": "Batch", "rel": "http://x/ontology#belongsToBatch", "label": "属于"},
+            "raw_id": {"target_class": "Raw", "rel": "http://x/ontology#usesRaw", "label": "使用"}},
+    }
+    mt.build_nt(tables, rels, ntp)
+    g, _, _, _ = gr.build_graph(ntp)
+    # ID 去重: B1 的两行生成不同 URI
+    b1_nodes = [k for k in g if gr.tail(k).startswith("Batch_ingredient_B1")]
+    assert len(b1_nodes) == 2  # 去重生效
+    # id_col 外键发出: 每个 ingredient 节点有 belongsToBatch 且指向 B1
+    for k in b1_nodes:
+        assert "belongsToBatch" in g[k]
+        assert any(gr.tail(v) == "Batch_B1" for v in g[k]["belongsToBatch"])
