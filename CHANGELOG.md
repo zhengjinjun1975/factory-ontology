@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.3.0] — 2026-08-06
+
+### 工程化硬化（M1 + 三跳板）
+- **角色化鉴权**：`FOOD_ADMIN_KEY`（管理）/ `FOOD_READ_KEY`（只读），/api/* 需 `X-API-Key` 头；未配置则内网开放
+- **增量重建**：数据文件 hash 检测，数据未变复用缓存本体，变了才重建（接新数据自动生效）
+- **管理端点** `POST /api/admin/rebuild`（admin 权限）——接真实数据后强制重建
+- **结构化日志 + 指标** `/metrics`：请求计数 + 统一日志格式
+- **Docker 一键部署**：`Dockerfile` + `docker-compose.yml` + `nginx.conf`（HTTPS 反代示例）
+
 ## [2.2.0] — 2026-08-06
 
 ### 新增
