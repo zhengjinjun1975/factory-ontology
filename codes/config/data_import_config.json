@@ -1,0 +1,17 @@
+{
+  "source_map": {
+    "products": "food_products",
+    "raw": "food_raw_materials",
+    "batches": "food_batches",
+    "ingredient": "food_batch_ingredient"
+  },
+  "food_products": {
+    "产品编号": "id", "产品名": "product_name", "品类": "category",
+    "规格": "spec", "保质期天": "expiry_days", "储存条件": "storage", "售价": "price"
+  },
+  "food_raw_materials": {
+    "原料编号": "id", "原料名": "raw_name", "供应商": "supplier",
+    "批次": "batch", "到期日": "expiry_date", "库存": "stock_qty",
+    "状态": "status", "质检": "qc_result"
+  }
+}
