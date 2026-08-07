@@ -28,6 +28,16 @@
 </div>
 
 <div class="card">
+  <h3>🧬 本体建模（类 + Is-A 类别层级 + 关系）</h3>
+  <div id="ontology"></div>
+</div>
+
+<div class="card">
+  <h3>🗺️ 企业本体大图（仿企业本体智能决策平台 · ECharts 交互力导向）</h3>
+  <div id="biggraph" style="height:520px;overflow:auto;border:1px solid #e5e7eb;border-radius:8px;background:#fff"></div>
+</div>
+
+<div class="card">
   <h3>📤 上传数据（CSV → 重建本体）</h3>
   <label>目标表</label>
   <select id="table">
@@ -54,6 +64,7 @@
   <pre id="audit">加载中…</pre>
 </div>
 
+<script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
 <script>
 const BASE='';
 async function j(u){const r=await fetch(BASE+u);const d=await r.json();if(!r.ok)throw new Error(d.detail||d.error||('HTTP '+r.status));return d;}
@@ -70,6 +81,37 @@ async function load(){
     const d=await j('/api/admin/audit?limit=20');
     el('audit').textContent=JSON.stringify(d.audit||[],null,2);
   }catch(e){el('audit').textContent='加载失败(需admin Key?): '+e.message;}
+  try{
+    const o=await j('/api/ontology/structure');
+    el('ontology').innerHTML=
+      `<div style="margin-bottom:8px"><span class="stat">实例 ${o.instance_total}</span><span class="stat">类 ${o.classes.length}</span><span class="stat">关系 ${o.object_properties.length}</span></div>`+
+      `<b style="font-size:13px">类：</b><div style="font-size:12px;margin:4px 0">${o.classes.map(c=>'<span style="background:#eef2ff;padding:2px 8px;border-radius:6px;margin:2px 4px;display:inline-block">'+c+'</span>').join('')}</div>`+
+      `<b style="font-size:13px">Is-A 类别层级(subClassOf)：</b><div style="font-size:12px;margin:4px 0">${o.subclass_of.map(([s,p])=>'<span style="background:#ecfdf5;padding:2px 8px;border-radius:6px;margin:2px 4px;display:inline-block">'+s+' → '+p+'</span>').join('')||'无'}</div>`+
+      `<b style="font-size:13px">对象属性关系：</b><div style="font-size:12px;margin:4px 0">${o.object_properties.join(' · ')}</div>`;
+  }catch(e){el('ontology').textContent='加载失败: '+e.message;}
+  try{
+    const o=await j('/api/ontology/graph');
+    if(typeof echarts!=='undefined'){
+      const el=el('biggraph');
+      const colors={Food_products:'#2f6bff',Food_raw_materials:'#27ae60',Food_batches:'#f39c12',Food_batch_ingredient:'#e67e22',Food_qc:'#e74c3c',Food_equipment:'#16a085',Food:'#8e44ad'};
+      const cats=[...new Set(o.nodes.map(n=>n.entity))].map(e=>({name:e}));
+      const chart=echarts.init(el);
+      chart.setOption({tooltip:{show:true},animationDuration:800,
+        series:[{type:'graph',layout:'force',roam:true,
+          force:{repulsion:280,edgeLength:[50,120],gravity:0.1},
+          label:{show:true,position:'right',fontSize:9,formatter:p=>p.name&&p.name.split('#').pop().split('_').pop()},
+          edgeSymbol:['none','arrow'],lineStyle:{color:'#d6e4ff',width:1},
+          categories:cats,
+          data:o.nodes.map(n=>({id:n.id,name:n.name,entity:n.entity,
+            category:cats.findIndex(c=>c.name===n.entity),
+            itemStyle:{color:colors[n.entity]||'#7f8c8d'}})),
+          links:o.edges.map(e=>({source:e.from,target:e.to,label:{show:false}})),
+          emphasis:{focus:'adjacency',label:{show:true,fontSize:11}}
+        }]});
+    } else {
+      el('biggraph').textContent='ECharts 未加载(CDN需网络)';
+    }
+  }catch(e){el('biggraph').textContent='大图加载失败: '+e.message;}
 }
 async function upload(){
   const f=el('file').files[0]; if(!f){el('up-status').textContent='请选CSV';return;}

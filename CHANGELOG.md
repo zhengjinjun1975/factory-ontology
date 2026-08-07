@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.9.6] — 2026-08-07
+
+### 本体深化：类别类层级(Is-A) + 企业与客户关系 + 企业本体大图（参考 sme-decision-ontology）
+- **本体层次深入**：multi_table.py 新增类别类层级——自动检测 `type/category` 列，生成 `<表名>Category_值 rdfs:subClassOf <表名>`（产品 Is-A 类别、设备 Is-A 类别）+ 实例 `hasType` 链接
+- **FK 检测增强**：支持领域前缀（valve_/food_/factory_）+ 单复数匹配（product_id → products），自动识别跨表关系
+- **企业与客户关系**：新增 `valve_customers.csv` + `valve_sales.csv`，产品 --销售--> 客户（hasValve_products / hasValve_customers）
+- **企业本体大图**：`docs/diagrams/ontology-大图.svg` 展示企业与客户关系 + 本体层次 Is-A
+- **跨行业验证**：阀门 8 subClassOf + 食品 11 subClassOf，FK 前缀/单复数均适配
+- 版本 2.9.5 → 2.9.6
+
 ## [2.9.5] — 2026-08-07
 
 ### 优化：lexicon_agent._build_full_lexicon（方案A）

@@ -124,7 +124,7 @@ D = v3.load_dict(FOOD_LEX)
 QDATA = v3.build_data(v3.parse_nt(FOOD_NT), D)
 _BM25_INDEX = None  # BM25 混合检索索引(惰性构建)
 
-app = FastAPI(title="食品企业知识库 API", version="2.2.0",
+app = FastAPI(title="食品企业知识库 API", version="2.9.6",
               description="本体驱动的食品企业问答 + 溯源检索（中小型食品企业场景）")
 
 # ── 托管移动端食品溯源 APP（与 API 同源，一套部署） ──
@@ -137,6 +137,75 @@ def admin_page():
     """管理后台页(需要 admin Key 调 /api/admin/*, 页面本身静态)。"""
     if os.path.exists(ADMIN_HTML):
         return HTMLResponse(open(ADMIN_HTML, encoding="utf-8").read())
+
+
+@app.get("/api/ontology/structure")
+def ontology_structure():
+    """本体建模视图数据：类 + Is-A 类别层级(subClassOf) + 对象属性关系 + 实例数。
+    优先读深化本体(含 subClassOf 类别层级), 回退当前活动本体。"""
+    from ontology_qa_v3 import parse_nt
+    deep_nt = os.path.join(ROOT, "output", "food_deep.nt")
+    nt_file = deep_nt if os.path.exists(deep_nt) else FOOD_NT
+    triples = parse_nt(nt_file)
+    classes, subcls, objprops = [], [], []
+    seen = set()
+    OWL_CLASS = "http://www.w3.org/2002/07/owl#Class"
+    for s, p, o in triples:
+        oo = str(o).strip("<>")
+        if oo == OWL_CLASS:
+            nm = s.split("#")[-1].strip("<>")
+            if nm and nm not in seen:
+                classes.append(nm); seen.add(nm)
+        elif "subClassOf" in p:
+            subcls.append((s.split("#")[-1].strip("<>"), o.split("#")[-1].strip("<>")))
+        elif "ObjectProperty" in str(o):
+            nm = s.split("#")[-1].strip("<>")
+            if nm not in objprops: objprops.append(nm)
+    return {"ok": True, "classes": sorted(classes), "subclass_of": sorted(subcls),
+            "object_properties": sorted(objprops), "instance_total": len(graph),
+            "nt_file": os.path.basename(nt_file)}
+
+
+@app.get("/api/ontology/graph-svg", include_in_schema=False)
+def ontology_graph_svg():
+    """返回企业本体大图 SVG(企业与客户关系 + 本体层次 Is-A)。"""
+    svg = os.path.join(ROOT, "..", "docs", "diagrams", "ontology-大图.svg")
+    if os.path.exists(svg):
+        return HTMLResponse(open(svg, encoding="utf-8").read())
+    return HTMLResponse("<div>大图未生成</div>")
+
+
+@app.get("/api/ontology/graph")
+def ontology_graph():
+    """本体完整图(节点+边)，供前端 ECharts 动态大图渲染(仿 sme-decision-ontology /graph/full)。"""
+    nodes, edges = [], []
+    seen_edges = set()
+    RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
+    # 实体类(从URI前缀推断: NS + <类名>_<实例id>); 仅保留实例节点(带 _ 的)
+    for uri, props in graph.items():
+        if uri == RDF_TYPE:
+            continue
+        nm = labels.get(uri, uri.split("#")[-1].strip("<>"))
+        local = uri.split("#")[-1].strip("<>")
+        if "_" not in local:
+            continue  # 跳过属性/关系/类声明节点(无实例id)
+        entity = local.rsplit("_", 1)[0]
+        nodes.append({"id": uri, "name": nm, "entity": entity})
+    # 边(对象属性: 目标是实体URI)
+    node_ids = {n["id"] for n in nodes}
+    for uri, props in graph.items():
+        if uri not in node_ids:
+            continue
+        for rel, vals in props.items():
+            if "type" in rel or "label" in rel or "domain" in rel or "range" in rel:
+                continue
+            for v in vals:
+                vv = str(v).strip("<>")
+                if vv in node_ids and (uri, vv) not in seen_edges:
+                    edges.append({"from": uri, "to": vv, "rel": rel})
+                    seen_edges.add((uri, vv))
+    return {"ok": True, "nodes": nodes, "edges": edges,
+            "counts": {"nodes": len(nodes), "edges": len(edges)}}
 
 
 @app.get("/", include_in_schema=False)

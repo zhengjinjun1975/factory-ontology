@@ -80,7 +80,7 @@ def main():
     r = subprocess.run([sys.executable, "-m", "pytest", "tests/", "-q"], capture_output=True, text=True, timeout=120)
     ck("pytest 全过", r.returncode == 0 and "passed" in r.stdout, r.stdout[-80:])
     import run
-    ck("版本 2.9.5", run.__version__ == "2.9.5")
+    ck("版本 2.9.5", run.__version__ == "2.9.6")
 
     print(f"\n══ E2E 结果: {TOTAL - FAILED}/{TOTAL} 通过 ══")
     return 1 if FAILED else 0
