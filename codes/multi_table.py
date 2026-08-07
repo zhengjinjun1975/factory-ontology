@@ -29,6 +29,7 @@ OWL_DATAPROP = "<http://www.w3.org/2002/07/owl#DatatypeProperty>"
 RDFS_DOMAIN = "<http://www.w3.org/2000/01/rdf-schema#domain>"
 RDFS_RANGE = "<http://www.w3.org/2000/01/rdf-schema#range>"
 RDFS_LABEL = "<http://www.w3.org/2000/01/rdf-schema#label>"
+RDFS_SUBCLASS = "<http://www.w3.org/2000/01/rdf-schema#subClassOf>"
 
 
 def guess_type(v):
@@ -97,8 +98,16 @@ def detect_relations(tables):
                 if oname == tname:
                     continue
                 oinfo = tables[oname]
-                # 规则: base == 目标表名 或 base == 目标表 id 列名
-                if base_l == oname.lower() or base_l == oinfo["id_col"].lower():
+                # 目标表名去常见前缀(阀/food 等领域前缀)后匹配 FK 列名
+                oname_base = oname
+                for pre in ("valve_", "food_", "factory_", "demo_"):
+                    if oname.lower().startswith(pre):
+                        oname_base = oname[len(pre):]
+                        break
+                # 单数化(表名复数 vs FK列单数): products -> product
+                oname_sing = oname_base[:-1] if oname_base.endswith("s") else oname_base
+                if (base_l == oname.lower() or base_l == oname_base.lower()
+                        or base_l == oname_sing.lower() or base_l == oinfo["id_col"].lower()):
                     rels.setdefault(tname, {})[col] = {
                         "target_class": oname.capitalize(),
                         "rel": NS + f"has{oname.capitalize()}",
@@ -109,14 +118,50 @@ def detect_relations(tables):
     return rels
 
 
-def build_nt(tables, rels, outpath):
+def detect_categories(tables):
+    """检测类别列(type/category/class) → {表名: {列名: [类别值...]}}，供本体层次(Is-A)深入。"""
+    cats = {}
+    CATEGORY_HINTS = ("type", "category", "class", "kind", "等级", "类型")
+    for tname, tinfo in tables.items():
+        for h in tinfo["headers"]:
+            low = h.lower()
+            if any(k in low for k in CATEGORY_HINTS) and low not in ("datatype",):
+                vals = list(dict.fromkeys(r[h].strip() for r in tinfo["rows"] if h in r and r[h].strip()))
+                if vals:
+                    cats.setdefault(tname, {})[h] = vals
+    return cats
+
+
+def build_nt(tables, rels, outpath, categories=None):
     L = []
     # 类 + 属性声明
+    categories = categories or {}
+    cat_cols = {}  # (表名,列) -> [值]
+    for tname, cinfo in categories.items():
+        for h, vals in cinfo.items():
+            cat_cols[(tname, h)] = vals
     for tname, tinfo in tables.items():
         cls = tname.capitalize()
         cls_uri = NS + cls
         L.append(f"<{cls_uri}> {RDF_TYPE} {OWL_CLASS} .")
         L.append(f"<{cls_uri}> {RDFS_LABEL} {q(cls)} .")
+        # 类别类层级(Is-A): <表名>Category_值 subClassOf <表名>
+        for (tn, h), vals in cat_cols.items():
+            if tn != tname:
+                continue
+            cat_cls = f"{cls}Category"
+            p_uri = NS + f"has{local_name(h).capitalize()}"
+            L.append(f"<{NS}{cat_cls}> {RDF_TYPE} {OWL_CLASS} .")
+            L.append(f"<{NS}{cat_cls}> {RDFS_LABEL} {q(f'{cls}类别')} .")
+            L.append(f"{p_uri} {RDF_TYPE} {OWL_OBJPROP} .")
+            L.append(f"{p_uri} {RDFS_DOMAIN} <{cls_uri}> .")
+            L.append(f"{p_uri} {RDFS_RANGE} <{NS}{cat_cls}> .")
+            L.append(f"{p_uri} {RDFS_LABEL} {q('所属类别')} .")
+            for v in vals:
+                cat_uri = f"{NS}{cat_cls}_{v}"
+                L.append(f"<{cat_uri}> {RDF_TYPE} {OWL_CLASS} .")
+                L.append(f"<{cat_uri}> {RDFS_LABEL} {q(v)} .")
+                L.append(f"<{cat_uri}> {RDFS_SUBCLASS} <{cls_uri}> .")
         t_rels = rels.get(tname, {})
         for h in tinfo["headers"]:
             if h == tinfo["id_col"] or h in t_rels:
@@ -152,6 +197,13 @@ def build_nt(tables, rels, outpath):
             seen_ids.add(inst_id)
             inst_uri = f"{cls_uri}_{inst_id}"
             L.append(f"<{inst_uri}> {RDF_TYPE} <{cls_uri}> .")
+            # 类别链接(Is-A 实例→类别类)
+            for (tn, h), vals in cat_cols.items():
+                if tn == tname and h in row and row[h].strip():
+                    cat_cls = f"{cls}Category"
+                    cat_uri = f"{NS}{cat_cls}_{row[h].strip()}"
+                    p_uri = f"<{NS}has{local_name(h).capitalize()}>"
+                    L.append(f"<{inst_uri}> {p_uri} <{cat_uri}> .")
             for h in tinfo["headers"]:
                 # id 列仅作标识时跳过; 若 id 列同时在 relations 里则作为对象属性发出
                 if (h == id_col and h not in t_rels) or h not in row or not row[h].strip():
@@ -191,7 +243,8 @@ def main():
                         "id_col": detect_id_column(headers, name)}
 
     rels = detect_relations(tables)
-    build_nt(tables, rels, args.outpath)
+    cats = detect_categories(tables)
+    build_nt(tables, rels, args.outpath, categories=cats)
 
 
 if __name__ == "__main__":

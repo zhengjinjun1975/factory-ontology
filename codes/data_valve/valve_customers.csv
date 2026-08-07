@@ -1,0 +1,7 @@
+id,customer_name,region,industry,credit_level
+C01,华北炼化,华北,石化,A
+C02,华东化工,华东,化工,A
+C03,南方油气,华南,油气,B
+C04,西北水务,西北,水务,B
+C05,东北能源,东北,能源,A
+C06,中原电力,华中,电力,B
