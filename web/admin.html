@@ -33,7 +33,7 @@
 </div>
 
 <div class="card">
-  <h3>🗺️ 企业本体大图（仿企业本体智能决策平台 · ECharts 交互力导向）</h3>
+  <h3>🗺️ 企业本体大图（本体实例 · 力导向）</h3>
   <div id="biggraph" style="height:520px;overflow:auto;border:1px solid #e5e7eb;border-radius:8px;background:#fff"></div>
 </div>
 
@@ -92,10 +92,10 @@ async function load(){
   try{
     const o=await j('/api/ontology/graph');
     if(typeof echarts!=='undefined'){
-      const el=el('biggraph');
+      const chartEl=el('biggraph');
       const colors={Food_products:'#2f6bff',Food_raw_materials:'#27ae60',Food_batches:'#f39c12',Food_batch_ingredient:'#e67e22',Food_qc:'#e74c3c',Food_equipment:'#16a085',Food:'#8e44ad'};
       const cats=[...new Set(o.nodes.map(n=>n.entity))].map(e=>({name:e}));
-      const chart=echarts.init(el);
+      const chart=echarts.init(chartEl);
       chart.setOption({tooltip:{show:true},animationDuration:800,
         series:[{type:'graph',layout:'force',roam:true,
           force:{repulsion:280,edgeLength:[50,120],gravity:0.1},
