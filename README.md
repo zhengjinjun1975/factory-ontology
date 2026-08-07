@@ -2,7 +2,7 @@
 
 > 本体建模 → 大模型落地的开源实现：把任意结构化数据（CSV）自动转成"实体-关系-属性"语义本体，再提供自然语言问答。**换任何工厂/领域，只换数据，代码不动。**
 
-[![Version](https://img.shields.io/badge/version-2.9.3-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.9.4-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
 [![CI](https://github.com/zhengjinjun1975/factory-ontology/actions/workflows/ci.yml/badge.svg)](https://github.com/zhengjinjun1975/factory-ontology/actions)
@@ -198,7 +198,7 @@ APP 的品牌/图标/示例问题自动从 kbs.json 读取，无需改代码。
 | KAG(蚂蚁) | 9k | ✅ | ❌ | ❌ | 重 |
 | **factory-ontology** | — | ✅ | **✅** | **✅** | **极轻** |
 
-**差异化**：规则引擎对结构化查询**确定性 100%、零 token、零幻觉**（全社区独有）+ 本体自动建模（换数据即用）+ 垂直溯源（召回核心）+ 可解释 + 全本地化（数据不出厂）。
+**差异化**：规则引擎对结构化查询**确定性 100%、零 token、零幻觉**（全社区独有）+ 本体自动建模（换数据即用）+ 垂直溯源（召回核心）+ 可解释 + 全本地化（数据不出厂）+ **BM25 混合检索**（轻量稀疏，提升召回）+ **MCP server**（AI 原生，agent 可调用）。
 **诚实短板**：社区/生态极小、规模受限、LLM 兜底未大规模评测。
 
 ## 系统架构与落地路线

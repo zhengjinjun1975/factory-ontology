@@ -122,6 +122,7 @@ def _load():
 graph, labels, vi, rev = _load()
 D = v3.load_dict(FOOD_LEX)
 QDATA = v3.build_data(v3.parse_nt(FOOD_NT), D)
+_BM25_INDEX = None  # BM25 混合检索索引(惰性构建)
 
 app = FastAPI(title="食品企业知识库 API", version="2.2.0",
               description="本体驱动的食品企业问答 + 溯源检索（中小型食品企业场景）")
@@ -412,6 +413,19 @@ def ask(req: AskReq):
     gans, ctx = gr.answer_graph(req.question, FOOD_NT, depth=2, max_nodes=40, lexicon=D)
     if not gans.startswith("[图检索]"):
         return {"ok": True, "mode": "graphrag", "answer": gans, "context": ctx[:2000]}
+    # 3.5 BM25 混合检索(轻量稀疏, 提升模糊查询召回, 零 token)
+    try:
+        from bm25_retrieval import BM25Index
+        global _BM25_INDEX
+        if _BM25_INDEX is None:
+            _BM25_INDEX = BM25Index.from_graph(graph)
+        hits = _BM25_INDEX.search(req.question, top_k=3, min_score=4.0)
+        if hits:
+            ents = "、".join(h["entity"] for h in hits)
+            return {"ok": True, "mode": "bm25", "answer": f"（混合检索）找到相关实体: {ents}",
+                    "hits": hits[:3]}
+    except Exception:
+        pass
     # 4. 答不上: 从 KB 配置读示例引导(去硬编码)
     examples = _kb.get("examples", ["乳制品的数量", "原味酸奶是什么"])
     guide = "\n".join(f"· {e}" for e in examples[:5])

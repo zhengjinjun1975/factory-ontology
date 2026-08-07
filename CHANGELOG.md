@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.9.4] — 2026-08-07
+
+### BM25 混合检索 + MCP server（AI 原生）
+- **BM25 混合检索**（`bm25_retrieval.py`，纯标准库零依赖）：中文 unigram+bigram 分词、倒排索引、BM25 打分；接入 API 问答链路（规则→逻辑桥→GraphRAG→BM25→miss），提升模糊/自然语言查询召回，零 token；`min_score` 阈值过滤噪音
+- **MCP server**（`mcp_server.py`，纯标准库 stdio JSON-RPC）：暴露知识库给任意 MCP-native AI agent，工具=ask/trace_forward/trace_reverse/stats；AI 原生，agent 可调用问答/溯源/统计
+- 测试：`tests/test_bm25_mcp.py` 5 项（BM25 检索/排序 + MCP 握手/工具/溯源）；pytest 29 项全过
+- 鲁棒性：`benchmark_logical.py` 自动构建缺失的 NT（干净检出也可跑，e2e 17/17）
+
 ## [2.9.3] — 2026-08-06
 
 ### 内部使用方案（示例）
