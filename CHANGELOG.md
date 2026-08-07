@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.9.5] — 2026-08-07
+
+### 优化：lexicon_agent._build_full_lexicon（方案A）
+- 圈复杂度 **46 → 2**（数据驱动查表 + 抽子方法，行为不变）
+- 抽：`_build_attr_mapping`/`_build_enum_mapping`/`_build_field_aliases`/`_build_relations_cn2en`/`_is_single_letter_grade`/`_is_binary_flag`/`_camelize`
+- 关键词查表：STATUS_KEYWORDS/TYPE_KEYWORDS/ZONE_KEYWORDS
+- **修复潜在 bug**：`_infer_cn_from_name(f, {})` 传2参但函数只收1参（attr_map 空时崩溃）→ `(f)`
+- 验证：pytest 29 + e2e 17/17 全过，行为一致
+
 ## [2.9.4] — 2026-08-07
 
 ### BM25 混合检索 + MCP server（AI 原生）

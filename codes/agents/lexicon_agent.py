@@ -42,6 +42,11 @@ STD_FIELD_PATTERNS = {
 }
 
 
+# ── 字段类别启发式关键词（供 _build_enum_mapping 数据驱动查表）──
+STATUS_KEYWORDS = ("status", "state", "condition", "runstate", "failure", "fault", "alarm", "flag")
+TYPE_KEYWORDS = ("type", "category", "kind")
+ZONE_KEYWORDS = ("zone", "district", "area", "location", "region")
+
 class LexiconAgent(BaseAgent):
     name = "lexicon"
 
@@ -235,42 +240,50 @@ class LexiconAgent(BaseAgent):
 
     # ---------------- 组装完整词典 ----------------
 
-    def _build_full_lexicon(self, field_info, attr_map, enum_map, task):
-        """组装完整 lexicon.json。"""
-        table = task.get("table_name", "数据")
+    # ── 字段类别启发式（数据驱动，降低 _build_full_lexicon 复杂度）──
+    def _is_single_letter_grade(self, vals):
+        """单字母等级(L/M/H/A/B)不是类型枚举，跳过。"""
+        return all(isinstance(v, str) and len(v) == 1 and v.isalpha() and v.upper() in "LMHAB"
+                   for v in vals[:30]) if vals else False
 
-        # 属性映射: attr_cn2en + attr_en2cn
-        attr_cn2en = {}
-        attr_en2cn = {}
+    def _is_binary_flag(self, vals):
+        """纯布尔/0-1标记。"""
+        return all(isinstance(v, str) and v.strip() in ("0", "1", "true", "false", "True", "False", "是", "否")
+                   for v in vals[:30]) if vals else False
+
+    def _camelize(self, f):
+        """snake_case → CamelCase。"""
+        return "".join(part.capitalize() for part in f.split("_")[0:1]) + "".join(
+            part.capitalize() for part in f.split("_")[1:])
+
+    def _build_attr_mapping(self, field_info, attr_map):
+        """属性映射: attr_cn2en + attr_en2cn（数值字段）。"""
+        attr_cn2en, attr_en2cn = {}, {}
         for f, info in field_info.items():
-            if info["is_numeric"]:
-                cn = None
-                if attr_map and isinstance(attr_map.get(f), dict):
-                    cn = attr_map[f].get("cn")
-                elif attr_map and isinstance(attr_map.get(f), str):
-                    cn = attr_map[f]
-                if not cn:
-                    cn = self._infer_cn_from_name(f, {})
-                attr_cn2en[cn] = f
-                attr_en2cn[f] = cn
+            if not info["is_numeric"]:
+                continue
+            cn = None
+            if attr_map and isinstance(attr_map.get(f), dict):
+                cn = attr_map[f].get("cn")
+            elif attr_map and isinstance(attr_map.get(f), str):
+                cn = attr_map[f]
+            if not cn:
+                cn = self._infer_cn_from_name(f)  # 修正: 原 (f,{}) 传2参但函数只收1参(潜在bug)
+            attr_cn2en[cn] = f
+            attr_en2cn[f] = cn
+        return attr_cn2en, attr_en2cn
 
-        # 状态/类型/区域值映射
+    def _build_enum_mapping(self, field_info, enum_map):
+        """状态/类型/区域值映射（核心启发式）。"""
         status_cn2en, type_cn2en, zone_cn2en = {}, {}, {}
         for f, info in field_info.items():
             low = f.lower()
             vals = info.get("values", [])
-            # 启发式: 单字母等级(L/M/H)或纯数字(0/1)不是类型/状态/区域枚举，跳过
-            is_single_letter_grade = all(
-                isinstance(v, str) and len(v) == 1 and v.isalpha() and v.upper() in "LMHAB"
-                for v in vals[:30]) if vals else False
-            is_binary_flag = all(
-                isinstance(v, str) and v.strip() in ("0", "1", "true", "false", "True", "False", "是", "否")
-                for v in vals[:30]) if vals else False
-
-            # 状态/故障类字段优先判断（含布尔字段，不受 is_numeric 限制）
-            if any(k in low for k in ("status", "state", "condition", "runstate", "failure", "fault", "alarm", "flag")):
+            single = self._is_single_letter_grade(vals)
+            binary = self._is_binary_flag(vals)
+            if any(k in low for k in STATUS_KEYWORDS):
                 vmap = enum_map.get(f, {})
-                if is_binary_flag:
+                if binary:
                     # 布尔故障标记: 0/1 -> 正常/故障
                     status_cn2en.setdefault("正常", "0")
                     status_cn2en.setdefault("故障", "1")
@@ -280,73 +293,78 @@ class LexiconAgent(BaseAgent):
                 else:
                     for v, cn in vmap.items():
                         status_cn2en.setdefault(cn, v)
-                continue  # 已归类为状态字段，不再当作普通属性
-
+                continue  # 已归类为状态字段
             if info["is_numeric"]:
                 continue
             vmap = enum_map.get(f, {})
-            if any(k in low for k in ("type", "category", "kind")) and not is_single_letter_grade:
+            if any(k in low for k in TYPE_KEYWORDS) and not single:
                 for v, cn in vmap.items():
                     type_cn2en.setdefault(cn, v)
-            elif any(k in low for k in ("zone", "district", "area", "location", "region")):
+            elif any(k in low for k in ZONE_KEYWORDS):
                 for v, cn in vmap.items():
                     zone_cn2en.setdefault(cn, v)
+        return status_cn2en, type_cn2en, zone_cn2en
 
-        # 字段别名
+    def _build_field_aliases(self, field_info):
+        """字段别名 + 布尔状态泛化挂到 status。"""
         field_aliases = {}
         for std, patterns in STD_FIELD_PATTERNS.items():
             hits = []
             for f in field_info:
                 if any(p in f.lower() for p in patterns):
-                    # 同时加原始列名和驼峰名(csv_to_owl会驼峰化)
                     hits.append(f)
-                    camel = "".join(part.capitalize() for part in f.split("_")[0:1]) + "".join(
-                        part.capitalize() for part in f.split("_")[1:])
+                    camel = self._camelize(f)
                     if camel != f and camel not in hits:
                         hits.append(camel)
             if hits:
                 field_aliases[std] = hits
-
-        # 泛化: 布尔状态/故障字段自动挂到 status 别名，让 v3 的 status 计数/列出能命中
         for f, info in field_info.items():
             low = f.lower()
             vals = [str(v) for v in info.get("values", [])[:30]]
-            is_binary = all(v in ("0", "1", "true", "false", "True", "False", "是", "否") for v in vals) if vals else False
-            if any(k in low for k in ("failure", "fault", "alarm", "flag", "status", "state")) and is_binary:
-                camel = "".join(part.capitalize() for part in f.split("_")[0:1]) + "".join(
-                    part.capitalize() for part in f.split("_")[1:])
+            binary = all(v in ("0", "1", "true", "false", "True", "False", "是", "否") for v in vals) if vals else False
+            if any(k in low for k in ("failure", "fault", "alarm", "flag", "status", "state")) and binary:
+                camel = self._camelize(f)
                 field_aliases.setdefault("status", [])
                 for alias in (f, camel):
                     if alias not in field_aliases["status"]:
                         field_aliases["status"].append(alias)
+        return field_aliases
 
-        # 关系词映射：从 relations.json 读对象属性 label→属性尾名，供关系问答(ontology_relation_qa)
+    def _build_relations_cn2en(self, table):
+        """关系词映射: relations.json 的 label → 属性尾名 + 常见同义词。"""
         relations_cn2en = {}
-        rel_cfg = {}
         rel_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config", "relations.json")
+        rel_cfg = {}
         if os.path.exists(rel_file):
             try:
                 rel_cfg = json.load(open(rel_file, encoding="utf-8")).get(table, {}).get("object_properties", {})
             except Exception:
                 rel_cfg = {}
-        # label 是关系词（如 "位于"→locatedIn, "属于产线"→belongsToLine）
         for col, cfg in rel_cfg.items():
             rel_en = cfg.get("rel", "").split("#")[-1]
             label = cfg.get("label", "")
-            if label and rel_en:
-                relations_cn2en[label] = rel_en
-                # 常见同义词：位置/地点→locatedIn, 产线→belongsToLine, 制造商/厂商→manufacturedBy, 类型→hasType
-                if rel_en == "locatedIn":
-                    for w in ("位置", "地点", "区域", "车间", "动力站", "仓储区", "物料库", "成品库"):
-                        relations_cn2en.setdefault(w, rel_en)
-                elif rel_en == "belongsToLine":
-                    relations_cn2en.setdefault("产线", rel_en)
-                elif rel_en == "manufacturedBy":
-                    for w in ("制造商", "厂商", "厂家"):
-                        relations_cn2en.setdefault(w, rel_en)
-                elif rel_en == "hasType":
-                    relations_cn2en.setdefault("类型", rel_en)
+            if not (label and rel_en):
+                continue
+            relations_cn2en[label] = rel_en
+            if rel_en == "locatedIn":
+                for w in ("位置", "地点", "区域", "车间", "动力站", "仓储区", "物料库", "成品库"):
+                    relations_cn2en.setdefault(w, rel_en)
+            elif rel_en == "belongsToLine":
+                relations_cn2en.setdefault("产线", rel_en)
+            elif rel_en == "manufacturedBy":
+                for w in ("制造商", "厂商", "厂家"):
+                    relations_cn2en.setdefault(w, rel_en)
+            elif rel_en == "hasType":
+                relations_cn2en.setdefault("类型", rel_en)
+        return relations_cn2en
 
+    def _build_full_lexicon(self, field_info, attr_map, enum_map, task):
+        """组装完整 lexicon.json。"""
+        table = task.get("table_name", "数据")
+        attr_cn2en, attr_en2cn = self._build_attr_mapping(field_info, attr_map)
+        status_cn2en, type_cn2en, zone_cn2en = self._build_enum_mapping(field_info, enum_map)
+        field_aliases = self._build_field_aliases(field_info)
+        relations_cn2en = self._build_relations_cn2en(table)
         return {
             "status_cn2en": status_cn2en,
             "type_cn2en": type_cn2en,
@@ -359,17 +377,16 @@ class LexiconAgent(BaseAgent):
             "description": f"由 LexiconAgent 全自动生成 ({table}, {len(field_info)}字段)",
         }
 
-
-def main():
-    import sys
-    _codes = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-    task = json.loads(sys.argv[1]) if len(sys.argv) > 1 else {
-        "source_csv": os.path.join(_codes, "data", "equipment.csv"),
-        "out_lexicon": os.path.join(_codes, "config", "lexicon_auto.json"),
-        "use_llm": True, "table_name": "设备",
-    }
-    r = LexiconAgent().run(task)
-    print(json.dumps(r.to_dict(), ensure_ascii=False, indent=2))
+    def main():
+        import sys
+        _codes = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+        task = json.loads(sys.argv[1]) if len(sys.argv) > 1 else {
+            "source_csv": os.path.join(_codes, "data", "equipment.csv"),
+            "out_lexicon": os.path.join(_codes, "config", "lexicon_auto.json"),
+            "use_llm": True, "table_name": "设备",
+        }
+        r = LexiconAgent().run(task)
+        print(json.dumps(r.to_dict(), ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
