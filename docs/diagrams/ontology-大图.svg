@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="920" viewBox="0 0 1280 920">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f5f7fa"/><stop offset="1" stop-color="#eef2f7"/>
+    </linearGradient>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#7f8c8d"/>
+    </marker>
+    <filter id="sh"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.2"/></filter>
+  </defs>
+  <rect width="1280" height="920" fill="url(#bg)"/>
+  <text x="640" y="52" fill="#1a2233" font-size="34" font-weight="bold" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">企业本体大图：企业与客户关系 + 本体层次（Is-A）</text>
+  <text x="640" y="80" fill="#7f8c8d" font-size="15" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">基于 valve_deep.nt · 工厂本体驱动的数据问答框架</text>
+
+  <!-- 企业(工厂)中心 -->
+  <ellipse cx="640" cy="150" rx="130" ry="48" fill="#2f6bff" filter="url(#sh)"/>
+  <text x="640" y="146" fill="#fff" font-size="22" font-weight="bold" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">🏭 企业（阀门工厂）</text>
+  <text x="640" y="170" fill="#d6e4ff" font-size="13" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">本体根节点 · 产品/客户/销售</text>
+
+  <!-- 本体层次: 产品 Is-A 类别 -->
+  <text x="370" y="250" fill="#7f8c8d" font-size="14" font-weight="bold" font-family="PingFang SC,Microsoft YaHei,sans-serif">本体层次（Is-A 类别类层级）</text>
+  <line x1="550" y1="190" x2="370" y2="230" stroke="#7f8c8d" stroke-width="1.5" marker-end="url(#ar)"/>
+  <rect x="230" y="270" width="280" height="46" rx="10" fill="#2f6bff" opacity="0.9" filter="url(#sh)"/>
+  <text x="370" y="299" fill="#fff" font-size="16" font-weight="bold" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">产品（Valve_products）</text>
+  <text x="370" y="316" fill="#d6e4ff" font-size="11" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">subClassOf 类别</text>
+  <!-- 产品类别实例 -->
+  <rect x="120" y="360" width="150" height="40" rx="8" fill="#eaf0ff" stroke="#2f6bff" stroke-width="1"/>
+  <text x="195" y="385" fill="#2f6bff" font-size="14" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">闸阀</text>
+  <rect x="295" y="360" width="150" height="40" rx="8" fill="#eaf0ff" stroke="#2f6bff" stroke-width="1"/>
+  <text x="370" y="385" fill="#2f6bff" font-size="14" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">球阀</text>
+  <rect x="470" y="360" width="150" height="40" rx="8" fill="#eaf0ff" stroke="#2f6bff" stroke-width="1"/>
+  <text x="545" y="385" fill="#2f6bff" font-size="14" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">蝶阀</text>
+  <rect x="120" y="415" width="150" height="40" rx="8" fill="#eaf0ff" stroke="#2f6bff" stroke-width="1"/>
+  <text x="195" y="440" fill="#2f6bff" font-size="14" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">止回阀</text>
+  <rect x="295" y="415" width="150" height="40" rx="8" fill="#eaf0ff" stroke="#2f6bff" stroke-width="1"/>
+  <text x="370" y="440" fill="#2f6bff" font-size="14" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">安全阀</text>
+  <!-- 类别 Is-A 线 -->
+  <line x1="250" y1="308" x2="195" y2="358" stroke="#2f6bff" stroke-width="1.2" marker-end="url(#ar)"/>
+  <line x1="370" y1="318" x2="370" y2="358" stroke="#2f6bff" stroke-width="1.2" marker-end="url(#ar)"/>
+  <line x1="490" y1="308" x2="545" y2="358" stroke="#2f6bff" stroke-width="1.2" marker-end="url(#ar)"/>
+  <line x1="250" y1="318" x2="195" y2="413" stroke="#2f6bff" stroke-width="1.2" marker-end="url(#ar)"/>
+  <line x1="370" y1="318" x2="370" y2="413" stroke="#2f6bff" stroke-width="1.2" marker-end="url(#ar)"/>
+
+  <!-- 企业与客户关系: 产品 --销售--> 客户 -->
+  <text x="940" y="250" fill="#7f8c8d" font-size="14" font-weight="bold" font-family="PingFang SC,Microsoft YaHei,sans-serif">企业与客户关系（销售）</text>
+  <line x1="730" y1="190" x2="940" y2="230" stroke="#7f8c8d" stroke-width="1.5" marker-end="url(#ar)"/>
+  <rect x="780" y="270" width="320" height="46" rx="10" fill="#27ae60" opacity="0.9" filter="url(#sh)"/>
+  <text x="940" y="299" fill="#fff" font-size="16" font-weight="bold" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">销售（Valve_sales）</text>
+  <text x="940" y="316" fill="#d6f5e0" font-size="11" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">产品 hasValve_products → 客户 hasValve_customers</text>
+  <!-- 产品→销售 -->
+  <line x1="760" y1="305" x2="780" y2="300" stroke="#27ae60" stroke-width="1.5" marker-end="url(#ar)"/>
+  <text x="750" y="290" fill="#7f8c8d" font-size="11" font-family="PingFang SC,Microsoft YaHei,sans-serif">产品</text>
+  <!-- 销售→客户 -->
+  <line x1="1100" y1="300" x2="1130" y2="360" stroke="#27ae60" stroke-width="1.5" marker-end="url(#ar)"/>
+  <!-- 客户实例 -->
+  <rect x="850" y="400" width="180" height="40" rx="8" fill="#eafaf1" stroke="#27ae60" stroke-width="1"/>
+  <text x="940" y="425" fill="#27ae60" font-size="13" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">华北炼化</text>
+  <rect x="850" y="455" width="180" height="40" rx="8" fill="#eafaf1" stroke="#27ae60" stroke-width="1"/>
+  <text x="940" y="480" fill="#27ae60" font-size="13" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">华东化工</text>
+  <rect x="850" y="510" width="180" height="40" rx="8" fill="#eafaf1" stroke="#27ae60" stroke-width="1"/>
+  <text x="940" y="535" fill="#27ae60" font-size="13" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">南方油气</text>
+  <text x="940" y="580" fill="#7f8c8d" font-size="11" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">+ 西北水务 / 东北能源 / 中原电力</text>
+
+  <!-- 价值流连接: 产品→批次→质检/设备/原料 -->
+  <text x="370" y="500" fill="#7f8c8d" font-size="14" font-weight="bold" font-family="PingFang SC,Microsoft YaHei,sans-serif">工厂运营价值链条（多表本体）</text>
+  <rect x="120" y="530" width="140" height="44" rx="8" fill="#f39c12" opacity="0.9"/>
+  <text x="190" y="556" fill="#fff" font-size="13" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">批次</text>
+  <rect x="300" y="530" width="140" height="44" rx="8" fill="#16a085" opacity="0.9"/>
+  <text x="370" y="556" fill="#fff" font-size="13" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">原料</text>
+  <rect x="480" y="530" width="140" height="44" rx="8" fill="#8e44ad" opacity="0.9"/>
+  <text x="550" y="556" fill="#fff" font-size="13" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">质检</text>
+  <rect x="660" y="530" width="140" height="44" rx="8" fill="#e67e22" opacity="0.9"/>
+  <text x="730" y="556" fill="#fff" font-size="13" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">设备</text>
+  <line x1="260" y1="552" x2="298" y2="552" stroke="#7f8c8d" stroke-width="1.5" marker-end="url(#ar)"/>
+  <line x1="440" y1="552" x2="478" y2="552" stroke="#7f8c8d" stroke-width="1.5" marker-end="url(#ar)"/>
+  <line x1="620" y1="552" x2="658" y2="552" stroke="#7f8c8d" stroke-width="1.5" marker-end="url(#ar)"/>
+  <text x="370" y="640" fill="#7f8c8d" font-size="12" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">产品 → 批次 → 原料/质检/设备（外键自动关联跨表关系）</text>
+
+  <!-- 说明 -->
+  <rect x="120" y="700" width="1040" height="170" rx="12" fill="#fff" stroke="#e0e6ef" stroke-width="1.5"/>
+  <text x="150" y="730" fill="#1a2233" font-size="16" font-weight="bold" font-family="PingFang SC,Microsoft YaHei,sans-serif">深化要点（参考 sme-decision-ontology 解决方式）</text>
+  <text x="150" y="760" fill="#3d4a5d" font-size="14" font-family="PingFang SC,Microsoft YaHei,sans-serif">① 本体层次（Is-A）：产品 subClassOf 类别（闸阀/球阀/蝶阀/止回阀/安全阀）+ 设备类别 → 多表本体自动生成 rdfs:subClassOf</text>
+  <text x="150" y="790" fill="#3d4a5d" font-size="14" font-family="PingFang SC,Microsoft YaHei,sans-serif">② 企业与客户关系：新增 客户 + 销售 表，产品 --销售--> 客户（hasValve_products / hasValve_customers）</text>
+  <text x="150" y="820" fill="#3d4a5d" font-size="14" font-family="PingFang SC,Microsoft YaHei,sans-serif">③ 跨行业泛化：multi_table 自动检测 FK（含领域前缀+单复数）+ 类别列，换数据（阀门/食品）代码不动</text>
+  <text x="150" y="850" fill="#7f8c8d" font-size="13" font-family="PingFang SC,Microsoft YaHei,sans-serif">生成：multi_table.py → valve_deep.nt（8 subClassOf + 3 跨表关系 + 43 实例）</text>
+</svg>
