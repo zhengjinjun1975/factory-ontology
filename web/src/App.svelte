@@ -430,24 +430,24 @@
     <section class="pane pane-left">
       <div class="pane-title">数据建模</div>
 
-      <!-- ─── 数据源输入（朴素两入口：默认示例 + 本地文件浏览）─── -->
+      <!-- ─── 数据源输入（主入口：浏览文件；辅助：示例数据）─── -->
       <div class="form-group">
-        <span class="form-label">数据源（CSV / JSON）</span>
-        <button class="btn-action" onclick={doDefaultExample} disabled={defaultBusy}>
-          <span class="btn-icon">{defaultBusy ? '⏳' : '⭐'}</span>
-          {defaultBusy ? '示例建模中…' : '用默认示例数据建模（data_valve）'}
-        </button>
-        <label class="file-input" style="margin-top:8px">
+        <span class="form-label">数据文件（CSV / JSON，可多选）</span>
+        <label class="file-input">
           <input type="file" multiple accept=".csv,.json" onchange={onPickFiles} />
           <span class="file-icon">📁</span>
-          <span class="file-name">{localFiles.length ? `已选 ${localFiles.length} 个本地文件` : '选择本地文件（可多选）'}</span>
+          <span class="file-name">{localFiles.length ? `已选 ${localFiles.length} 个文件` : '浏览文件'}</span>
         </label>
         {#if localFiles.length}
           <button class="btn-action" onclick={doLocalModel} disabled={localBusy} style="margin-top:8px">
             <span class="btn-icon">{localBusy ? '⏳' : '⚙'}</span>
-            {localBusy ? '建模进行中…' : `确认并建模（${localFiles.length} 个本地文件）`}
+            {localBusy ? '建模进行中…' : `确认并建模（${localFiles.length} 个文件）`}
           </button>
         {/if}
+        <button class="example-link" onclick={doDefaultExample} disabled={defaultBusy} style="margin-top:8px">
+          <span class="btn-icon">{defaultBusy ? '⏳' : '▸'}</span>
+          {defaultBusy ? '示例建模中…' : '或使用示例数据（data_valve）'}
+        </button>
       </div>
 
       {#if modelResult}
@@ -920,6 +920,13 @@
   }
   .btn-action:hover:not(:disabled) { background: #1d4ed8; }
   .btn-action:disabled { background: #94a3b8; cursor: not-allowed; }
+  .example-link {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: none; border: none; padding: 2px 4px;
+    font-size: 12px; color: #64748b; cursor: pointer;
+  }
+  .example-link:hover:not(:disabled) { color: #2563eb; text-decoration: underline; }
+  .example-link:disabled { color: #94a3b8; cursor: not-allowed; }
   .btn-icon { font-size: 14px; }
 
   /* ─── 字段表 ─── */
