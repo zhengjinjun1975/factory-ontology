@@ -24,7 +24,6 @@ import importlib.util
 # ── 复用核心逻辑：加载 KB 数据（与 api_server 一致）──
 def _load_ontology():
     import ontology_qa_v3 as v3
-    import multi_table
     # KB 环境变量（多租户，同 api_server）
     kb = os.environ.get("FOOD_KB", "food")
     import pathlib
@@ -33,14 +32,26 @@ def _load_ontology():
     NT.parent.mkdir(exist_ok=True)
     import graph_rag as gr
     if not NT.exists():
-        # 用 demo 数据建本体
-        DATA = ROOT / "data"
-        multi_table.build_nt([str(DATA / "food_products.csv"),
-                              str(DATA / "food_raw_materials.csv"),
-                              str(DATA / "food_batches.csv"),
-                              str(DATA / "food_batch_ingredient.csv"),
-                              str(DATA / "food_qc.csv"),
-                              str(DATA / "food_equipment.csv")], str(NT))
+        # schema 驱动优先（复用优先·极简落地）；无 schema 回退 multi_table
+        schema_path = ROOT / "config" / "ontology_schema.json"
+        try:
+            import schema_ontology as so
+            if schema_path.exists():
+                DATA = ROOT / "data"
+                data = so.load_all(str(DATA))
+                schema = so.load_schema(str(schema_path))
+                so.to_nt(data, schema, outpath=str(NT))
+            else:
+                raise FileNotFoundError("no schema")
+        except Exception:
+            import multi_table
+            DATA = ROOT / "data"
+            multi_table.build_nt([str(DATA / "food_products.csv"),
+                                  str(DATA / "food_raw_materials.csv"),
+                                  str(DATA / "food_batches.csv"),
+                                  str(DATA / "food_batch_ingredient.csv"),
+                                  str(DATA / "food_qc.csv"),
+                                  str(DATA / "food_equipment.csv")], str(NT))
     graph, labels, vi, rev = gr.build_graph(str(NT))
     # 词典：优先 kbs.json 的 lexicon 字段，其次 FOOD_LEX 环境变量，最后按文件名约定
     import json as _json

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.1] — 2026-08-11
+
+### 激进重构：schema 驱动统一建模 + 融入 sme 本体重构精髓
+
+> 从 v0.1.0 起点，按「复用优先·极简落地」方法论全面重构本体建模路径。
+
+- **版本降维**：v2.9.6 → **v0.1.0 → v0.1.1**，从 0.1 重新开始（融入 sme 本体重构精髓后作为新起点）
+- **schema 驱动统一建模**（`schema_ontology.py`）：移植 sme-decision-ontology 本体重构精髓——schema 驱动（ontology.json 显式声明实体/关系/约束）、属性语义角色（identifier/reference/measure/category/timestamp）、类型体系（Enterprise→BusinessObject→域类→实体）、validate 约束校验、traverse 跨域图遍历、build_graph 跨表统一实例图
+- **`to_nt()` N-Triples 统一输出**（激进重构核心）：schema 驱动建模结果输出标准 N-Triples，替代 csv_to_owl/multi_table 的多表建本体职责；类名表名风格（Valve_products）+ 对象属性英文 id（usesRawMaterial），下游 ontology_qa_v3/graph_rag 无缝消费。已拆 4 子函数（类声明/属性声明/类别层级/实例）降低复杂度
+- **`run.py setup-schema` 命令**：多表数据目录 + ontology_schema.json → 统一本体（约束校验 + 类型体系 + 语义域）
+- **调用点统一**：valve_demo/mcp_server 建本体改为 schema 驱动优先（无 schema 回退 multi_table，向后兼容）；单表 benchmark 保留 csv_to_owl（正确工具）
+- **`config/ontology_schema.json`**：阀门工厂示例 schema（8 实体 / 6 关系 / 溯源链 usesRawMaterial+belongsToBatch+checkedBy）
+- **验证**：valve_demo 反向溯源命中（RM03→VB02）+ benchmark 13/13=100%；pytest 28 passed；setup-schema 端到端 8 表→383 行 N-Triples→43 节点/36 边；CodeAgent 审查通过
+
 ## [2.9.6] — 2026-08-07
 
 ### 本体深化：类别类层级(Is-A) + 企业与客户关系 + 企业本体大图（参考 sme-decision-ontology）

@@ -14,7 +14,7 @@ import os
 import sys
 import json
 
-__version__ = "2.9.6"
+__version__ = "0.1.1"
 import importlib.util
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -32,6 +32,49 @@ def _load(mod, path):
 
 def _name(source_path):
     return os.path.splitext(os.path.basename(source_path))[0]
+
+
+def setup_schema(data_dir, schema_path, table="factory"):
+    """schema 驱动统一建模（激进重构核心，替代 csv_to_owl/multi_table）。
+
+    从多表数据目录 + ontology_schema.json 建统一本体（schema_ontology.to_nt），
+    输出标准 N-Triples 供下游问答/图检索消费。复用优先·极简落地：
+    - 复用 schema_ontology 已验证的 schema 驱动建模内核（sme 精髓）
+    - 统一建本体职责到 schema_ontology，消除 csv_to_owl/multi_table 重复
+
+    用法:
+      python run.py setup-schema <数据目录> [schema.json] [表名]
+    """
+    os.makedirs(OUT, exist_ok=True)
+    so = _load("schema_ontology", os.path.join(ROOT, "schema_ontology.py"))
+    schema_path = schema_path or os.path.join(CFG, "ontology_schema.json")
+    nt = os.path.join(OUT, f"{table}.nt")
+
+    print(f"\n[工厂智能体] schema 驱动建模: {table}")
+    print(f"[1/3] 加载多表数据 {data_dir}")
+    data = so.load_all(data_dir)
+    print(f"      -> {len(data)} 表: {list(data.keys())}")
+
+    if not os.path.exists(schema_path):
+        print(f"❌ 无 schema({schema_path}), 需 ontology_schema.json"); return None, None
+    print(f"[2/3] 加载 schema + 约束校验")
+    schema = so.load_schema(schema_path)
+    issues = so.validate(data, schema)
+    if issues:
+        print(f"⚠️ 约束校验 {len(issues)} 问题:", [i["msg"] for i in issues[:3]])
+
+    print(f"[3/3] 建统一本体 -> {os.path.basename(nt)}")
+    lines = so.to_nt(data, schema, outpath=nt)
+    graph = so.build_graph(data, schema)
+    model = so.build_ontology_model(data, schema)
+    print(f"✅ 本体: {len(lines)} 行 N-Triples | 图 {len(graph['nodes'])} 节点/{len(graph['edges'])} 边")
+    print(f"   类型体系: {[h['name'] for h in model['type_hierarchy']]}")
+    print(f"   语义域: {model['semantic_domains']}")
+
+    json.dump({"nt": os.path.relpath(nt, ROOT), "schema": os.path.relpath(schema_path, ROOT),
+               "data_dir": os.path.relpath(data_dir, ROOT), "table": table},
+              open(STATE, "w", encoding="utf-8"))
+    return nt, None
 
 
 def setup(source_path, table=None, use_llm=True):
@@ -142,6 +185,11 @@ def main():
         if len(args) < 2:
             print("用法: python run.py setup <数据文件> [表名]"); return
         setup(args[1], args[2] if len(args) > 2 else None)
+    elif args[0] == "setup-schema":
+        if len(args) < 2:
+            print("用法: python run.py setup-schema <数据目录> [schema.json] [表名]"); return
+        setup_schema(args[1], args[2] if len(args) > 2 else None,
+                     args[3] if len(args) > 3 else "factory")
     elif args[0] == "ask":
         if len(args) < 2:
             print("用法: python run.py ask '<问题>'"); return

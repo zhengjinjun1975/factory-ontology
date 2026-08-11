@@ -21,7 +21,28 @@ LEX = os.path.join(ROOT, "config", "lexicon_valve.json")
 
 
 def build():
-    """用 multi_table 建阀门本体。"""
+    """用 schema_ontology 统一建阀门本体（激进重构：schema 驱动优先）。
+
+    复用优先·极简落地：优先用 schema_ontology 的 schema 驱动建模（替代 multi_table），
+    schema 不存在时回退原有 multi_table 逻辑，保持向后兼容。
+    """
+    os.makedirs(os.path.dirname(NT), exist_ok=True)
+    schema_path = os.path.join(ROOT, "config", "ontology_schema.json")
+    # schema 驱动优先（复用优先·极简落地）
+    try:
+        import schema_ontology as so
+        if os.path.exists(schema_path):
+            data = so.load_all(DATA)
+            schema = so.load_schema(schema_path)
+            so.to_nt(data, schema, outpath=NT)
+            # 单表本体（供 benchmark）
+            subprocess.run([sys.executable, os.path.join(ROOT, "csv_to_owl.py"),
+                            os.path.join(DATA, "valve_products.csv"),
+                            os.path.join(ROOT, "output", "valve_products.nt")], capture_output=True)
+            return NT
+    except Exception:
+        pass
+    # 回退：multi_table 建本体（schema 不存在时）
     import multi_table as mt
     from data_loader import load_table
     tables = {}
@@ -39,7 +60,6 @@ def build():
             "raw_id": {"target_class": "Valve_raw_materials", "rel": "http://factory.example/ontology#usesRawMaterial", "label": "usesRawMaterial"},
         },
     }
-    os.makedirs(os.path.dirname(NT), exist_ok=True)
     mt.build_nt(tables, rels, NT)
     # 单表本体（供 benchmark）
     import csv_to_owl as c2o
