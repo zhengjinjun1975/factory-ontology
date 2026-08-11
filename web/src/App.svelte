@@ -1,7 +1,7 @@
 <script>
   // 工厂智能体 · 本体问答 — 独立 Web 应用（工业软件浅色风格）
   import { onMount } from 'svelte';
-  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, setModel, getModels, saveModels, fetchVersion, browseFiles, readDataFile } from './lib/api.js';
+  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, setModel, getModels, saveModels, fetchVersion, browseFiles, readDataFile, fetchExample } from './lib/api.js';
   import DashboardPanel from './components/DashboardPanel.svelte';
   import ModelGraph from './components/ModelGraph.svelte';
   import AnalysisResult from './components/AnalysisResult.svelte';
@@ -446,7 +446,7 @@
         {/if}
         <button class="example-link" onclick={doDefaultExample} disabled={defaultBusy} style="margin-top:8px">
           <span class="btn-icon">{defaultBusy ? '⏳' : '▸'}</span>
-          {defaultBusy ? '示例建模中…' : '或使用示例数据（data_valve）'}
+          {defaultBusy ? '示例建模中…' : '使用示例数据（data_valve）'}
         </button>
       </div>
 
