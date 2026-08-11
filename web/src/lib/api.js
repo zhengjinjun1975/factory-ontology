@@ -101,3 +101,14 @@ export async function fetchExample(path) {
   const resp = await fetch(`/api/ontology/example?path=${encodeURIComponent(path)}`);
   return resp.json();
 }
+
+export async function browseFiles(dir) {
+  const q = dir ? `?dir=${encodeURIComponent(dir)}` : '';
+  const resp = await fetch(`/api/ontology/browse${q}`);
+  return resp.json();
+}
+
+export async function readDataFile(path) {
+  const resp = await fetch(`/api/ontology/read-data?path=${encodeURIComponent(path)}`);
+  return resp.json();
+}

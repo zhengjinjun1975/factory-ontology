@@ -4,7 +4,7 @@ import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup } from './ontology.js';
+import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile } from './ontology.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
@@ -226,6 +226,23 @@ const server = createServer(async (req, res) => {
   if (req.method === 'GET' && url === '/api/ontology/example') {
     const path = new URL(req.url, 'http://x').searchParams.get('path');
     const result = readExample(path);
+    res.writeHead(result.ok ? 200 : 400, { 'Content-Type': 'application/json;charset=utf-8' });
+    res.end(JSON.stringify(result));
+    return;
+  }
+
+  // ── API: 文件浏览框（默认到 data_valve 示例目录，目录导航；学习 solo-agent-kit /api/browse）──
+  if (req.method === 'GET' && url === '/api/ontology/browse') {
+    const dir = new URL(req.url, 'http://x').searchParams.get('dir') || '';
+    const result = browse(dir);
+    res.writeHead(result.ok ? 200 : 400, { 'Content-Type': 'application/json;charset=utf-8' });
+    res.end(JSON.stringify(result));
+    return;
+  }
+  // ── API: 读取浏览框选中的数据文件内容（仅 codes/ 内 .csv/.json，防穿越）──
+  if (req.method === 'GET' && url === '/api/ontology/read-data') {
+    const path = new URL(req.url, 'http://x').searchParams.get('path');
+    const result = readDataFile(path);
     res.writeHead(result.ok ? 200 : 400, { 'Content-Type': 'application/json;charset=utf-8' });
     res.end(JSON.stringify(result));
     return;

@@ -3,7 +3,7 @@
 import { execFile } from 'child_process';
 import os from 'os';
 import { writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync, statSync, rmSync, renameSync } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, basename, extname, sep, relative } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -89,6 +89,86 @@ export function readExample(relPath) {
   try {
     const content = readFileSync(fp, 'utf-8');
     return { ok: true, content, name: p.split('/').pop(), size: content.length };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+// 浏览时过滤的隐藏/系统目录（solo-agent-kit 同款）
+const HIDDEN_DIRS = new Set([
+  '$Recycle.Bin', 'System Volume Information', 'Recovery',
+  'Windows', '.git', '__pycache__', 'node_modules', '.venv', '.solo', '$RECYCLE.BIN',
+]);
+// 浏览时只列的数据文件扩展名
+const DATA_EXTS = ['.csv', '.json', '.db', '.sqlite', '.xlsx'];
+// 浏览根：套件 codes/ 目录（默认根 data_valve 示例数据直接可见，可导航上级/子目录）
+const BROWSE_ROOT = KIT;
+
+/**
+ * 文件浏览（学习 solo-agent-kit /api/browse）：
+ * 默认根 = codes/data_valve（示例数据直接可见），dir 参数导航上级/子目录。
+ * 过滤隐藏系统目录，只列数据文件。返回 {dir, parent, dirs, files}（均为相对 codes/ 路径，防穿越）。
+ * @param {string} [dirArg] 相对 codes/ 的目录，如 'data_valve' 或 ''
+ * @returns {{ok, dir, parent, dirs, files, error?}}
+ */
+export function browse(dirArg) {
+  // 相对路径安全解析：统一分隔符、去掉首分隔、过滤 . 和 .. 穿越
+  const raw = String(dirArg || '').replace(/\\/g, '/').replace(/^\/+/, '');
+  const parts = raw.split('/').filter(s => s && s !== '.' && s !== '..');
+  // 默认根 = 示例目录（无参数/非法参数时落回）
+  if (parts.length === 0) parts.push('data_valve');
+  let dirRel = parts.join('/');
+  let abs = join(BROWSE_ROOT, dirRel);
+  // 落到不存在/非目录时回退默认根
+  if (!existsSync(abs) || !statSync(abs).isDirectory()) {
+    dirRel = 'data_valve';
+    abs = join(BROWSE_ROOT, dirRel);
+  }
+  const dirs = [], files = [];
+  try {
+    for (const name of readdirSync(abs).sort()) {
+      const full = join(abs, name);
+      let st;
+      try { st = statSync(full); } catch { continue; }
+      const relPath = relative(BROWSE_ROOT, full).split(sep).join('/');
+      if (st.isDirectory()) {
+        if (!HIDDEN_DIRS.has(name) && !name.startsWith('.')) {
+          dirs.push({ path: relPath, name, dir: true });
+        }
+      } else {
+        if (DATA_EXTS.includes(extname(name).toLowerCase())) {
+          files.push({ path: relPath, name, dir: false });
+        }
+      }
+    }
+  } catch (e) { /* 目录不可读则返回空列表 */ }
+  // parent：上级目录（根则空）
+  const parentRel = relative(BROWSE_ROOT, dirname(abs)).split(sep).join('/');
+  const parent = dirRel && parentRel && parentRel !== dirRel ? parentRel : '';
+  return { ok: true, dir: dirRel, parent, dirs, files };
+}
+
+/**
+ * 读取浏览框选中的数据文件内容（安全：仅允许 codes/ 内文本数据文件 .csv/.json，防穿越）
+ * @param {string} relPath 相对 codes/ 的路径
+ * @returns {{ok, content?, name?, size?, error?}}
+ */
+export function readDataFile(relPath) {
+  const p = String(relPath || '').replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!p) return { ok: false, error: '路径为空' };
+  const fp = join(BROWSE_ROOT, p);
+  // 防穿越：解析后必须仍在 BROWSE_ROOT 内
+  if (fp !== BROWSE_ROOT && !fp.startsWith(BROWSE_ROOT + sep)) {
+    return { ok: false, error: '非法路径（超出允许范围）' };
+  }
+  try {
+    if (!existsSync(fp) || !statSync(fp).isFile()) return { ok: false, error: '文件不存在' };
+    const ext = extname(fp).toLowerCase();
+    if (ext !== '.csv' && ext !== '.json') {
+      return { ok: false, error: '仅支持 .csv/.json 文本文件建模' };
+    }
+    const content = readFileSync(fp, 'utf-8');
+    return { ok: true, content, name: basename(fp), size: content.length };
   } catch (e) {
     return { ok: false, error: String(e.message || e) };
   }

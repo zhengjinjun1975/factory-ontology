@@ -1,7 +1,7 @@
 <script>
   // 工厂智能体 · 本体问答 — 独立 Web 应用（工业软件浅色风格）
   import { onMount } from 'svelte';
-  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, setModel, getModels, saveModels, fetchVersion, fetchExamples, fetchExample } from './lib/api.js';
+  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, setModel, getModels, saveModels, fetchVersion, fetchExamples, fetchExample, browseFiles, readDataFile } from './lib/api.js';
   import DashboardPanel from './components/DashboardPanel.svelte';
   import ModelGraph from './components/ModelGraph.svelte';
   import AnalysisResult from './components/AnalysisResult.svelte';
@@ -15,6 +15,14 @@
   let examplesLoading = $state(false);
   let checkedExamples = $state([]);  // [{name,path}] 勾选的示例
   let exampleBusy = $state(false);
+  // ─── 文件浏览框（学习 solo-agent-kit /api/browse，默认 data_valve 示例目录）───
+  let browseDir = $state('data_valve');    // 当前目录（相对 codes/）
+  let browseParent = $state('');           // 上级目录（空=根）
+  let browseDirs = $state([]);             // [{path,name}] 子目录
+  let browseFileList = $state([]);         // [{path,name}] 数据文件
+  let browseLoading = $state(false);
+  let browseChecked = $state([]);          // [{path,name}] 已选文件
+  let browseBusy = $state(false);
   let modeling = $state(false);
   let modelResult = $state(null);   // {table, attrs}
   // 数据库接入
@@ -72,6 +80,7 @@
       if (v.ok && v.version) appVersion = v.version;
     } catch (e) { /* 忽略 */ }
     loadExamples(); // 进入即展示示例数据目录
+    loadBrowse();   // 文件浏览框默认到 data_valve 示例目录
   });
 
   // ─── 示例数据目录浏览区 ───
@@ -126,6 +135,61 @@
     } catch (err) {
       setStatus('err', '网络错误，请确认服务已启动');
     } finally { exampleBusy = false; }
+  }
+
+  // ─── 文件浏览框（默认 data_valve 示例目录，目录导航 + 多选建模）───
+  async function loadBrowse(dir) {
+    browseLoading = true;
+    try {
+      const res = await browseFiles(dir);
+      if (res.ok) {
+        browseDir = res.dir || 'data_valve';
+        browseParent = res.parent || '';
+        browseDirs = res.dirs || [];
+        browseFileList = res.files || [];
+        // 目录切换时清空已选，避免残留旧目录勾选
+        browseChecked = [];
+      } else {
+        setStatus('err', res.error || '浏览数据文件失败');
+      }
+    } catch (e) {
+      setStatus('err', '浏览数据文件失败（网络错误）');
+    } finally { browseLoading = false; }
+  }
+
+  function toggleBrowseFile(f) {
+    const i = browseChecked.findIndex(c => c.path === f.path);
+    browseChecked = i >= 0
+      ? browseChecked.filter((_, idx) => idx !== i)
+      : [...browseChecked, { path: f.path, name: f.name }];
+  }
+
+  // 从浏览框已选文件 → 读取内容 → 多文件建模
+  async function doBrowseModel() {
+    if (!browseChecked.length || browseBusy) return;
+    browseBusy = true;
+    setStatus('info', `正在读取 ${browseChecked.length} 个数据文件…`);
+    try {
+      const files = [];
+      for (const c of browseChecked) {
+        const r = await readDataFile(c.path);
+        if (!r.ok || r.content == null) {
+          setStatus('err', r.error || `读取失败：${c.path}`);
+          browseBusy = false; return;
+        }
+        files.push({ name: r.name, content: r.content });
+      }
+      const res = await setupOntologyMulti(files);
+      if (!res.ok) {
+        setStatus('err', res.error || '建模失败');
+      } else {
+        modelResult = { table: res.table, attrs: res.attrs || [], ts: Date.now() };
+        status = 'ready';
+        setStatus('ok', `建模完成：${res.table}，共 ${(res.attrs || []).length} 张表`);
+      }
+    } catch (err) {
+      setStatus('err', '网络错误，请确认服务已启动');
+    } finally { browseBusy = false; }
   }
 
   // 从完整配置装载可编辑列表（api_key 用脱敏占位，保存时后端保留原值）
@@ -553,6 +617,44 @@
         {/if}
       </div>
 
+      <!-- ─── 文件浏览框（学习 solo-agent-kit /api/browse，默认 data_valve 示例目录）─── -->
+      <div class="example-dir browse-box">
+        <div class="example-dir-head">
+          <span class="form-label">📂 浏览数据文件（可多选 → 建模）</span>
+          <button class="example-refresh" onclick={() => loadBrowse()} title="刷新当前目录" disabled={browseLoading}>{browseLoading ? '…' : '↻'}</button>
+        </div>
+        <div class="browse-current" title={browseDir}>📁 当前目录：{browseDir || 'data_valve'}</div>
+        <div class="browse-nav">
+          {#if browseParent}
+            <button class="browse-up" onclick={() => loadBrowse(browseParent)}>⬆ 上级目录</button>
+          {/if}
+          {#if browseDirs.length}
+            <div class="browse-dirs">
+              {#each browseDirs as d}
+                <button class="browse-dir" onclick={() => loadBrowse(d.path)} title={d.path}>📁 {d.name}</button>
+              {/each}
+            </div>
+          {/if}
+        </div>
+        {#if browseFileList.length}
+          <div class="file-list browse-files">
+            {#each browseFileList as f}
+              <label class="example-item" title={f.path}>
+                <input type="checkbox" checked={browseChecked.some(c => c.path === f.path)} onchange={() => toggleBrowseFile(f)} />
+                <span class="example-item-name">📄 {f.name}</span>
+                <span class="browse-file-path" title={f.path}>{f.path}</span>
+              </label>
+            {/each}
+          </div>
+          <button class="btn-action btn-default" onclick={doBrowseModel} disabled={!browseChecked.length || browseBusy}>
+            <span class="btn-icon">{browseBusy ? '⏳' : '⚙'}</span>
+            {browseBusy ? '建模进行中…' : (browseChecked.length ? `确认并建模（${browseChecked.length} 个文件）` : '确认并建模')}
+          </button>
+        {:else if !browseDirs.length}
+          <div class="example-empty">当前目录无数据文件</div>
+        {/if}
+      </div>
+
       {#if modelResult}
         <div class="model-panel">
           <div class="model-head">
@@ -658,11 +760,11 @@
                 </div>
                 <div class="db-row">
                   <div class="form-group">
-                    <label class="form-label">名称</label>
+                    <span class="form-label">名称</span>
                     <input class="db-input" placeholder="模型名称" bind:value={m.name} />
                   </div>
                   <div class="form-group">
-                    <label class="form-label">类型</label>
+                    <span class="form-label">类型</span>
                     <select class="db-input" bind:value={m.type}>
                       <option value="ollama">ollama</option>
                       <option value="openai">openai</option>
@@ -671,16 +773,16 @@
                 </div>
                 <div class="db-row">
                   <div class="form-group">
-                    <label class="form-label">Base URL</label>
+                    <span class="form-label">Base URL</span>
                     <input class="db-input" placeholder="http://127.0.0.1:11434" bind:value={m.base_url} />
                   </div>
                   <div class="form-group">
-                    <label class="form-label">Model</label>
+                    <span class="form-label">Model</span>
                     <input class="db-input" placeholder="ornith:latest" bind:value={m.model} />
                   </div>
                 </div>
                 <div class="form-group">
-                  <label class="form-label">API Key（{m.api_key ? '已配置，输入新值可更新' : '未配置'}{m.api_key ? '：' + m.api_key : ''}）</label>
+                  <span class="form-label">API Key（{m.api_key ? '已配置，输入新值可更新' : '未配置'}{m.api_key ? '：' + m.api_key : ''}）</span>
                   <input class="db-input" type="password" placeholder="留空 = 保留原值" bind:value={m.api_key} />
                 </div>
               </div>
@@ -963,6 +1065,33 @@
     overflow: hidden; text-overflow: ellipsis; font-size: 12px;
   }
   .example-dir .btn-action { margin-top: 2px; }
+
+  /* ─── 文件浏览框（默认示例目录，目录导航 + 多选）─── */
+  .browse-box { gap: 6px; }
+  .browse-current {
+    font-size: 11px; color: #1e293b; font-weight: 600;
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 3px;
+    padding: 4px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .browse-nav { display: flex; flex-direction: column; gap: 4px; }
+  .browse-up {
+    align-self: flex-start; border: 1px solid #cbd5e1; border-radius: 3px;
+    background: #fff; color: #2563eb; font-size: 12px; cursor: pointer;
+    padding: 3px 8px; transition: background 0.15s;
+  }
+  .browse-up:hover { background: #eff6ff; }
+  .browse-dirs { display: flex; flex-wrap: wrap; gap: 4px; }
+  .browse-dir {
+    border: 1px solid #cbd5e1; border-radius: 3px; background: #f1f5f9;
+    color: #1e293b; font-size: 12px; cursor: pointer; padding: 2px 8px;
+    transition: background 0.15s;
+  }
+  .browse-dir:hover { background: #e2e8f0; }
+  .browse-files { max-height: 200px; }
+  .browse-file-path {
+    flex-shrink: 0; max-width: 40%; color: #94a3b8; font-size: 10px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
 
   .attr-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 12px; }
   .attr-chip {
