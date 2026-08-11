@@ -147,6 +147,13 @@ def find_seeds(question, graph, labels, value_index, top=8, lexicon=None, ontolo
     for cn, group in _SYNONYM_GROUPS.items():
         if cn in q:
             syn_variants += [g for g in group if len(g) >= 2]
+    # 词典 LLM 语义聚类同义词组并入（别名命中：乳制品→奶制品 / 机加设备→机加工设备）
+    if lexicon:
+        _smap = lexicon.get("synonym_map", {}) or {}
+        for _canon, _group in _smap.items():
+            _members = [_canon] + list(_group)
+            if any(_m and _m in q for _m in _members if _m):
+                syn_variants += [_g for _g in _members if len(_g) >= 2]
     # 1. 值/标签/ID 子串匹配: value_index 的键若出现在问题里 (单字中文也允许, 如"盐")
     for key, ents in value_index.items():
         if not key:

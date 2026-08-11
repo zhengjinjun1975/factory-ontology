@@ -1,0 +1,7 @@
+﻿id,model_code,product_name,type,material,size_mm,precision_grade,price
+P001,MB-101,传动轴,轴类件,45号钢,80,IT7,120
+P002,MB-202,齿轮,传动件,40Cr,120,IT6,85
+P003,MB-303,法兰盘,盘类件,Q235,200,IT9,65
+P004,MB-404,轴承座,箱体件,HT250,150,IT8,150
+P005,MB-505,连接轴,轴类件,45号钢,60,IT7,95
+P006,MB-606,蜗轮,传动件,锡青铜,90,IT6,210

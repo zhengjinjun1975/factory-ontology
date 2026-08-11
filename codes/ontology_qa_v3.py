@@ -146,11 +146,30 @@ _COMMON_ZH_STATUS = {
 
 def _find_enum(dict_data, q, which):
     """从词典找问题里出现的枚举词 -> 值。which in (status/type/zone)。
-    增强：status 词在词典缺中文映射时，用内置中文→英文兜底。"""
+    增强：status 词在词典缺中文映射时，用内置中文→英文兜底。
+    增强：LLM 语义聚类 synonym_map 展开——问题含同义词/别名时命中规范词（乳制品→奶制品）。"""
     key = f"{which}_cn2en"
     for cn, en in sorted(dict_data.get(key, {}).items(), key=lambda x: len(x[0]), reverse=True):
         if cn in q:
             return en, cn
+    # 同义词展开：LLM 语义聚类 synonym_map 反查——问题含某词组任一同义/别名时，映射回规范词对应的枚举值
+    smap = dict_data.get("synonym_map", {}) or {}
+    if smap:
+        en_map = dict_data.get(key, {})
+        reverse = {}  # 同义词/别名 -> 枚举规范词
+        for canon, group in smap.items():
+            for m in [canon] + list(group):
+                if m:
+                    reverse.setdefault(m, canon)
+        for term in sorted(reverse, key=len, reverse=True):
+            if term and term in q:
+                canon = reverse[term]
+                if canon in en_map:
+                    return en_map[canon], canon
+                # 规范词不在枚举键中，但同义词可能直接等于某枚举键
+                for ck in en_map:
+                    if ck in [canon] + list(smap.get(canon, [])):
+                        return en_map[ck], ck
     # status 兜底：中文运维词 → 英文值（词典可能只有英文键，如 {running:running}）
     if which == "status":
         for cn, en in sorted(_COMMON_ZH_STATUS.items(), key=lambda x: len(x[0]), reverse=True):

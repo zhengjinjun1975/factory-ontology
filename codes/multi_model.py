@@ -25,6 +25,60 @@ def _load(mod, path):
     return m
 
 
+def _build_synonym_map(terms):
+    """LLM 语义聚类：把枚举取值 + 属性中文名合并为同义词组 {规范词: [同义词...]}。
+    借鉴 DSE-RE 图语义聚类思路解决别名命中（乳制品→奶制品 / 机加设备→机加工设备）。
+    - 一次 LLM 调用，输出 JSON {词: [同义词...]}，同义词尽量来自取值(可含口语别名)。
+    - LLM 失败回落：返回 {}（不阻塞建模，保持原枚举收集）。
+    """
+    terms = sorted({t.strip() for t in terms if t and len(t.strip()) >= 2})
+    if not terms:
+        return {}
+    try:
+        from model_llm import llm_generate
+        import re as _re
+        prompt = (
+            "下面是某工厂/企业数据里的枚举取值(类型/状态/区域等)，每一个都指代一个独立概念，"
+            "例如\"乳制品\"表示一个产品类别，\"机加设备\"表示一种设备类型。\n"
+            f"取值: {terms}\n"
+            "有些取值存在同义词/别名/习惯叫法（口语、简称、不同写法、行业习惯称呼），"
+            "例如\"乳制品\"→[\"乳制品\",\"奶制品\",\"酸奶类\",\"乳品\"]，\"机加设备\"→[\"机加设备\",\"机加工设备\",\"机械加工设备\"]。\n"
+            "请只对**确实有同义/别名**的取值生成同义词组，输出 JSON 对象: "
+            "{\"规范词\": [\"同义词1\",\"同义词2\",...], ...}。\n"
+            "严格要求：\n"
+            "1. 规范词必须取自上面的取值列表；\n"
+            "2. 同义词/别名是**同一个概念**的其它叫法，可含不在列表里的口语词；\n"
+            "3. 不要把不同概念归成一组（如不要把\"乳制品/果汁饮品/烘焙食品\"当同义词，它们是不同类别）；\n"
+            "4. 没有同义词的取值不要输出。\n"
+            "只输出 JSON，不要任何解释。"
+        )
+        raw = llm_generate(prompt, temperature=0.2, max_tokens=1500)
+    except Exception:
+        return {}
+    if not raw or raw.startswith("[模型错误]") or raw.startswith("[模型调用失败]"):
+        return {}
+    m = _re.search(r"\{.*\}", raw, _re.S)
+    if not m:
+        return {}
+    try:
+        obj = json.loads(m.group(0))
+    except Exception:
+        return {}
+    smap = {}
+    for canon, syns in obj.items():
+        if not isinstance(syns, list):
+            continue
+        canon = str(canon).strip()
+        cleaned = []
+        for s in syns:
+            s = str(s).strip()
+            if s and s != canon and s not in cleaned:
+                cleaned.append(s)
+        if canon and cleaned:
+            smap[canon] = cleaned
+    return smap
+
+
 def _build_lexicon(schema, data):
     """从 suggest_schema 生成基础词典（attr_cn2en/attr_en2cn/status_cn2en/type_cn2en 等），供 ask 问答使用。
     极简：直接用 suggest_schema 推断出的中文属性 label 生成自然词典
@@ -84,12 +138,17 @@ def _build_lexicon(schema, data):
                     "维护中": "maintenance", "离线": "offline",
                     "合格": "pass", "不合格": "fail"}
     status_cn2en.update(status_vals)  # 真实数据枚举优先（中文值直接映射自身）
+    # LLM 语义聚类合并同义词（解决别名命中，如 乳制品→奶制品 / 机加设备→机加工设备）。
+    # 失败回落返回 {}，不阻塞建模。词源：类型/状态/区域枚举值 + 属性中文名。
+    _terms = list(type_vals) + list(status_vals) + list(zone_vals) + list(cn)
+    synonym_map = _build_synonym_map(_terms)
     return {
-        "description": "自动生成词典（multi_model, suggest_schema 推断）",
+        "description": "自动生成词典（multi_model, suggest_schema 推断 + LLM 语义聚类同义词）",
         "attr_cn2en": cn, "attr_en2cn": en,
         "status_cn2en": status_cn2en,
         "type_cn2en": type_vals,
         "zone_cn2en": zone_vals,
+        "synonym_map": synonym_map,
         "field_aliases": {"status": ["status"], "deviceType": ["deviceType", "device_type", "type"], "deviceName": ["deviceName", "device_name", "name"]},
         "value_fields": [],
     }
