@@ -1,7 +1,7 @@
 <script>
   // 工厂智能体 · 本体问答 — 独立 Web 应用（工业软件浅色风格）
   import { onMount } from 'svelte';
-  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, getModel, setModel, fetchVersion } from './lib/api.js';
+  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, getModel, setModel, fetchVersion, fetchExamples, fetchExample } from './lib/api.js';
   import DashboardPanel from './components/DashboardPanel.svelte';
   import ModelGraph from './components/ModelGraph.svelte';
   import AnalysisResult from './components/AnalysisResult.svelte';
@@ -9,6 +9,9 @@
   // ─── 状态 ───
   let activeTab = $state('model');   // model | query | dashboard
   let selectedFiles = $state([]);    // [{name, size, content}] 已选文件
+  let examples = $state([]);         // [{name, path, size}] 示例文件
+  let checkedExamples = $state([]);  // 已勾选的示例 path
+  let exampleBusy = $state(false);
   let modeling = $state(false);
   let modelResult = $state(null);   // {table, attrs}
   // 数据库接入
@@ -60,6 +63,7 @@
       const v = await fetchVersion();
       if (v.ok && v.version) appVersion = v.version;
     } catch (e) { /* 忽略 */ }
+    await loadExamples();
   });
 
   async function switchModel(e) {
@@ -102,6 +106,69 @@
     if (n < 1024) return n + ' B';
     if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
     return (n / 1024 / 1024).toFixed(1) + ' MB';
+  }
+
+  // ─── 示例数据目录（默认展示，勾选直接建模）───
+  // 按 path 前缀分组（如 data_valve / data）
+  let exampleDirs = $derived.by(() => {
+    const map = new Map();
+    for (const ex of examples) {
+      const dir = (ex.path || '示例').split('/')[0] || '示例';
+      if (!map.has(dir)) map.set(dir, []);
+      map.get(dir).push(ex);
+    }
+    return Array.from(map.entries()).map(([name, files]) => ({ name, files }));
+  });
+
+  async function loadExamples() {
+    try {
+      const res = await fetchExamples();
+      if (res.ok && Array.isArray(res.examples)) examples = res.examples;
+    } catch (e) { /* 忽略 */ }
+  }
+
+  function toggleExample(path) {
+    checkedExamples = checkedExamples.includes(path)
+      ? checkedExamples.filter(p => p !== path)
+      : checkedExamples.concat(path);
+  }
+
+  function clearExamples() { checkedExamples = []; }
+
+  function toggleAllInDir(dirName) {
+    const paths = exampleDirs.find(d => d.name === dirName)?.files.map(f => f.path) || [];
+    const allChecked = paths.every(p => checkedExamples.includes(p));
+    checkedExamples = allChecked
+      ? checkedExamples.filter(p => !paths.includes(p))
+      : Array.from(new Set(checkedExamples.concat(paths)));
+  }
+
+  // 勾选示例 → 逐文件读取 → setupOntologyMulti 统一建模
+  async function doExampleSetup() {
+    if (!checkedExamples.length || exampleBusy) return;
+    exampleBusy = true;
+    setStatus('info', `正在读取 ${checkedExamples.length} 个示例文件…`);
+    try {
+      const files = [];
+      for (const p of checkedExamples) {
+        const r = await fetchExample(p);
+        if (!r.ok || r.content == null) {
+          setStatus('err', r.error || `读取示例失败：${p}`);
+          exampleBusy = false; return;
+        }
+        files.push({ name: r.name || p.split('/').pop(), content: r.content });
+      }
+      const res = await setupOntologyMulti(files);
+      if (!res.ok) {
+        setStatus('err', res.error || '建模失败');
+      } else {
+        modelResult = { table: res.table, attrs: res.attrs || [], ts: Date.now() };
+        status = 'ready';
+        setStatus('ok', `示例建模完成：${res.table}，共 ${(res.attrs || []).length} 张表`);
+      }
+    } catch (err) {
+      setStatus('err', '网络错误，请确认服务已启动');
+    } finally { exampleBusy = false; }
   }
 
   // ─── 多文件上传建模 ───
@@ -332,7 +399,43 @@
     <section class="pane pane-left">
       <div class="pane-title">数据建模</div>
 
-      <!-- ─── 统一多文件入口 ─── -->
+      <!-- ─── 示例数据目录（默认展示，勾选直接建模）─── -->
+      <div class="form-group">
+        <span class="form-label">示例数据目录（勾选后直接建模）</span>
+        {#if examples.length}
+          <div class="ex-list">
+            {#each exampleDirs as dir}
+              <div class="ex-dir">
+                <div class="ex-dir-head">
+                  <span class="ex-dir-name">📂 {dir.name}</span>
+                  <span class="ex-dir-count">{dir.files.length} 个文件</span>
+                  <button class="ex-dir-toggle" onclick={() => toggleAllInDir(dir.name)}>全选/取消</button>
+                </div>
+                {#each dir.files as ex}
+                  <label class="ex-item">
+                    <input type="checkbox" checked={checkedExamples.includes(ex.path)} onchange={() => toggleExample(ex.path)} />
+                    <span class="ex-name" title={ex.path}>📄 {ex.name}</span>
+                    <span class="file-item-size">{fmtSize(ex.size)}</span>
+                  </label>
+                {/each}
+              </div>
+            {/each}
+          </div>
+          <button class="btn-action" onclick={doExampleSetup} disabled={exampleBusy || !checkedExamples.length}>
+            <span class="btn-icon">{exampleBusy ? '⏳' : '⚙'}</span>
+            {exampleBusy ? '建模进行中…' : `用所选示例建模（${checkedExamples.length} 个）`}
+          </button>
+          {#if checkedExamples.length}
+            <button class="link-clear" onclick={clearExamples}>清除所选</button>
+          {/if}
+        {:else}
+          <div class="ex-empty">加载示例文件…（若持续为空请确认服务已启动）</div>
+        {/if}
+      </div>
+
+      <div class="divider"><span>或上传本地文件</span></div>
+
+      <!-- ─── 本地多文件入口 ─── -->
       <div class="form-group">
         <span class="form-label">数据文件（可多选 CSV / JSON）</span>
         <label class="file-input">
@@ -665,6 +768,38 @@
     transition: background 0.15s;
   }
   .file-remove:hover { background: #fee2e2; }
+
+  /* ─── 示例数据目录 ─── */
+  .ex-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+  .ex-dir { border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc; }
+  .ex-dir-head {
+    display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+    background: #f1f5f9; border-bottom: 1px solid #e2e8f0;
+    font-size: 11px; font-weight: 700; color: #334155;
+  }
+  .ex-dir-name { flex: 1; }
+  .ex-dir-count { color: #94a3b8; font-weight: 500; }
+  .ex-dir-toggle {
+    border: 1px solid #cbd5e1; background: #fff; color: #475569;
+    border-radius: 3px; font-size: 11px; padding: 2px 6px; cursor: pointer; transition: all 0.15s;
+  }
+  .ex-dir-toggle:hover { border-color: #3b82f6; color: #2563eb; }
+  .ex-item {
+    display: flex; align-items: center; gap: 8px; padding: 5px 10px;
+    background: #fff; font-size: 12px; cursor: pointer;
+  }
+  .ex-item + .ex-item { border-top: 1px solid #f1f5f9; }
+  .ex-item:hover { background: #eff6ff; }
+  .ex-item input { accent-color: #2563eb; cursor: pointer; flex-shrink: 0; }
+  .ex-name { flex: 1; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ex-empty { font-size: 12px; color: #94a3b8; padding: 8px 2px; }
+  .divider { display: flex; align-items: center; gap: 10px; color: #94a3b8; font-size: 11px; margin: 4px 0; }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #e2e8f0; }
+  .link-clear {
+    align-self: flex-start; border: none; background: none; color: #64748b;
+    font-size: 11px; cursor: pointer; text-decoration: underline; padding: 2px 0;
+  }
+  .link-clear:hover { color: #dc2626; }
 
   .attr-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 12px; }
   .attr-chip {
