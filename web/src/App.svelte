@@ -1,7 +1,7 @@
 <script>
   // 工厂智能体 · 本体问答 — 独立 Web 应用（工业软件浅色风格）
   import { onMount } from 'svelte';
-  import { setupOntology, askOntology, analyzeOntology, getModel, setModel, fetchVersion } from './lib/api.js';
+  import { setupOntology, askOntology, analyzeOntology, getModel, setModel, fetchVersion, fetchExamples, fetchExample } from './lib/api.js';
   import DashboardPanel from './components/DashboardPanel.svelte';
   import ModelGraph from './components/ModelGraph.svelte';
   import AnalysisResult from './components/AnalysisResult.svelte';
@@ -22,6 +22,8 @@
   let modelList = $state([]);        // 可用模型
   let activeModel = $state('');      // 当前生效模型 key
   let appVersion = $state('');       // 代码版本(读后端)
+  let examples = $state([]);         // 示例文件列表 [{name, path, size}]
+  let examplePath = $state('');      // 当前选中的示例路径
   let status = $state('idle');       // idle | modeling | ready | asking
   let statusMsg = $state('等待数据导入');
   let statusType = $state('info');   // info | ok | err
@@ -56,7 +58,32 @@
       const v = await fetchVersion();
       if (v.ok && v.version) appVersion = v.version;
     } catch (e) { /* 忽略 */ }
+    // 加载示例数据，默认选中第一个并自动建模
+    try {
+      const ex = await fetchExamples();
+      if (ex.ok && Array.isArray(ex.examples) && ex.examples.length) {
+        examples = ex.examples;
+        applyExample(ex.examples[0].path);
+      }
+    } catch (e) { /* 忽略 */ }
   });
+
+  // 加载示例文件内容并建模（复用现有 fileName/fileContent/doSetup 流程）
+  async function applyExample(path) {
+    if (!path || modeling) return;
+    try {
+      const res = await fetchExample(path);
+      if (!res.ok) {
+        setStatus('err', res.error || '示例加载失败'); return;
+      }
+      fileName = res.name || (examples.find(x => x.path === path)?.name) || path;
+      fileContent = res.content;
+      examplePath = path;
+      await doSetup();
+    } catch (err) {
+      setStatus('err', '网络错误，请确认服务已启动');
+    }
+  }
 
   async function switchModel(e) {
     const key = e.target.value;
@@ -273,6 +300,22 @@
     <!-- ─── 左栏：数据建模 ─── -->
     <section class="pane pane-left">
       <div class="pane-title">数据建模</div>
+
+      <div class="form-group">
+        <label class="form-label" for="example-select">示例数据（一键体验）</label>
+        <select
+          id="example-select"
+          class="example-select"
+          value={examplePath}
+          onchange={(e) => applyExample(e.target.value)}
+          disabled={examples.length === 0}
+        >
+          <option value="">选择示例文件…</option>
+          {#each examples as ex}
+            <option value={ex.path}>{ex.name}</option>
+          {/each}
+        </select>
+      </div>
 
       <div class="form-group">
         <label class="form-label">数据文件（CSV/JSON）</label>
@@ -510,6 +553,14 @@
   .pane-left { padding: 14px; gap: 14px; overflow-y: auto; }
   .form-group { display: flex; flex-direction: column; gap: 6px; }
   .form-label { font-size: 12px; color: #64748b; font-weight: 600; }
+
+  .example-select {
+    width: 100%; background: #fff; border: 1px solid #cbd5e1;
+    border-radius: 4px; padding: 9px 12px; font-size: 13px; color: #1e293b;
+    cursor: pointer; outline: none; transition: border-color 0.15s;
+  }
+  .example-select:focus { border-color: #3b82f6; }
+  .example-select:disabled { background: #f8fafc; cursor: not-allowed; }
 
   .file-input {
     display: flex; align-items: center; gap: 10px;

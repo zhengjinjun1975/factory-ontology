@@ -1,7 +1,7 @@
 // ontology.js — 桥接 Python 本体问答套件
 // 通过 child_process 调用仓库 codes/ 下的 Python 脚本
 import { execFile } from 'child_process';
-import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'fs';
+import { writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -37,6 +37,48 @@ function run(cmd, args, cwd) {
 
 // Web 上传支持的文本格式(文本可直接传输; 二进制 sqlite/xlsx 走命令行 codes/ 套件)
 const TEXT_EXT = ['.csv', '.json'];
+// 示例数据目录（相对套件 codes/），供前端免手选文件直接体验
+const EXAMPLE_DIRS = ['data_valve', 'data'];
+
+/**
+ * 扫描套件示例数据目录，返回示例文件列表
+ * @returns {{name:string, path:string, size:number}[]}
+ */
+export function listExamples() {
+  const out = [];
+  for (const dir of EXAMPLE_DIRS) {
+    const abs = join(KIT, dir);
+    if (!existsSync(abs)) continue;
+    let entries;
+    try { entries = readdirSync(abs); } catch { continue; }
+    for (const f of entries) {
+      if (f === '.gitignore' || f === 'README' || f === 'README.md') continue;
+      if (!/\.(csv|json)$/i.test(f)) continue;
+      const fp = join(abs, f);
+      let size = 0;
+      try { size = statSync(fp).size; } catch { /* 忽略 */ }
+      out.push({ name: f, path: `${dir}/${f}`, size });
+    }
+  }
+  return out;
+}
+
+/**
+ * 读取指定示例文件内容（安全：只允许 data_valve/ 或 data/ 下，防目录穿越）
+ * @param {string} relPath 相对套件 codes/ 的路径，如 data_valve/valve_equipment.csv
+ * @returns {{ok, content?, name?, size?, error?}}
+ */
+export function readExample(relPath) {
+  const p = String(relPath || '').replace(/^[\\/]+/, '').replace(/\\/g, '/');
+  if (!/^(data_valve|data)\/[^/]+$/.test(p)) return { ok: false, error: '非法示例路径' };
+  const fp = join(KIT, p);
+  try {
+    const content = readFileSync(fp, 'utf-8');
+    return { ok: true, content, name: p.split('/').pop(), size: content.length };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
 
 /**
  * 上传并建模：把文本格式文件(CSV/JSON)写入套件 data/，调用 run.py setup 生成本体+词典
@@ -98,17 +140,34 @@ export async function askOntology(question) {
 }
 
 /**
- * 聚合统计（多表 join + 分布 + 故障率）供前端可视化
- * @returns {Promise<{ok, stats?, error?}>}
+ * 聚合统计（从当前建模的本体 .nt 计算设备分布）供前端可视化
+ * 数据源：优先读 Web 应用自己的 web_state（Web 建模的），fallback 套件 current.json
+ * 空态：无建模数据(.nt 不存在/为空)时返回 empty:true 而非 error，前端显示"尚未建模"
+ * @returns {Promise<{ok, stats?, empty?, error?}>}
  */
 export async function statsOntology() {
   try {
-    const dataDir = join(KIT, 'data');
-    const eqPath = join(dataDir, 'equipment.csv');
-    const linePath = join(dataDir, 'line.csv');
-    const r = await run(PY, ['aggregate.py', eqPath, linePath], KIT);
+    // 优先读 Web 应用自己的状态（防套件 current.json 被测试覆盖）
+    const web = loadWebState();
+    let nt = null;
+    if (web && web.nt) {
+      nt = web.nt;
+    } else {
+      try {
+        const cur = JSON.parse(readFileSync(join(KIT, 'current.json'), 'utf-8'));
+        nt = cur.nt;
+      } catch (e) { /* 无 current.json 视为未建模 */ }
+    }
+    if (!nt) return { ok: true, stats: null, empty: true };
+    const ntPath = join(KIT, nt);
+    if (!existsSync(ntPath) || statSync(ntPath).size === 0) {
+      return { ok: true, stats: null, empty: true };
+    }
+    const r = await run(PY, ['ontology_stats.py', ntPath], KIT);
     if (!r.ok) return { ok: false, error: r.error || '统计失败' };
     const stats = JSON.parse(r.output);
+    // 解析出空统计(如无设备实例)也按空态处理，避免看板渲染空数据
+    if (!stats || !stats.total_devices) return { ok: true, stats: null, empty: true };
     return { ok: true, stats };
   } catch (e) {
     return { ok: false, error: String(e.message || e) };

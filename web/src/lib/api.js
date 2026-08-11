@@ -59,3 +59,13 @@ export async function fetchVersion() {
   const resp = await fetch('/api/ontology/version');
   return resp.json();
 }
+
+export async function fetchExamples() {
+  const resp = await fetch('/api/ontology/examples');
+  return resp.json();
+}
+
+export async function fetchExample(path) {
+  const resp = await fetch(`/api/ontology/example?path=${encodeURIComponent(path)}`);
+  return resp.json();
+}

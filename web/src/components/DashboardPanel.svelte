@@ -7,6 +7,7 @@
   let stats = $state(null);
   let loading = $state(true);
   let error = $state('');
+  let empty = $state(false);   // 未建模空态（stats 为 null 且 empty=true，非报错）
 
   // 图表配色
   const TYPE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
@@ -31,27 +32,37 @@
     { label: '运行中', value: running, color: '#10b981', alert: false },
   ]);
 
-  onMount(async () => {
+  async function load() {
+    loading = true; error = ''; empty = false;
     try {
       const res = await fetchStats();
       if (res.ok && res.stats) {
         stats = res.stats;
+      } else if (res.ok && res.empty) {
+        empty = true;   // 尚未建模：友好空态而非报错
       } else {
         error = res.error || '统计加载失败';
       }
     } catch (e) {
-      error = '网络错误';
+      error = '网络错误';   // 仅真网络异常
     } finally {
       loading = false;
     }
-  });
+  }
+
+  onMount(load);
 </script>
 
 <div class="dash">
   {#if loading}
     <div class="dash-empty">正在加载统计数据…</div>
+  {:else if empty}
+    <div class="dash-empty dash-nodata">尚未建模，请先在「数据建模」页上传数据</div>
   {:else if error}
-    <div class="dash-empty dash-err">{error}</div>
+    <div class="dash-empty dash-err">
+      {error}
+      <button class="dash-retry" onclick={load}>重试</button>
+    </div>
   {:else if stats}
     <!-- 异常告警横幅：突出异常而非埋在统计里 -->
     {#if faultAlert}
@@ -135,7 +146,15 @@
 <style>
   .dash { display: flex; flex-direction: column; gap: 12px; }
   .dash-empty { color: #94a3b8; font-size: 13px; text-align: center; padding: 30px; }
+  .dash-nodata { color: #64748b; }   /* 未建模空态：中性灰，非红色 */
   .dash-err { color: #dc2626; }
+  .dash-retry {
+    margin-left: 10px; background: #fff; color: #2563eb;
+    border: 1px solid #cbd5e1; border-radius: 4px;
+    padding: 4px 12px; font-size: 12px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .dash-retry:hover { border-color: #3b82f6; background: #f8fafc; }
 
   /* KPI 迷你卡片 + 告警 */
   .alert-banner {

@@ -4,7 +4,7 @@ import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, analyzeOntology, getModel, setModel } from './ontology.js';
+import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, analyzeOntology, getModel, setModel, listExamples, readExample } from './ontology.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
@@ -153,6 +153,20 @@ const server = createServer(async (req, res) => {
       res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
       res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
     }
+    return;
+  }
+
+  // ── API: 示例数据列表/读取（免手选文件直接体验）──
+  if (req.method === 'GET' && url === '/api/ontology/examples') {
+    res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
+    res.end(JSON.stringify({ ok: true, examples: listExamples() }));
+    return;
+  }
+  if (req.method === 'GET' && url === '/api/ontology/example') {
+    const path = new URL(req.url, 'http://x').searchParams.get('path');
+    const result = readExample(path);
+    res.writeHead(result.ok ? 200 : 400, { 'Content-Type': 'application/json;charset=utf-8' });
+    res.end(JSON.stringify(result));
     return;
   }
 
