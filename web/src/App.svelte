@@ -57,17 +57,29 @@
     statusType = type; statusMsg = msg;
   }
 
-  // 错误分类加固：区分 后端业务错误 / 网络错误 / 模型配置错误 / 数据词典错误。
-  // res.error 非空时优先保留后端具体信息并做关键词分类；仅 fetch 抛异常(err)才提示网络错误。
-  // 返回值始终为文本，经 setStatus 后由 Svelte 文本插值 {statusMsg} 自动转义，防 XSS（不使用 innerHTML）。
+  // 错误分类加固：SoGuru 5 族分类法 + 语义/输入策略 guardrail（fail-open）。
+  // 判定优先级：HTTP 状态码(429→限流,5xx→基础设施) → res.error 关键词（模型配置/语义/输入/数据）→ 原始错误。
+  // fetch 抛异常(err) → 基础设施（网络）。返回值始终为文本，经 setStatus 由文本插值转义，防 XSS。
   function formatError(res, err) {
+    const status = res && res.status;
     const msg = (res && res.error && String(res.error).trim()) ? String(res.error) : '';
+    // 基础设施-限流：429 配额/频率超限 → 提示退避重试
+    if (status === 429) return `请求过于频繁，请稍后再试：${msg}`;
+    // 基础设施-服务：5xx 服务端异常
+    if (status >= 500) return `服务异常，请重试：${msg}`;
     if (msg) {
+      // 模型配置问题（保留现有）
       if (/(key|api_key|模型|Ollama|未配置|无模型)/i.test(msg)) return `模型配置问题：${msg}`;
+      // 语义：幻觉 / schema 不匹配 / 拒答 / 空回答
+      if (/(幻觉|拒答|拒绝回答|schema不匹配|schema 不匹配|空回答|无法回答|不能回答|没有结果|无结果|纯噪声)/i.test(msg)) return `模型输出异常：${msg}`;
+      // 输入策略：不安全 / 注入 / PII / 敏感内容
+      if (/(不安全|注入|PII|敏感内容|非法输入|不被允许|不允许)/i.test(msg)) return `输入不被允许：${msg}`;
+      // 数据词典问题（保留现有）
       if (/(词典|建模|读取|数据)/.test(msg)) return `数据问题：${msg}`;
+      // 未知族 → 显示原始错误
       return msg;
     }
-    if (err) return '网络错误：服务未启动或连接失败，请确认后端已运行';
+    if (err) return '服务异常，请重试（网络错误：服务未启动或连接失败，请确认后端已运行）';
     return '';
   }
 
@@ -288,6 +300,8 @@
   async function doAsk(text) {
     const q = (text ?? question).trim();
     if (!q || asking) return;
+    // 输入 guardrail（fail-open）：长度上限，超限直接拦截提示
+    if (q.length > 200) { setStatus('err', '问题过长，请控制在 200 字以内'); return; }
     question = ''; asking = true; status = 'asking';
     answer = ''; answerHTML = null; evidence = null; evidenceOpen = false; analysis = null;
     setStatus('info', `查询：${q}`);

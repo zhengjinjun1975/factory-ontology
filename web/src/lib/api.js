@@ -1,114 +1,129 @@
-// api.js — 前端 API 封装
+// api.js — 前端 API 封装（fetchRetry：429/5xx 指数退避重试，上限 3 次）
+const MAX_RETRIES = 3;
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// 429/5xx 自动重试：指数退避(1s,2s,4s)+抖动，上限 MAX_RETRIES 次；其余状态直接返回。
+async function fetchRetry(url, options = {}) {
+  let lastErr = null;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const resp = await fetch(url, options);
+      const retriable = resp.status === 429 || resp.status >= 500;
+      if (!retriable || attempt === MAX_RETRIES) {
+        try {
+          return await resp.json();
+        } catch (e) {
+          // 非 JSON 响应（网关/超时等）：fail-open 构造结构化错误
+          return { ok: false, status: resp.status, error: `HTTP ${resp.status}` };
+        }
+      }
+      lastErr = resp.status;
+      await sleep(Math.pow(2, attempt) * 1000 + Math.random() * 500);
+    } catch (err) {
+      if (attempt === MAX_RETRIES) throw err;
+      lastErr = err;
+      await sleep(Math.pow(2, attempt) * 1000 + Math.random() * 500);
+    }
+  }
+  throw lastErr;
+}
+
+const JSON_HEADERS = { 'Content-Type': 'application/json' };
+
 export async function setupOntology(csvName, csvContent) {
-  const resp = await fetch('/api/ontology/setup', {
+  return fetchRetry('/api/ontology/setup', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: JSON_HEADERS,
     body: JSON.stringify({ csvName, csvContent }),
   });
-  return resp.json();
 }
 
 export async function setupOntologyMulti(files) {
-  const resp = await fetch('/api/ontology/setup-multi', {
+  return fetchRetry('/api/ontology/setup-multi', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: JSON_HEADERS,
     body: JSON.stringify({ files }),
   });
-  return resp.json();
 }
 
 export async function dbSetup(cfg) {
-  const resp = await fetch('/api/ontology/db-setup', {
+  return fetchRetry('/api/ontology/db-setup', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: JSON_HEADERS,
     body: JSON.stringify(cfg),
   });
-  return resp.json();
 }
 
 export async function askOntology(question) {
-  const resp = await fetch('/api/ontology/ask', {
+  return fetchRetry('/api/ontology/ask', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: JSON_HEADERS,
     body: JSON.stringify({ question }),
   });
-  return resp.json();
 }
 
 export async function fetchStats() {
-  const resp = await fetch('/api/ontology/stats');
-  return resp.json();
+  return fetchRetry('/api/ontology/stats');
 }
 
 export async function fetchLine(lineId) {
-  const resp = await fetch(`/api/ontology/line/${encodeURIComponent(lineId)}`);
-  return resp.json();
+  return fetchRetry(`/api/ontology/line/${encodeURIComponent(lineId)}`);
 }
 
 export async function fetchSchema() {
-  const resp = await fetch('/api/ontology/schema', { cache: 'no-store' });
-  return resp.json();
+  return fetchRetry('/api/ontology/schema', { cache: 'no-store' });
 }
 
 export async function analyzeOntology(question) {
-  const resp = await fetch('/api/ontology/analyze', {
+  return fetchRetry('/api/ontology/analyze', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: JSON_HEADERS,
     body: JSON.stringify({ question }),
   });
-  return resp.json();
 }
 
 export async function getModel() {
-  const resp = await fetch('/api/ontology/model');
-  return resp.json();
+  return fetchRetry('/api/ontology/model');
 }
 
 export async function setModel(key) {
-  const resp = await fetch('/api/ontology/model', {
+  return fetchRetry('/api/ontology/model', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: JSON_HEADERS,
     body: JSON.stringify({ key }),
   });
-  return resp.json();
 }
 
 export async function getModels() {
-  const resp = await fetch('/api/ontology/models');
-  return resp.json();
+  return fetchRetry('/api/ontology/models');
 }
 
 export async function saveModels(cfg) {
-  const resp = await fetch('/api/ontology/models', {
+  return fetchRetry('/api/ontology/models', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: JSON_HEADERS,
     body: JSON.stringify(cfg),
   });
-  return resp.json();
 }
 
 export async function fetchVersion() {
-  const resp = await fetch('/api/ontology/version');
-  return resp.json();
+  return fetchRetry('/api/ontology/version');
 }
 
 export async function fetchExamples() {
-  const resp = await fetch('/api/ontology/examples');
-  return resp.json();
+  return fetchRetry('/api/ontology/examples');
 }
 
 export async function fetchExample(path) {
-  const resp = await fetch(`/api/ontology/example?path=${encodeURIComponent(path)}`);
-  return resp.json();
+  return fetchRetry(`/api/ontology/example?path=${encodeURIComponent(path)}`);
 }
 
 export async function browseFiles(dir) {
   const q = dir ? `?dir=${encodeURIComponent(dir)}` : '';
-  const resp = await fetch(`/api/ontology/browse${q}`);
-  return resp.json();
+  return fetchRetry(`/api/ontology/browse${q}`);
 }
 
 export async function readDataFile(path) {
-  const resp = await fetch(`/api/ontology/read-data?path=${encodeURIComponent(path)}`);
-  return resp.json();
+  return fetchRetry(`/api/ontology/read-data?path=${encodeURIComponent(path)}`);
 }
