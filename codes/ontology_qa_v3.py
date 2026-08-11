@@ -83,7 +83,8 @@ def build_data(triples, dict_data):
     data = {tail(i): {} for i in individuals}
     for s, p, o in triples:
         sn = tail(s)
-        if sn in data and tail(p) != "type":
+        # 只跳过 RDF 命名空间的 rdf:type，保留本体数据属性 type（产品类型等）
+        if sn in data and not p.rstrip(">").endswith("rdf-syntax-ns#type"):
             data[sn][tail(p)] = o
     return data
 
@@ -216,9 +217,13 @@ def answer(q, data, D):
 
     # ---- 区域关系 ----
     zo_en, zo_cn = _find_enum(D, q, "zone")
-    if zo_en and any(k in q for k in ("区域", "区的", "在")):
-        matched = [(n, d) for n, d in data.items() if _field(d, "location", aliases) == zo_en
-                   or _field(d, "zone", aliases) == zo_en]
+    if zo_en and any(k in q for k in ("区域", "区的", "在", "哪些", "有哪些")):
+        def _zmatch(d):
+            for f in ("location", "zone", "region", "area", "workshop"):
+                if _field(d, f, aliases) == zo_en:
+                    return True
+            return False
+        matched = [(n, d) for n, d in data.items() if _zmatch(d)]
         nm = names(matched)
         if "多少" in q:
             return "%s区域有 %d" % (zo_cn, len(nm))
@@ -271,16 +276,16 @@ def answer(q, data, D):
         n = sum(1 for d in data.values() if _field(d, "deviceType", aliases) == ty_en)
         return "有 %d %s" % (n, ty_cn)
 
-    # ---- 列出 ----
-    if "列出" in q:
+    # ---- 列出 / 有哪些 / 信息 ----
+    if "列出" in q or "哪些" in q or "有哪些" in q or "信息" in q or "详情" in q:
         st_en, st_cn = _find_enum(D, q, "status")
         if st_en:
             matched = [(n, d) for n, d in data.items() if _field(d, "status", aliases) == st_en]
-            return "列出所有%<仓库内路径>" % (st_cn, _fmt_names(names(matched))) if matched else "无%s" % st_cn
+            return "列出所有%s:\n%s" % (st_cn, _fmt_names(names(matched))) if matched else "无%s" % st_cn
         ty_en, ty_cn = _find_enum(D, q, "type")
         if ty_en:
             matched = [(n, d) for n, d in data.items() if _field(d, "deviceType", aliases) == ty_en]
-            return "列出所有%<仓库内路径>" % (ty_cn, _fmt_names(names(matched))) if matched else "无%s" % ty_cn
+            return "列出所有%s:\n%s" % (ty_cn, _fmt_names(names(matched))) if matched else "无%s" % ty_cn
 
     # ---- TopN (属性最高/最低的N个) ----
     if attr_en and re.search(r'\d+\s*[台个条]', q) and _EXTREME.search(q):

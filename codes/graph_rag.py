@@ -280,7 +280,7 @@ def answer_graph(question, nt_file, depth=1, max_nodes=40, model_key=None, lexic
         "只依据提供的子图事实回答，不编造不在图中的关系、实体或属性值。"
         "如果图中信息不足，如实说明。不要编造。"
     )
-    ans = llm_generate(prompt, temperature=0.2, max_tokens=300, model_key=model_key)
+    ans = llm_generate(prompt, temperature=0.6, max_tokens=400, model_key=model_key)
     return ans, context
 
 

@@ -57,6 +57,20 @@
     statusType = type; statusMsg = msg;
   }
 
+  // 错误分类加固：区分 后端业务错误 / 网络错误 / 模型配置错误 / 数据词典错误。
+  // res.error 非空时优先保留后端具体信息并做关键词分类；仅 fetch 抛异常(err)才提示网络错误。
+  // 返回值始终为文本，经 setStatus 后由 Svelte 文本插值 {statusMsg} 自动转义，防 XSS（不使用 innerHTML）。
+  function formatError(res, err) {
+    const msg = (res && res.error && String(res.error).trim()) ? String(res.error) : '';
+    if (msg) {
+      if (/(key|api_key|模型|Ollama|未配置|无模型)/i.test(msg)) return `模型配置问题：${msg}`;
+      if (/(词典|建模|读取|数据)/.test(msg)) return `数据问题：${msg}`;
+      return msg;
+    }
+    if (err) return '网络错误：服务未启动或连接失败，请确认后端已运行';
+    return '';
+  }
+
   function switchTab(tab) {
     activeTab = tab;
   }
@@ -89,21 +103,21 @@
       for (const t of tables) {
         const r = await fetchExample(`data_valve/${t}.csv`);
         if (!r.ok || r.content == null) {
-          setStatus('err', r.error || `读取示例失败：${t}`);
+          setStatus('err', formatError(r, null) || `读取示例失败：${t}`);
           defaultBusy = false; return;
         }
         files.push({ name: `${t}.csv`, content: r.content });
       }
       const res = await setupOntologyMulti(files);
       if (!res.ok) {
-        setStatus('err', res.error || '建模失败');
+        setStatus('err', formatError(res, null) || '建模失败');
       } else {
         modelResult = { table: res.table, attrs: res.attrs || [], ts: Date.now() };
         status = 'ready';
         setStatus('ok', `默认示例建模完成：${res.table}，共 ${(res.attrs || []).length} 张表`);
       }
     } catch (err) {
-      setStatus('err', '网络错误，请确认服务已启动');
+      setStatus('err', formatError(null, err));
     } finally { defaultBusy = false; }
   }
 
@@ -133,14 +147,14 @@
       }
       const res = await setupOntologyMulti(files);
       if (!res.ok) {
-        setStatus('err', res.error || '建模失败');
+        setStatus('err', formatError(res, null) || '建模失败');
       } else {
         modelResult = { table: res.table, attrs: res.attrs || [], ts: Date.now() };
         status = 'ready';
         setStatus('ok', `建模完成：${res.table}，共 ${(res.attrs || []).length} 张表`);
       }
     } catch (err) {
-      setStatus('err', '网络错误，请确认服务已启动');
+      setStatus('err', formatError(null, err));
     } finally { localBusy = false; }
   }
 
@@ -200,10 +214,10 @@
         setStatus('ok', `模型配置已保存，当前：${res.active}`);
         await refreshModels();
       } else {
-        setStatus('err', res.error || '保存失败');
+        setStatus('err', formatError(res, null) || '保存失败');
       }
     } catch (err) {
-      setStatus('err', '网络错误');
+      setStatus('err', formatError(null, err));
     } finally { modelEditBusy = false; }
   }
 
@@ -215,10 +229,10 @@
         activeModel = res.active;
         setStatus('ok', `模型已切换：${res.active}`);
       } else {
-        setStatus('err', res.error || '切换失败');
+        setStatus('err', formatError(res, null) || '切换失败');
       }
     } catch (err) {
-      setStatus('err', '网络错误');
+      setStatus('err', formatError(null, err));
     }
   }
 
@@ -247,8 +261,9 @@
       };
       const res = await dbSetup(cfg);
       if (!res.ok) {
-        setStatus('err', res.error || '数据库建模失败');
-        dbResult = { ok: false, error: res.error || '数据库建模失败' };
+        const emsg = formatError(res, null) || '数据库建模失败';
+        setStatus('err', emsg);
+        dbResult = { ok: false, error: emsg };
       } else {
         dbResult = { ok: true, table: res.table, output: res.output || '' };
         modelResult = { table: res.table, attrs: [], ts: Date.now() };
@@ -256,8 +271,9 @@
         setStatus('ok', `数据库建模完成：${res.table}`);
       }
     } catch (err) {
-      setStatus('err', '网络错误，请确认服务已启动');
-      dbResult = { ok: false, error: '网络错误，请确认服务已启动' };
+      const emsg = formatError(null, err);
+      setStatus('err', emsg);
+      dbResult = { ok: false, error: emsg };
     } finally { dbBusy = false; }
   }
 
@@ -280,7 +296,7 @@
         // 智能分析：统计摘要 + LLM 洞察（前端画图 + 报告）
         const res = await analyzeOntology(q);
         if (!res.ok) {
-          setStatus('err', res.error || '分析失败'); status = 'ready';
+          setStatus('err', formatError(res, null) || '分析失败'); status = 'ready';
         } else {
           analysis = { report: res.report, stats: res.stats };
           status = 'ready';
@@ -290,7 +306,7 @@
         // 普通问答
         const res = await askOntology(q);
         if (!res.ok) {
-          setStatus('err', res.error || '问答失败'); status = 'ready';
+          setStatus('err', formatError(res, null) || '问答失败'); status = 'ready';
         } else {
           answer = res.answer || '（无结果）';
           answerHTML = renderAnswerHTML(res.answer);
@@ -300,7 +316,7 @@
         }
       }
     } catch (err) {
-      setStatus('err', '网络错误，请确认服务已启动'); status = 'ready';
+      setStatus('err', formatError(null, err)); status = 'ready';
     } finally {
       asking = false;
       if (answerBox) answerBox.scrollTop = answerBox.scrollHeight;
