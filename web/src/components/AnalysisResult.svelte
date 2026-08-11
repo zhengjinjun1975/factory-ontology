@@ -17,6 +17,18 @@
   const lineArr = $derived(stats?.line_stats || []);
   const maxLine = $derived(lineArr.length ? Math.max(...lineArr.map(l => l.device_count)) : 1);
 
+  // L2 关键指标迷你卡片（总数/运行/异常/故障率）
+  const FAULT_THRESHOLD = 0.05;  // 故障率告警阈值 5%
+  const anomalyCount = $derived(Object.entries(stats?.status_dist || {}).filter(([k]) => ['alarm', 'maintenance', 'offline'].includes(k)).reduce((s, [, v]) => s + v, 0));
+  const faultPct = $derived(Math.round((stats?.fault_rate ?? 0) * 100));
+  const faultAlert = $derived(faultPct > FAULT_THRESHOLD * 100);
+  const kpis = $derived([
+    { label: '设备总数', value: stats?.total_devices ?? 0, color: '#2563eb', alert: false },
+    { label: '运行中', value: stats?.status_dist?.running ?? 0, color: '#10b981', alert: false },
+    { label: '异常/维护', value: anomalyCount, color: anomalyCount > 0 ? '#ef4444' : '#10b981', alert: anomalyCount > 0 },
+    { label: '故障率', value: faultPct + '%', color: faultAlert ? '#ef4444' : '#10b981', alert: faultAlert },
+  ]);
+
   // 环形图（状态分布）
   const totalStatus = $derived(statusArr.reduce((s, d) => s + d.value, 0) || 1);
   function arcPath(index) {
@@ -58,12 +70,15 @@
 
 <div class="analysis">
   {#if stats}
-    <!-- KPI 概览 -->
+    <!-- L2 关键指标迷你卡片 -->
     <div class="kpi-row">
-      <div class="kpi"><div class="kpi-num">{stats.total_devices}</div><div class="kpi-label">设备总数</div></div>
-      <div class="kpi"><div class="kpi-num" style="color:#10b981">{stats.status_dist?.running ?? 0}</div><div class="kpi-label">运行中</div></div>
-      <div class="kpi"><div class="kpi-num" style="color:#ef4444">{Object.entries(stats.status_dist||{}).filter(([k])=>['alarm','maintenance','offline'].includes(k)).reduce((s,[,v])=>s+v,0)}</div><div class="kpi-label">异常/维护</div></div>
-      <div class="kpi"><div class="kpi-num" style="color:#f59e0b">{Math.round(stats.fault_rate*100)}%</div><div class="kpi-label">故障率</div></div>
+      {#each kpis as k}
+        <div class="mini-card" class:alert={k.alert}>
+          <div class="mc-accent" style="background:{k.color}"></div>
+          <div class="mc-num" style="color:{k.color}">{k.value}</div>
+          <div class="mc-label">{k.label}</div>
+        </div>
+      {/each}
     </div>
 
     <div class="chart-grid">
@@ -190,9 +205,11 @@
 <style>
   .analysis { display: flex; flex-direction: column; gap: 12px; }
   .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-  .kpi { background:#f8fafc; border:1px solid #e2e8f0; border-radius:4px; padding:12px; text-align:center; }
-  .kpi-num { font-size:22px; font-weight:700; color:#1e293b; font-family:monospace; }
-  .kpi-label { font-size:11px; color:#64748b; margin-top:2px; }
+  .mini-card { position:relative; overflow:hidden; background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:16px 12px 12px; text-align:center; box-shadow:0 1px 2px rgba(15,23,42,.05); }
+  .mini-card.alert { border-color:#ef4444; box-shadow:0 0 0 1px #ef4444; }
+  .mc-accent { position:absolute; top:0; left:0; right:0; height:3px; }
+  .mc-num { font-size:24px; font-weight:700; line-height:1.1; font-family:monospace; }
+  .mc-label { font-size:11px; color:#64748b; margin-top:4px; }
 
   .chart-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   .chart-card { background:#f8fafc; border:1px solid #e2e8f0; border-radius:4px; padding:14px; }

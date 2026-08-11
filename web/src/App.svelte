@@ -15,6 +15,9 @@
   let question = $state('');
   let asking = $state(false);
   let answer = $state('');
+  let answerHTML = $state(null);   // 结构化答案 HTML（列表/表格）；null 则退回 <pre>
+  let evidence = $state(null);     // 问答证据溯源
+  let evidenceOpen = $state(false);
   let analysis = $state(null);       // {report, stats} 智能分析结果
   let modelList = $state([]);        // 可用模型
   let activeModel = $state('');      // 当前生效模型 key
@@ -109,7 +112,7 @@
     const q = (text ?? question).trim();
     if (!q || asking) return;
     question = ''; asking = true; status = 'asking';
-    answer = ''; analysis = null;
+    answer = ''; answerHTML = null; evidence = null; evidenceOpen = false; analysis = null;
     setStatus('info', `查询：${q}`);
     try {
       if (isAnalyzeQuestion(q)) {
@@ -129,6 +132,8 @@
           setStatus('err', res.error || '问答失败'); status = 'ready';
         } else {
           answer = res.answer || '（无结果）';
+          answerHTML = renderAnswerHTML(res.answer);
+          evidence = res.evidence || null;
           status = 'ready';
           setStatus('ok', `查询完成：${q}`);
         }
@@ -143,6 +148,76 @@
 
   function onKeydown(e) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doAsk(); }
+  }
+
+  // ─── 结构化答案渲染（极简，无第三方库）───
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  // 返回 HTML；若不含表格/列表结构则返回 null（调用方退回 <pre>）
+  function renderAnswerHTML(text) {
+    const lines = String(text || '').split('\n');
+    let html = ''; let changed = false; let i = 0;
+    while (i < lines.length) {
+      const line = lines[i]; const t = line.trim();
+      // 表格：连续两行以上含 |
+      if (line.includes('|')) {
+        const rows = [];
+        while (i < lines.length && lines[i].includes('|')) {
+          const cells = lines[i].split('|').map(c => c.trim());
+          while (cells.length && cells[0] === '') cells.shift();
+          while (cells.length && cells[cells.length - 1] === '') cells.pop();
+          rows.push(cells); i++;
+        }
+        if (rows.length >= 2) {
+          changed = true;
+          html += '<table class="ans-table"><thead><tr>' +
+            rows[0].map(c => '<th>' + escapeHtml(c) + '</th>').join('') +
+            '</tr></thead><tbody>' +
+            rows.slice(1).map(r => '<tr>' + r.map(c => '<td>' + escapeHtml(c) + '</td>').join('') + '</tr>').join('') +
+            '</tbody></table>';
+        } else {
+          for (const r of rows) html += escapeHtml(r.join(' | ')) + '<br>';
+        }
+        continue;
+      }
+      // 列表：`信息(N):`/`字段信息(N):` 后跟 `- xxx`
+      const m = t.match(/^(.*?信息\s*[（(]?\d+[）)]?:?)$/);
+      if (m) {
+        let j = i + 1; const items = [];
+        while (j < lines.length && /^\s*[-•]\s/.test(lines[j])) {
+          items.push(lines[j].replace(/^\s*[-•]\s*/, '')); j++;
+        }
+        if (items.length > 0) {
+          changed = true;
+          html += '<div class="ans-head">' + escapeHtml(t) + '</div><ul class="ans-list">' +
+            items.map(it => '<li>' + escapeHtml(it) + '</li>').join('') + '</ul>';
+          i = j; continue;
+        }
+      }
+      html += escapeHtml(line) + '<br>'; i++;
+    }
+    return changed ? html : null;
+  }
+  // 证据溯源渲染（entities / 对象 / 数组，通用展示）
+  function renderEvidence(ev) {
+    if (!ev) return '';
+    if (typeof ev === 'string') return '<div class="ev-text">' + escapeHtml(ev) + '</div>';
+    const list = Array.isArray(ev) ? ev : (ev.entities || ev.rows || []);
+    const items = [];
+    if (Array.isArray(list) && list.length) {
+      for (const it of list) {
+        if (typeof it === 'string') items.push('<li>' + escapeHtml(it) + '</li>');
+        else if (it && typeof it === 'object')
+          items.push('<li>' + Object.entries(it)
+            .map(([k, v]) => '<span class="ev-k">' + escapeHtml(k) + '</span>：' + escapeHtml(typeof v === 'string' ? v : JSON.stringify(v)))
+            .join('；') + '</li>');
+      }
+    } else if (ev && typeof ev === 'object') {
+      for (const [k, v] of Object.entries(ev))
+        items.push('<li><span class="ev-k">' + escapeHtml(k) + '</span>：' + escapeHtml(typeof v === 'string' ? v : JSON.stringify(v)) + '</li>');
+    }
+    return items.length ? '<ul class="ev-list">' + items.join('') + '</ul>' : '';
   }
 </script>
 
@@ -281,7 +356,24 @@
             <div class="result-head">
               <span class="result-label">查询结果</span>
             </div>
-            <pre class="result-text" bind:this={answerBox}>{answer}</pre>
+            <div class="result-scroll" bind:this={answerBox}>
+              {#if answerHTML}
+                <div class="ans-body">{@html answerHTML}</div>
+              {:else}
+                <pre class="result-text">{answer}</pre>
+              {/if}
+            </div>
+            {#if evidence}
+              <div class="evidence-wrap">
+                <button class="evidence-toggle" onclick={() => (evidenceOpen = !evidenceOpen)}>
+                  📎 证据溯源
+                  <span class="chevron">{evidenceOpen ? '▾' : '▸'}</span>
+                </button>
+                {#if evidenceOpen}
+                  <div class="evidence-body">{@html renderEvidence(evidence)}</div>
+                {/if}
+              </div>
+            {/if}
           {:else}
             <div class="result-empty">请先在「数据建模」中完成建模，再进行查询。</div>
           {/if}
@@ -494,13 +586,39 @@
     border-bottom: 1px solid #e2e8f0;
   }
   .result-label { font-size: 11px; font-weight: 700; color: #64748b; letter-spacing: 0.5px; }
+  .result-scroll { flex: 1; overflow-y: auto; }
   .result-text {
-    flex: 1; margin: 0; padding: 14px;
+    margin: 0; padding: 14px;
     font-family: 'Consolas', 'Menlo', monospace;
     font-size: 13px; line-height: 1.7; color: #1e293b;
     white-space: pre-wrap; word-break: break-word;
-    overflow-y: auto;
   }
+  .ans-body { padding: 14px; font-size: 13px; line-height: 1.8; color: #1e293b; }
+  :global(.ans-head) { font-weight: 700; color: #1e293b; margin: 6px 0 4px; }
+  :global(.ans-list) { margin: 0 0 8px; padding-left: 20px; }
+  :global(.ans-list li) { margin: 2px 0; }
+  :global(.ans-table) { width: 100%; border-collapse: collapse; margin: 6px 0 10px; }
+  :global(.ans-table th), :global(.ans-table td) {
+    border: 1px solid #e2e8f0; padding: 6px 10px; text-align: left;
+    font-size: 12px; color: #334155;
+  }
+  :global(.ans-table th) { background: #f1f5f9; color: #475569; font-weight: 600; }
+
+  /* ─── 证据溯源 ─── */
+  .evidence-wrap { border-top: 1px solid #e2e8f0; background: #f8fafc; }
+  .evidence-toggle {
+    width: 100%; display: flex; align-items: center; gap: 6px;
+    padding: 8px 12px; background: transparent; border: none;
+    font-size: 12px; font-weight: 600; color: #475569; cursor: pointer;
+    text-align: left; transition: background 0.15s;
+  }
+  .evidence-toggle:hover { background: #f1f5f9; color: #2563eb; }
+  .chevron { margin-left: auto; font-size: 11px; color: #94a3b8; }
+  .evidence-body { padding: 4px 12px 12px; border-top: 1px dashed #e2e8f0; }
+  :global(.ev-list) { margin: 6px 0 0; padding-left: 18px; font-size: 12px; color: #334155; }
+  :global(.ev-list li) { margin: 3px 0; line-height: 1.6; }
+  :global(.ev-k) { color: #2563eb; font-weight: 600; }
+  :global(.ev-text) { padding: 8px 0; font-size: 12px; color: #334155; }
   .result-empty {
     flex: 1; display: flex; align-items: center; justify-content: center;
     color: #94a3b8; font-size: 12px;

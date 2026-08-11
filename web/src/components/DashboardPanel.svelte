@@ -17,6 +17,20 @@
   const maxStatus = $derived(stats && stats.status_dist?.length ? Math.max(...stats.status_dist.map(d => d.count)) : 1);
   const maxLine = $derived(stats && stats.line_stats?.length ? Math.max(...stats.line_stats.map(d => d.device_count)) : 1);
 
+  // 诊断式：异常汇总 + 关键指标（黄金三角置顶）
+  const total = $derived(stats?.total_devices ?? 0);
+  const running = $derived(stats?.status_dist?.find(s => s.status === 'running')?.count ?? 0);
+  const anomalyCount = $derived((stats?.status_dist || []).filter(s => ['alarm', 'maintenance', 'offline'].includes(s.status)).reduce((sum, s) => sum + (s.count || 0), 0));
+  const faultPct = $derived(Math.round((stats?.fault_rate ?? 0) * 100));
+  const anomalyPct = $derived(total ? Math.round(anomalyCount / total * 100) : 0);
+  const faultAlert = $derived(faultPct > 5 || anomalyCount > 0);
+  const kpis = $derived([
+    { label: '故障/异常设备', value: anomalyCount, color: anomalyCount > 0 ? '#ef4444' : '#10b981', alert: anomalyCount > 0 },
+    { label: '故障率', value: faultPct + '%', color: faultAlert ? '#ef4444' : '#10b981', alert: faultAlert },
+    { label: '设备总数', value: total, color: '#2563eb', alert: false },
+    { label: '运行中', value: running, color: '#10b981', alert: false },
+  ]);
+
   onMount(async () => {
     try {
       const res = await fetchStats();
@@ -39,24 +53,23 @@
   {:else if error}
     <div class="dash-empty dash-err">{error}</div>
   {:else if stats}
-    <!-- 顶部概览指标 -->
+    <!-- 异常告警横幅：突出异常而非埋在统计里 -->
+    {#if faultAlert}
+      <div class="alert-banner">
+        <span class="alert-ico">⚠</span>
+        <span>检测到 <b>{anomalyCount}</b> 台设备异常/故障，占设备总数 <b>{anomalyPct}%</b>（故障率 {faultPct}%）。</span>
+      </div>
+    {/if}
+
+    <!-- 诊断关键指标（黄金三角：异常置顶左上） -->
     <div class="kpi-row">
-      <div class="kpi">
-        <div class="kpi-num">{stats.total_devices}</div>
-        <div class="kpi-label">设备总数</div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-num" style="color:#10b981">{stats.status_dist?.find(s => s.status === 'running')?.count ?? 0}</div>
-        <div class="kpi-label">运行中</div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-num" style="color:#ef4444">{stats.status_dist?.find(s => ['alarm','maintenance','offline'].includes(s.status))?.count ?? 0}</div>
-        <div class="kpi-label">异常/维护</div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-num" style="color:#f59e0b">{Math.round(stats.fault_rate * 100)}%</div>
-        <div class="kpi-label">故障率</div>
-      </div>
+      {#each kpis as k, i}
+        <div class="mini-card" class:alert={k.alert} class:lead={i === 0}>
+          <div class="mc-accent" style="background:{k.color}"></div>
+          <div class="mc-num" style="color:{k.color}">{k.value}</div>
+          <div class="mc-label">{k.label}</div>
+        </div>
+      {/each}
     </div>
 
     <div class="chart-grid">
@@ -124,14 +137,27 @@
   .dash-empty { color: #94a3b8; font-size: 13px; text-align: center; padding: 30px; }
   .dash-err { color: #dc2626; }
 
-  /* KPI */
-  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-  .kpi {
-    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px;
-    padding: 12px; text-align: center;
+  /* KPI 迷你卡片 + 告警 */
+  .alert-banner {
+    display: flex; align-items: center; gap: 8px;
+    background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
+    border-radius: 6px; padding: 10px 14px; font-size: 13px;
   }
-  .kpi-num { font-size: 22px; font-weight: 700; color: #1e293b; font-family: 'Consolas', monospace; }
-  .kpi-label { font-size: 11px; color: #64748b; margin-top: 2px; }
+  .alert-ico { font-size: 15px; }
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .mini-card {
+    position: relative; overflow: hidden;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 6px;
+    padding: 16px 12px 12px; text-align: center;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  }
+  .mini-card.alert { border-color: #ef4444; box-shadow: 0 0 0 1px #ef4444; }
+  .mini-card.lead { padding: 20px 12px 16px; }
+  .mini-card.lead .mc-accent { height: 4px; }
+  .mini-card.lead .mc-num { font-size: 30px; }
+  .mc-accent { position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .mc-num { font-size: 24px; font-weight: 700; line-height: 1.1; font-family: 'Consolas', monospace; }
+  .mc-label { font-size: 11px; color: #64748b; margin-top: 4px; }
 
   /* Charts */
   .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
