@@ -1,7 +1,8 @@
 <script>
-  // ModelGraph — 本体模型结构 SVG 图（真实反映建模结果）
-  // 中央主类 + 左侧数据属性 + 右侧对象属性/目标类
+  // ModelGraph — 本体模型力导向图（ECharts graph，学习 sme 库 instance-graph.js）
+  // 层级：企业 hub 顶部 → 业务域/实体类 → 实例；roam 缩放平移 + 分类着色 + 多样化链接
   import { onMount } from 'svelte';
+  import echarts from '../lib/echarts.cjs';
   import { fetchSchema } from '../lib/api.js';
 
   let { refreshKey = 0 } = $props();   // 建模时间戳，变化时重新加载
@@ -9,11 +10,87 @@
   let schema = $state(null);
   let loading = $state(true);
   let error = $state('');
+  let chartEl = $state(null);
+  let chart = $state(null);
 
-  // SVG 布局常量
-  const W = 720, H = 360;
-  const CX = 360, CY = 180;      // 主类中心
-  const MAIN_RX = 90, MAIN_RY = 36;
+  // 关系类型 → 颜色/线型（多样化链接：不同 rel 不同色）
+  const REL_STYLE = {
+    owns:    { color: '#2563eb', width: 2,  type: 'solid',  opacity: 0.55 },  // 企业→实体
+    type:    { color: '#94a3b8', width: 1,  type: 'solid',  opacity: 0.5 },   // 类→实例
+  };
+  const OBJ_REL_COLORS = ['#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#64748b'];
+  function relStyle(rel) {
+    if (REL_STYLE[rel]) return REL_STYLE[rel];
+    // 对象属性按 rel 哈希取稳定颜色，实现多样化链接
+    let h = 0;
+    for (let i = 0; i < rel.length; i++) h = (h * 31 + rel.charCodeAt(i)) >>> 0;
+    return { color: OBJ_REL_COLORS[h % OBJ_REL_COLORS.length], width: 1.5, type: 'dashed', opacity: 0.7 };
+  }
+
+  // 实体(类)分类色
+  const ENTITY_COLORS = ['#2563eb', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#64748b', '#6366f1', '#84cc16'];
+  function entityColor(name) {
+    let h = 0;
+    for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+    return ENTITY_COLORS[h % ENTITY_COLORS.length];
+  }
+
+  function render() {
+    if (!chartEl || !schema?.nodes?.length) return;
+    const nodes = schema.nodes, edges = schema.edges || [];
+    // 分类 = 所有实体类名（着色依据）
+    const cats = [...new Set(nodes.map(n => n.entity))];
+    const catIdx = {}; cats.forEach((c, i) => (catIdx[c] = i));
+
+    const data = nodes.map(n => {
+      const isHub = n.id === '__hub__';
+      const isCls = n.id.startsWith('cls_');
+      const color = isHub ? '#2563eb' : (isCls ? '#1e293b' : entityColor(n.entity));
+      return {
+        id: n.id, name: n.name,
+        symbolSize: isHub ? 64 : (isCls ? 30 : 11),
+        category: catIdx[n.entity] ?? 0,
+        itemStyle: { color, borderColor: isCls ? color : '#ffffff', borderWidth: isCls ? 0 : 1 },
+        label: isCls ? { show: true, fontSize: 12, fontWeight: 'bold', color: '#1e293b' } : undefined,
+        tooltip: { formatter: `<b>${n.entity}</b> ${n.name}<br/>域：${n.domain || ''}` },
+      };
+    });
+
+    const ids = new Set(nodes.map(n => n.id));
+    const links = edges
+      .filter(e => ids.has(e.source) && ids.has(e.target))
+      .map(e => {
+        const st = relStyle(e.rel);
+        return {
+          source: e.source, target: e.target,
+          lineStyle: { color: st.color, width: st.width, opacity: st.opacity, type: st.type },
+          label: { show: e.rel !== 'type' && e.rel !== 'owns', fontSize: 9, color: st.color, formatter: e.rel },
+        };
+      });
+
+    if (chart) chart.dispose();
+    chart = echarts.init(chartEl);
+    chart.setOption({
+      tooltip: { show: true },
+      animationDuration: 600,
+      legend: {
+        top: 4, left: 'center', type: 'scroll',
+        textStyle: { fontSize: 10, color: '#475569' },
+        icon: 'circle', itemWidth: 10, itemHeight: 10,
+        data: cats.map(c => ({ name: c, itemStyle: { color: c === '企业' ? '#2563eb' : (c.startsWith('cls_') ? '#1e293b' : entityColor(c)) } })),
+      },
+      series: [{
+        type: 'graph', layout: 'force', roam: true,
+        force: { repulsion: 420, edgeLength: [70, 200], gravity: 0.08, friction: 0.6, layoutAnimation: true },
+        label: { show: true, position: 'right', fontSize: 9, color: '#1a2233', formatter: p => p.name && p.name.slice(0, 12) },
+        edgeSymbol: ['none', 'arrow'], edgeSymbolSize: [0, 6],
+        lineStyle: { color: '#cbd5e1', width: 1, curveness: 0.15 },
+        categories: cats.map(c => ({ name: c })),
+        data, links,
+        emphasis: { focus: 'adjacency', label: { show: true, fontSize: 11, fontWeight: 'bold' } },
+      }],
+    });
+  }
 
   async function load() {
     loading = true; error = '';
@@ -21,6 +98,7 @@
       const res = await fetchSchema();
       if (res.ok && res.schema) {
         schema = res.schema;
+        render();
       } else {
         error = res.error || '模型结构加载失败';
       }
@@ -31,47 +109,26 @@
     }
   }
 
-  onMount(load);
+  onMount(() => {
+    load();
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      if (chart) chart.dispose();
+    };
+  });
+  function onResize() { if (chart) chart.resize(); }
+
   // refreshKey 变化时（重新建模）重新加载
   $effect(() => {
     if (refreshKey > 0) load();
   });
 
-  // 目标类位置（右侧环形分布）
-  const targetPos = $derived(
-    (schema?.target_classes || []).map((t, i) => {
-      const n = Math.max(schema.target_classes.length, 1);
-      const angle = -Math.PI/2 + (i + 0.5) * (Math.PI / n);
-      const rx = 300, ry = 110;
-      return { name: t, x: CX + rx * Math.cos(angle), y: CY + ry * Math.sin(angle) };
-    })
-  );
-
-  // 数据属性位置（左侧列表）
-  const dataPos = $derived(
-    (schema?.data_properties || []).map((d, i) => ({
-      ...d,
-      x: 150, y: 62 + i * 40,
-    }))
-  );
-
-  // 类型层级：按父类分组
-  const hierarchyGroups = $derived(
-    (() => {
-      const groups = {};
-      for (const h of (schema?.type_hierarchy || [])) {
-        if (!groups[h.parent]) groups[h.parent] = [];
-        groups[h.parent].push(h.child);
-      }
-      return Object.entries(groups).map(([parent, children]) => ({ parent, children }));
-    })()
-  );
-
-  // 找到对象属性对应的目标位置
-  function objTargetPos(rel) {
-    const target = schema?.object_properties.find(o => o.rel === rel)?.target;
-    return targetPos.find(p => p.name === target);
-  }
+  // 节点数 / 关系数统计
+  const instCount = $derived((schema?.nodes || []).filter(n => n.id !== '__hub__' && !n.id.startsWith('cls_')).length);
+  const clsCount = $derived((schema?.nodes || []).filter(n => n.id.startsWith('cls_')).length);
+  const edgeCount = $derived((schema?.edges || []).length);
+  const rels = $derived([...new Set((schema?.edges || []).map(e => e.rel))].filter(r => r !== 'owns' && r !== 'type'));
 </script>
 
 <div class="model-graph">
@@ -85,68 +142,24 @@
       <span class="mg-inst">{schema.instance_count} 个实例</span>
       <span class="mg-obj">{schema.object_properties.length} 个对象关系</span>
       <span class="mg-dp">{schema.data_properties.length} 个数据属性</span>
+      <span class="mg-graph">图：{clsCount} 实体 · {instCount} 实例 · {edgeCount} 边</span>
     </div>
 
-    <svg viewBox="0 0 {W} {H}" class="mg-svg" xmlns="http://www.w3.org/2000/svg" font-family="'Microsoft YaHei','PingFang SC',sans-serif">
-      <defs>
-        <marker id="mg-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
-          <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
-        </marker>
-      </defs>
-      <!-- 数据属性 → 主类 连线 -->
-      {#each dataPos as d}
-        <line x1={d.x + 60} y1={d.y} x2={CX - MAIN_RX} y2={CY} stroke="#cbd5e1" stroke-width="1.2" stroke-dasharray="4,3"/>
-      {/each}
+    <div class="mg-echarts" bind:this={chartEl}></div>
 
-      <!-- 对象属性连线（主类 → 目标类） -->
-      {#each schema.object_properties as op}
-        {@const tp = objTargetPos(op.rel)}
-        {#if tp}
-          <line x1={CX + MAIN_RX} y1={CY} x2={tp.x - 62} y2={tp.y} stroke="#94a3b8" stroke-width="1.3" marker-end="url(#mg-arrow)"/>
-          <text x={(CX + MAIN_RX + tp.x - 62)/2} y={(CY + tp.y)/2 - 6} text-anchor="middle" font-size="12" fill="#475569"
-                stroke="#ffffff" stroke-width="3" paint-order="stroke">{op.label}</text>
-        {/if}
-      {/each}
-
-      <!-- 主类节点 -->
-      <rect x={CX - MAIN_RX} y={CY - MAIN_RY} width={MAIN_RX*2} height={MAIN_RY*2} rx="10"
-            fill="#ffffff" stroke="#2563eb" stroke-width="2"/>
-      <text x={CX} y={CY - 5} text-anchor="middle" font-size="17" font-weight="700" fill="#1d4ed8">{schema.class}</text>
-      <text x={CX} y={CY + 16} text-anchor="middle" font-size="12" fill="#64748b">{schema.instance_count} 实例</text>
-
-      <!-- 数据属性节点 -->
-      {#each dataPos as d}
-        <rect x={d.x} y={d.y - 14} width="120" height="28" rx="6"
-              fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
-        <text x={d.x + 60} y={d.y + 4} text-anchor="middle" font-size="13" fill="#334155">{d.label}</text>
-      {/each}
-
-      <!-- 目标类节点 -->
-      {#each targetPos as t}
-        <rect x={t.x - 62} y={t.y - 15} width="124" height="30" rx="7"
-              fill="#ffffff" stroke="#93c5fd" stroke-width="1.5"/>
-        <text x={t.x} y={t.y + 5} text-anchor="middle" font-size="13" fill="#1d4ed8" font-weight="600">{t.name}</text>
-      {/each}
-    </svg>
-
-    <!-- 类型层级（subClassOf） -->
-    {#if hierarchyGroups.length > 0}
-      <div class="mg-hierarchy">
-        <div class="mg-hier-title">设备类型层级</div>
-        <div class="mg-hier-groups">
-          {#each hierarchyGroups as g}
-            <div class="mg-hier-group">
-              <span class="mg-hier-parent">{g.parent}</span>
-              <div class="mg-hier-children">
-                {#each g.children as c}
-                  <span class="mg-hier-child">{c}</span>
-                {/each}
-              </div>
-            </div>
-          {/each}
-        </div>
+    {#if rels.length > 0}
+      <div class="mg-legend">
+        <span class="lg-title">多样化链接：</span>
+        {#each rels as r}
+          <span class="lg-item">
+            <span class="lg-line" style="background:{relStyle(r).color}"></span>
+            {r}
+          </span>
+        {/each}
       </div>
     {/if}
+
+    <div class="mg-hint">拖动 / 滚轮缩放看全图 · 悬停高亮邻居 · 不同关系不同颜色线型</div>
 
     <!-- 实体属性（属性本体：各关联类的自身属性） -->
     {#if schema?.class_attributes && Object.keys(schema.class_attributes).length > 0}
@@ -158,9 +171,7 @@
               <div class="mg-attr-group">
                 <span class="mg-attr-cls">{cls}</span>
                 <div class="mg-attr-items">
-                  {#each attrs as a}
-                    <span class="mg-attr-item">{a}</span>
-                  {/each}
+                  <span class="mg-attr-item">{attrs.instance_count} 实例</span>
                 </div>
               </div>
             {/if}
@@ -168,13 +179,6 @@
         </div>
       </div>
     {/if}
-
-    <div class="mg-legend">
-      <span class="lg-item"><span class="lg-dot lg-main"></span>主类</span>
-      <span class="lg-item"><span class="lg-dot lg-target"></span>目标类（对象关系指向）</span>
-      <span class="lg-item"><span class="lg-line"></span>对象关系</span>
-      <span class="lg-item"><span class="lg-dash"></span>数据属性</span>
-    </div>
   {/if}
 </div>
 
@@ -183,65 +187,28 @@
   .mg-empty { color: #94a3b8; font-size: 13px; text-align: center; padding: 40px; }
   .mg-err { color: #dc2626; }
 
-  .mg-meta {
-    display: flex; gap: 16px; flex-wrap: wrap;
-    font-size: 12px; color: #475569;
-  }
+  .mg-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: #475569; }
   .mg-cls { font-weight: 700; color: #1e293b; }
-  .mg-inst, .mg-obj, .mg-dp { color: #2563eb; }
+  .mg-inst, .mg-obj, .mg-dp, .mg-graph { color: #2563eb; }
 
-  .mg-svg {
-    width: 100%; max-width: 720px;
+  .mg-echarts {
+    width: 100%; height: 520px;
     border: 1px solid #e2e8f0; border-radius: 4px;
     background: #ffffff;
   }
 
-  .mg-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: #64748b; align-items: center; }
-  .lg-item { display: flex; align-items: center; gap: 6px; }
-  .lg-dot { width: 10px; height: 10px; border-radius: 3px; }
-  .lg-main { background: #2563eb; }
-  .lg-target { background: #fff; border: 1px solid #93c5fd; }
-  .lg-line { width: 22px; height: 0; border-top: 2px solid #94a3b8; }
-  .lg-dash { width: 22px; height: 0; border-top: 2px dashed #cbd5e1; }
+  .mg-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: #64748b; align-items: center; }
+  .lg-title { color: #334155; font-weight: 600; }
+  .lg-item { display: flex; align-items: center; gap: 5px; }
+  .lg-line { width: 20px; height: 2px; border-radius: 1px; }
 
-  /* 类型层级 */
-  .mg-hierarchy {
-    border: 1px solid #e2e8f0; border-radius: 4px; padding: 12px; background: #f8fafc;
-  }
-  .mg-hier-title { font-size: 12px; font-weight: 700; color: #1e293b; margin-bottom: 10px; letter-spacing: 0.3px; }
-  .mg-hier-groups { display: flex; flex-direction: column; gap: 10px; }
-  .mg-hier-group {
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    padding: 8px 10px; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px;
-  }
-  .mg-hier-parent {
-    font-size: 13px; font-weight: 700; color: #2563eb;
-    background: #eff6ff; border: 1px solid #93c5fd; border-radius: 4px;
-    padding: 3px 10px; white-space: nowrap;
-  }
-  .mg-hier-children { display: flex; gap: 6px; flex-wrap: wrap; }
-  .mg-hier-child {
-    font-size: 11px; color: #475569;
-    background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 3px;
-    padding: 2px 8px;
-  }
+  .mg-hint { font-size: 11px; color: #94a3b8; }
 
-  /* 实体属性 */
   .mg-attrs { border: 1px solid #e2e8f0; border-radius: 4px; padding: 12px; background: #f8fafc; }
+  .mg-hier-title { font-size: 12px; font-weight: 700; color: #1e293b; margin-bottom: 10px; letter-spacing: 0.3px; }
   .mg-attr-groups { display: flex; flex-direction: column; gap: 8px; }
-  .mg-attr-group {
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    padding: 7px 10px; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px;
-  }
-  .mg-attr-cls {
-    font-size: 12px; font-weight: 700; color: #0ea5e9;
-    background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 4px;
-    padding: 2px 9px; white-space: nowrap;
-  }
+  .mg-attr-group { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 7px 10px; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; }
+  .mg-attr-cls { font-size: 12px; font-weight: 700; color: #0ea5e9; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 4px; padding: 2px 9px; white-space: nowrap; }
   .mg-attr-items { display: flex; gap: 5px; flex-wrap: wrap; }
-  .mg-attr-item {
-    font-size: 10px; color: #64748b;
-    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 3px;
-    padding: 1px 7px;
-  }
+  .mg-attr-item { font-size: 10px; color: #64748b; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 3px; padding: 1px 7px; }
 </style>

@@ -29,6 +29,7 @@ def extract(nt_file):
     prop_domains = defaultdict(set)   # 属性 -> 主类
     obj_targets = {}       # 对象属性 -> 目标类
     cls_labels = {}        # 类 -> label
+    inst_type = {}          # 实例 URI -> 所属类 URI (力导向图实例节点)
     for s, p, o in triples:
         s_ = str(s).strip("<>")
         o_ = str(o).strip("<>")
@@ -46,6 +47,7 @@ def extract(nt_file):
         # 实例 (s 是实体, o 是类; 排除 DatatypeProperty/ObjectProperty/Class 元类)
         elif "rdf-syntax-ns#type" in p_ and s_ not in classes and tail_o not in ("Class", "DatatypeProperty", "ObjectProperty"):
             inst_by_cls[o_] += 1
+            inst_type[s_] = o_
         # 数据属性声明 (domain/range)
         elif "owl#DatatypeProperty" in o_ and "type" in p_:
             data_props.add(s_)
@@ -83,6 +85,62 @@ def extract(nt_file):
     for cls, cnt in sorted(inst_by_cls.items(), key=lambda x: -x[1]):
         cn = cls.split("#")[-1].split("/")[-1]
         class_attrs[cn] = {"instance_count": cnt, "label": cls_labels.get(cls, cn)}
+
+    # ── 力导向图数据：nodes / edges（企业 hub → 业务域/实体类 → 实例）──
+    def tail(uri):
+        return uri.split("#")[-1].split("/")[-1] if ("#" in uri or "/" in uri) else uri
+
+    def domain_of(cn):
+        return cn.split("_")[0] if "_" in cn else cn
+
+    # 对象属性 rel 简化名: auto_food_batches_product_id -> food_batches_product
+    def rel_name(p):
+        t = p.split("#")[-1].split("/")[-1]
+        if t.startswith("auto_"):
+            t = t[len("auto_"):]
+        if t.endswith("_id"):
+            t = t[:-3]
+        return t
+
+    # 实例 → 所属类
+    inst_cls = {}
+    for s_, o_ in inst_type.items():
+        inst_cls[tail(s_)] = tail(o_)
+
+    # 实例节点 + 类节点（按类分组，每类实例上限防止超大图）
+    MAX_INST = 60
+    class_nodes = {}      # cn -> {id, name, entity, domain}
+    inst_nodes = []       # {id, name, entity, domain}
+    inst_count_by_cls = defaultdict(int)
+    for s_, o_ in sorted(inst_type.items()):
+        cn = tail(o_)
+        if cn not in class_nodes:
+            class_nodes[cn] = {"id": "cls_" + cn, "name": cn, "entity": cn, "domain": domain_of(cn)}
+        if inst_count_by_cls[cn] >= MAX_INST:
+            continue
+        inst_count_by_cls[cn] += 1
+        inst_nodes.append({"id": tail(s_), "name": tail(s_), "entity": cn, "domain": domain_of(cn)})
+    # 截断统计
+    total_inst = len(inst_type)
+    truncated = total_inst > MAX_INST * len(class_nodes) if class_nodes else False
+
+    # 边：hub→类(owns) + 类→实例(type) + 实例间对象属性(rel)
+    edges = [{"source": "__hub__", "target": cn["id"], "rel": "owns"}
+             for cn in class_nodes.values()]
+    for n in inst_nodes:
+        edges.append({"source": "cls_" + n["entity"], "target": n["id"], "rel": "type"})
+    for s, p, o in triples:
+        p_ = str(p)
+        if p_ in obj_props:
+            s_ = str(s).strip("<>"); o_ = str(o).strip("<>")
+            if s_ in inst_type and o_ in inst_type:
+                edges.append({"source": tail(s_), "target": tail(o_), "rel": rel_name(p_)})
+
+    nodes = [{"id": "__hub__", "name": "企业", "entity": "企业", "domain": "企业"}] \
+        + list(class_nodes.values()) + inst_nodes
+    if not nodes:
+        nodes = [{"id": "__hub__", "name": "企业", "entity": "企业", "domain": "企业"}]
+
     return {
         "class": main_name,
         "instance_count": inst_by_cls[main_cls],
@@ -91,6 +149,9 @@ def extract(nt_file):
         "target_classes": target_names,
         "type_hierarchy": hierarchy,
         "class_attributes": class_attrs,
+        "nodes": nodes,
+        "edges": edges,
+        "graph_truncated": truncated,
     }
 
 
