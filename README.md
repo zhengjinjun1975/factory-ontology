@@ -1,45 +1,55 @@
-# Factory Ontology Kit：工厂本体驱动的数据问答框架
+# factory-ontology
 
-> 把任意结构化数据（CSV）自动转成“实体-关系-属性”语义本体，再提供自然语言问答。换任何工厂或领域，只换数据，代码不动。
+工厂本体驱动的数据问答框架。本体建模到自然语言问答的开源实现。CSV 进，答案出，每个答案都带证据。
 
 [![Version](https://img.shields.io/badge/version-0.1.4-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
 [![CI](https://github.com/zhengjinjun1975/factory-ontology/actions/workflows/ci.yml/badge.svg)](https://github.com/zhengjinjun1975/factory-ontology/actions)
 
+大模型很聪明，但它不认识你的数据表。把台账直接丢给 LLM，它编起数字来理直气壮。这个仓库的做法很朴素：先让数据自己说话，再让模型在数据划定的圈子里回答。本体就是这个圈子。
+
 ## 它解决什么问题
 
-工厂里的数据多半躺着，没人会用。MES、SCADA、台账堆在系统里，业务人员不会 SQL，IT 人员忙不过来。想查“哪台设备要维护”“报警的空压机有几台”，要么翻系统、要么找 IT、要么靠老师傅口口相传。数据不是没有，是答不出来。
+工厂现场常见的三个场景：
 
-这个项目把数据变成会说人话的智能体：业务人员用自然语言提问，立刻得到答案，还能看到答案从哪条记录来。
+| 场景 | 现状 | 代价 |
+|------|------|------|
+| 数据看不懂 | MES/SCADA/台账数据躺在系统里，业务和运维人员不会 SQL | 决策靠老师傅拍脑袋 |
+| 信息难找 | 查"哪台设备要维护"要翻系统、等 IT 排期 | 响应慢，活等人 |
+| 知识断层 | 老师傅退休带走经验，新人对着字段名猜含义 | 经验流失 |
 
-```
-用户: "哪台设备要优先维护?" "报警的空压机有几台"
-              │
-              ▼
-    问答引擎 (ontology_qa_v3 + graph_rag)
-      ① 自动建模(本体+词典)
-      ② 规则引擎(确定性, 快准)
-      ③ LLM兜底(语义泛化, 灵活)
-              │
-              ▼
-    现场数据: 设备台账/传感器/工单 (CSV)
-```
+这个框架把结构化数据变成可以自然语言提问的问答系统。业务人员问"报警的空压机有几台"，系统回答，并给出依据。回答不靠模型猜，靠本体里的确定性计算。
 
-## 一个关键的决定
+## 思路：本体是受限的 schema
 
-大多数同类工具靠 LLM 生成 SQL 或者直接向量检索。这个项目的起点不一样：**先建本体**，把裸表变成有业务含义的“实体-关系-属性”结构，再在这个结构上做问答。本体起到两重作用，一是把查询空间约束住，二是让答案可以溯源。规则能答的问题，走规则，确定性 100%、零 token、零幻觉；规则答不了的模糊问题，才交给 LLM 兜底。
+核心路径一句话：**CSV/结构化数据 → 本体建模（schema 驱动）→ 自然语言问答 + 溯源 + GraphRAG 检索**。
 
-这套做法的代价是，不如 Text-to-SQL 那样直接落到原库，多了一步建模的认知负担。换来的是可解释和可复现。定位不在“最强”，在“中小工厂结构化数据场景够用、能落地、敢承诺确定性”。
+本体在这里不是 W3C 的完整 OWL 推理体系，而是一份轻量的 JSON schema。它声明三类东西：实体（有哪些表、哪些类）、关系（表与表怎么关联）、属性角色（哪个字段是编号、哪个是数值、哪个是分类）。schema 驱动建模把多张表统一成一张"实体-关系-属性"图，输出标准 N-Triples，下游的规则引擎和 GraphRAG 消费同一份产物。
+
+轻，所以快。换一个工厂，换一份 schema 和词典，代码不动。
+
+**诚实定位**：适用场景是中小工厂、台账级结构化数据（单表或多表 CSV）。不是通用 AI 平台，不是大规模图数据库方案，不处理非结构化文本。本体是受限 schema，回答能力限定在结构化查询模板之内。这部分能力边界写在第 [诚实边界](#诚实边界) 节。
+
+## 与主流路线的区别
+
+| 路线 | 做法 | 短板 |
+|------|------|------|
+| Text-to-SQL | 让 LLM 直接生成 SQL | 公开基准上报告的 SOTA 准确率约为 Spider 87%、BIRD 63%，再往上靠针对具体库的适配。表结构一变，生成就要重来。还要防它生成写库语句 |
+| 向量 RAG | 语义相似度检索 + LLM 生成 | 答案流畅，但来源不可控，幻觉难根除。追问"为什么是这个数"，答不上来 |
+| 本体规则引擎 | 本体约束 + 确定性计算 + 证据溯源 | 查询被限定在结构化模板内，开放式问题仍需 LLM 兜底 |
+
+本方案取的是第三条路。本体把表变成受限 schema，规则引擎在 schema 内确定性回答：数量、极值、平均、过滤、范围、计数。答案精确、可复现、零 token。规则覆盖不到的开放式问题，降级到本体引导的 GraphRAG 和 LLM。代价明确：不写 SQL 换来的确定性，边界就是模板本身。
 
 ## 快速开始
 
 ```bash
-# 1. 克隆后, 用公共示例数据集建模 (UCI AI4I 预测性维护数据集, 已含)
 cd codes
+
+# 1. 用公开示例数据集建模（UCI AI4I 预测性维护数据集，1 万行真实制造传感器数据）
 python run.py setup data/ai4i.csv ai4i
 
-# 2. 自检
+# 2. 自检全流程
 python run.py test
 
 # 3. 自然语言问答
@@ -47,194 +57,235 @@ python run.py ask "有多少台设备在运行"
 python run.py ask "哪台设备要优先维护"
 ```
 
-### 换你自己的数据（3 步，零手写）
+### 换你自己的数据
+
+三步，不写代码：
 
 ```bash
-# 1. 转本体: 任何 CSV → 本体
-python csv_to_owl.py 你的数据.csv output.nt
+# 1. 单表：CSV → 本体
+python csv_to_owl.py 你的数据.csv output/你的数据.nt
 
-# 2. 自动词典: LLM 推断字段语义 → 中文词典 (lexicon_agent)
-# 3. 直接问: 通用模板引擎 (ontology_qa_v3) 回答
+# 2. 自动词典：LLM 推断字段语义，生成中文词典
 python run.py setup 你的数据.csv
+
+# 3. 直接问：规则引擎（ontology_qa_v3）回答
+python run.py ask "你的问题"
 ```
 
-问答逻辑不绑定具体词表，靠词典驱动。换数据源只换词典，代码不动。
+多表场景走 schema 驱动统一建模：
 
-### 多表自动关联建本体
-
-`multi_table.py` 从多个关联 CSV 表自动检测外键并生成统一跨表本体，无需手写 relations.json：```bash
-python multi_table.py output/multi.nt data/equipment.csv data/line.csv data/supplier.csv
+```bash
+# 多表数据目录 + ontology_schema.json → 统一本体（约束校验 + 类型体系 + 语义域）
+python run.py setup-schema data_valve config/ontology_schema.json valve
 ```
 
-外键自动检测规则（任一命中即判为外键，生成 owl:ObjectProperty）：1. 列名 = `<目标表名>_id` / `<目标表名>Id`（如 `line_id` → line 表）
-2. 列名去掉 `_id` 后 == 目标表的 id 列名
-3. 目标表 id 列与当前列同名
-
-每个表一个类，每行一个实例，普通列是数据属性，外键列是对象属性跨表链接。示例表在 `data/line.csv`、`equipment.csv`、`supplier.csv`（合成数据，便于复现）。
+没有手写 schema 时，`suggest_schema` 从数据自动推断实体、关系和约束，无 schema 也能建模。
 
 ### 多数据源
 
-`data_loader.py` 统一读取 CSV / JSON / SQLite / Excel，`csv_to_owl` 与 `multi_table` 均支持：```bash
-python csv_to_owl.py data/equipment.json output/equipment.nt      # JSON
-python csv_to_owl.py data/equipment.db  output/equipment.nt       # SQLite(取第一个表)
-python csv_to_owl.py data/equipment.xlsx output/equipment.nt      # Excel(需 pip install openpyxl)
+`data_loader.py` 统一读取 CSV / JSON / SQLite / Excel：
+
+```bash
+python csv_to_owl.py data/equipment.json output/equipment.nt   # JSON
+python csv_to_owl.py data/equipment.db  output/equipment.nt    # SQLite（取第一个表）
+python csv_to_owl.py data/equipment.xlsx output/equipment.nt   # Excel（需 pip install openpyxl）
 ```
 
-CSV / JSON / SQLite 用标准库实现，零依赖。Excel 可选 `openpyxl`。SQLite 取库中第一个表。
+CSV / JSON / SQLite 用标准库实现，零第三方依赖。
 
 ## 核心概念
 
-**本体在这里是“受限的 schema”，不是 W3C 标准本体。** 立项时就刻意避开 RDF/SHACL/SPARQL 那一套完整语义网标准。代价是少了标准互操作和推理能力，收益是业务人员能看懂、零门槛上手、换领域只换数据。这个取舍是刻意的，不藏着。
-
-三条核心原则：1. **建模是桥不是终点**： 建本体是为了让大模型“懂领域”，别为建模而建模
-2. **词典外置**： 问答逻辑不绑具体词表，换领域只换词典，代码不动
-3. **规则优先，LLM 兜底**： 确定性走规则（快准零成本、可复现），模糊问题才走 LLM
+| 概念 | 说明 |
+|------|------|
+| **schema 驱动建模** | `schema_ontology.py`：schema 显式声明实体/关系/约束；属性语义角色（identifier/reference/measure/category/timestamp）；类型体系（Enterprise → BusinessObject → 域类 → 实体）；validate 约束校验；traverse 跨域图遍历；build_graph 跨表统一实例图；to_nt 输出标准 N-Triples |
+| **词典驱动** | 字段中文名、枚举值、状态词全部外置在 lexicon JSON。问答逻辑不绑定具体词表，换领域只换词典 |
+| **规则引擎** | `ontology_qa_v3.py`：数量/极值/平均/总和/范围/过滤计数/反查/分组/列出/TopN 等通用模板，确定性执行，零 token |
+| **本体引导 GraphRAG** | `graph_rag.py`：规则 miss 后，问题匹配本体关系时沿关系路径扩展种子（find_seeds），子图检索 + LLM 生成 |
+| **检索容错** | 材质/单位/类型同义词扩展。问"不锈钢"能命中 CF8/CF8M/304/1Cr18Ni9Ti 等牌号 |
+| **证据溯源** | `/api/ask` 返回 evidence：命中实体、属性、数值，前端逐条展示"为什么是这个答案" |
 
 ## 架构
 
-README 源文件图在 `docs/diagrams/`，GitHub 自动渲染。链路一句话讲清楚：企业台账 → 数据接入（data_loader + 质量校验）→ 本体构建（multi_table）→ 问答检索（规则 → GraphRAG 兜底）→ API → APP / 语音 / 证据导出。
+```
+data_loader → schema_ontology（schema 驱动统一建模 + suggest_schema 自动推断）
+            → ontology_qa_v3（规则引擎，确定性优先）
+            + graph_rag（本体引导 GraphRAG 兜底）
+            → api_server（REST API）+ web（Svelte5 前端）
+```
 
-- **系统级架构**：`docs/diagrams/architecture.svg`
-- **数据走向**：`docs/diagrams/dataflow.svg`
-- **工厂落地路线**：`docs/diagrams/roadmap.svg`
+分层：交付层（Web/APP/语音/管理后台）→ API 层（FastAPI）→ 问答推理层（规则 → 逻辑桥 → GraphRAG，确定性优先）→ 本体层（本体图 + 词典外置）→ 数据层（多格式）→ 模型层（云端 DeepSeek / 本地 Ollama 可切换）。
 
-分层：交付层（APP/语音/管理后台）→ API 层（FastAPI）→ 问答推理层（规则→逻辑桥→GraphRAG，确定性优先）→ 本体层（本体图 + 词典外置）→ 数据层（多格式）→ 模型层（云 DeepSeek / 本地 Ollama 可切换）。
-
-## 核心组件
+### 核心组件
 
 | 模块 | 作用 |
 |------|------|
 | `data_loader.py` | 统一读取 CSV/JSON/SQLite/Excel |
-| `multi_table.py` | 多表自动关联建本体（自动外键检测 → 跨表对象属性） |
-| `schema_ontology.py` | schema 驱动统一建模 + `suggest_schema` 自动推断 |
-| `ontology_qa_v3.py` | canonical 通用问答引擎（规则优先 + 词典驱动） |
-| `graph_rag.py` | GraphRAG-lite：建图 + 图遍历检索 + LLM 生成 |
-| `graph_store.py` | SQLite 图持久化（10万-100万实体过渡） |
-| `model_llm.py` | 模型调用薄封装（云/本地可切换） |
-| `api_server.py` | REST API（FastAPI）：问答 + 正/反向溯源 + 扫码 + 统计 |
-| `benchmark.py` | 对照评测（规则引擎 vs 纯 LLM） |
-| `benchmark_graphrag.py` | GraphRAG 开放式问题命中率评测 |
-| `data_import.py` | 数据接入自动化（Excel/DB → 知识库，定时同步） |
-| `data_quality.py` | 数据质量自动校验 |
-| `monitor.py` | 服务监控看门狗 |
-| `agents/lexicon_agent.py` | 自动词典生成（LLM 推断字段语义） |
-| `config/` | 模型配置 + 词典 + 关系 + 多租户注册表 |
+| `schema_ontology.py` | schema 驱动统一建模：属性语义角色、类型体系、validate/traverse/build_graph、suggest_schema 自动推断、to_nt |
+| `ontology_qa_v3.py` | 规则问答引擎（词典驱动，确定性，零 token） |
+| `graph_rag.py` | 本体引导 GraphRAG：建图、同义词扩展、种子定位、子图检索、LLM 生成 |
+| `api_server.py` | REST API：问答、正/反向溯源、扫码、统计、管理 |
+| `web/` | Svelte5 前端：CSV 上传 → 建模 → 问答 → 证据溯源 → 知识图谱/分析看板 |
 
-问答引擎以 `ontology_qa_v3.py` 为唯一 canonical 核心，兜底走 GraphRAG（与 API 层一致）。
+周边能力（2.x 时代沉淀，保留可用）：`csv_to_owl.py`/`multi_table.py`（无 schema 的单表/多表建本体兼容路径）、`logical_qa.py`（逻辑桥：LLM 转逻辑查询后确定性执行）、`bm25_retrieval.py`（BM25 稀疏检索，零依赖）、`evidence.py`（证据提取）、`graph_store.py`（SQLite 图持久化）、`mcp_server.py`（MCP server，AI agent 可调用）、`voice_assistant.py`（语音助手）、`data_import.py`/`data_quality.py`/`monitor.py`（数据接入/质量校验/看门狗）、`new_kb.py`（新知识库骨架）、`agents/lexicon_agent.py`（自动词典生成）、`config/`（模型配置 + 词典 + schema + 多租户注册表）。
 
-### REST API（api_server.py）
+### 架构图
 
-FastAPI 服务，APP / 语音 / Web 的统一入口：```bash
+![系统级架构设计](docs/diagrams/architecture.svg)
+![数据走向逻辑](docs/diagrams/dataflow.svg)
+![工厂落地路线图](docs/diagrams/roadmap.svg)
+
+## 示例
+
+### UCI AI4I 预测性维护（公开数据集）
+
+1 万行真实制造设备传感器数据，14 列。自动建模时间约 2 分钟，12 个属性中文名自动生成。覆盖数量/极值/范围/统计/组合/过滤计数全类型提问。
+
+### 阀门厂（合成示例数据）
+
+`data_valve/` 为虚构数据，但字段特征取自真实行业标准：GB/T 32808 阀门型号编码（Z41H-16C、Q641F-40P）、材料牌号（WCB/CF8/CF8M/304）、API 598 试压矩阵（壳体/密封压力、保压、泄漏率气泡/min）、设备传感器（振动/温度/电流）。用于演示"换领域即用"和检索容错。
+
+```bash
+cd codes
+python valve_demo.py
+```
+
+实测输出（v0.1.4）：
+
+```
+规则问答:  一共有多少个阀门 → 一共有 8 条记录
+          价格最贵的阀门 → 对夹蝶阀 D371X-10（价格=2560.0）
+逻辑桥:    有多少种球阀 → 符合条件的有 2 条
+          价格超过2500的阀门 → 截止阀 J41H-25C、气动球阀 Q641F-40P ...
+反向溯源:  不合格原料 R007螺栓 → 受影响批次 → 产品（召回场景成立）
+benchmark: 9/9 = 100%
+```
+
+同义词容错实测：问"不锈钢"，检索命中 CF8 产品 P004/P003 及多批含 304/CF8 牌号的原材料。
+
+### 食品溯源（合成示例数据）
+
+`data/food_*.csv` 为虚构数据，演示正/反向溯源：原料 → 批次 → 产品，质量召回场景。
+
+## REST API
+
+```bash
 cd codes && pip install fastapi uvicorn
 python api_server.py          # http://localhost:8000
 ```
 
 | 端点 | 说明 |
 |------|------|
-| `POST /api/ask` | 自然语言问答（规则引擎 → GraphRAG 兜底） |
+| `POST /api/ask` | 自然语言问答（规则引擎 → 逻辑桥 → GraphRAG → BM25） |
 | `GET /api/trace/forward?batch=B001` | 正向溯源：批次 → 产品 + 原料 |
-| `GET /api/trace/reverse?raw=RM008` | 反向溯源：原料 → 受影响批次 → 产品 |
-| `GET /api/scan?code=P003-B005` | 扫码溯源（识别产品批次） |
+| `GET /api/trace/reverse?raw=R007` | 反向溯源：原料 → 受影响批次 → 产品 |
+| `GET /api/scan?code=***` | 扫码溯源 |
 | `GET /api/stats` | 知识库统计 |
 | `POST /api/admin/rebuild` | 接新数据后强制重建本体（需 admin Key） |
-| `GET /metrics` | 指标：各端点请求计数 |
+| `GET /api/admin/audit` | 审计日志查询 |
+| `GET /metrics` | 请求计数指标 |
 
-### Web 前端（web/）
+工程化能力：角色化鉴权（`FOOD_ADMIN_KEY`/`FOOD_READ_KEY`，不设则内网开放）、增量重建（数据 hash 检测，变了才重建）、多租户隔离（`config/kbs.json`）、Docker 一条命令部署（`docker compose up -d`）、结构化日志。
 
-Svelte5 + Vite + Node，实现 CSV 上传 → 本体建模 → 自然语言问答 → 知识图谱/分析看板全流程：```bash
+## Web 前端
+
+`web/` 是 Svelte5 + Vite 的完整应用，浅色工业风。CSV 上传 → 本体建模 → 自然语言问答 → 知识图谱结构图 → 分析看板，全流程可视化。前端展示证据溯源（答案为什么是这个数）、结构化答案、迷你 KPI 卡片、诊断式看板，logo 区显示代码版本。
+
+```bash
 cd web
-npm install          # 装依赖
-npm run build        # 构建前端
-npm start            # 启动服务 http://localhost:3001
+npm install
+npm run build
+npm start            # http://localhost:3001
 ```
 
-后端 `server/` 通过 child_process 调用 `codes/` 套件（已去除硬编码私有路径，全相对）。上传文本数据（CSV/JSON）→ `run.py setup` 建模 → `ontology_qa_v3` 问答；二进制 SQLite/Excel 走命令行。
+## 实测数据
 
-## 示例场景（合成数据，非真实）
+以下数字均为仓库内 benchmark 实测（标准答案从源数据用确定性逻辑计算，不手写）：
 
-`data_valve/` 是**合成示例数据**，用来实证“换领域即用”。它对设备/阀门台账类结构化业务数据的适用性，和一个真实阀门厂的数据形态一致：```bash
-cd codes
-python valve_demo.py
-```
+| 领域 | 数据集 | 规模 | 评测问题 | 本体命中率 |
+|------|--------|------|----------|-----------|
+| 制造业（预测性维护） | UCI AI4I（公开） | 10,000 行 | 61 | **61/61 = 100%** |
+| 图书库存 | library_inventory（合成） | 10 行 | 13 | **13/13 = 100%** |
+| 能源电站设备 | energy_station（合成） | 10 行 | 13 | **13/13 = 100%** |
+| 食品企业 | food_products（合成） | 8 产品 | 9 | **9/9 = 100%** |
+| 阀门厂 | valve_products（合成） | 8 表 → 1066 行 NT | 9 | **9/9 = 100%** |
 
-输出示例：
-- **规则问答**：`一共有多少个阀门` → 6；`价格最贵的阀门` → 安全阀A42Y（3980 元）
-- **逻辑桥**：`有多少种球阀` → 1（LLM 转逻辑 → 确定性执行）
-- **反向溯源**：`密封圈RM03(不合格) → VB02 → V02 球阀`
-- **benchmark**：13/13 = 100%（规则引擎确定性）
+对照：裸 LLM（不加本体、直接把数据喂给模型）同批问题命中 7/9 = 78%，差的恰好是计算类（平均值、总和），详见 [方法论文-本体vs裸LLM](docs/方法论文-本体vs裸LLM.md)。
 
-数据：`data_valve/*.csv`（合成）+ `config/lexicon_valve.json`（阀门词典）。
+其他验证：GraphRAG 开放式问题 8/8；同义词容错 8/8；20 万实体 SQLite 图持久化实测（写入 1.58s / 加载 1.76s / 67MB）；pytest 29 项全过（CI 自动运行）。
 
-## 定位与横向对比（诚实）
-
-它不是通用 AI 平台（Dify/RAGFlow），不是大规模图 RAG（GraphRAG/LightRAG），也不是完整 Text-to-SQL 方案（Chat2DB/Vanna）。它的位置在“KAG 的轻量确定版 + 垂直溯源场景”，补的是“轻量 + 确定性 + 可解释 + 中小厂台账问答”这一格。
-
-| 产品 | 本体建模 | 确定性(结构化) | 溯源 | 部署 |
-|------|:---:|:---:|:---:|:---:|
-| Dify / RAGFlow / FastGPT | ❌ | ❌ | ❌ | 重 |
-| LightRAG / GraphRAG(微软) | ❌ | ❌ | ❌ | 重 |
-| Text-to-SQL(Chat2DB/Vanna) | ❌ | 中 | 中 | 中 |
-| KAG(蚂蚁) | ✅ | ❌ | ❌ | 重 |
-| **factory-ontology** | ✅ | **✅** | **✅** | **极轻** |
-
-三条真实差异，不夸大：1. **确定性**：规则引擎对结构化查询 100% 命中、零 token、零幻觉，这部分全社区独有。但只覆盖结构化查询（数量/极值/平均/过滤/范围），开放式/模糊问题要靠 GraphRAG 或 LLM。
-2. **可溯源**：正/反向溯源是召回场景的核心，答案能指出支撑它的记录。
-3. **落地轻**：纯标准库核心、本地化部署、数据不出厂。代价是规模受限，中小台账级，不适合百万级实体图。
-
-诚实短板也摆明：社区和生态极小、无分布式、无大规模生产部署故事、非结构化文本（工艺手册/ISO 文档）暂不处理。它是可运行的演示方法 + 可落地的对照实现，不是开箱即用的工业级生产平台。
-
-## 实测验证
-
-用 UCI AI4I 2020 预测性维护数据集（1 万条真实制造设备传感器 + 故障）验证：
-| 指标 | 结果 |
-|------|------|
-| 数据规模 | 10,000 条 / 14 列 |
-| 自动建模时间 | <2 分钟 |
-| 全自动词典 | 12 个属性中文名自动生成 |
-| 本体规则命中率 | 61/61 = 100%（结构化查询） |
-| 问答能力 | 数量/极值/范围/统计/组合/区域全类型 |
-| 语义泛化 | 规则未命中自动降级 LLM |
-
-## 工程化
-
-- **鉴权**：设 `FOOD_ADMIN_KEY` / `FOOD_READ_KEY` 后，/api/* 需 `X-API-Key` 头（管理 vs 只读双角色）；不设则内网开放
-- **增量重建**：数据文件 hash 检测，数据未变复用缓存本体，变了才重建
-- **Docker 部署**：`docker compose up -d`（`Dockerfile` + `docker-compose.yml`），HTTPS 反代见 `nginx.conf`
-- **数据接入**：`python data_import.py <Excel/DB/CSV> --schedule N` 自动同步台账
-- **数据质量**：`python data_quality.py` 自动校验异常
-- **多知识库**：`FOOD_DATA_DIR` / `kbs.json` 切换多企业知识库
-- **图存储**：`graph_store.py` SQLite 图持久化（20 万实体实测）
-
-### 添加你的工厂数据（新企业落地）
+复现：
 
 ```bash
 cd codes
-python new_kb.py <知识库名> --name "企业显示名" --icon "🏭"
+python csv_to_owl.py data/ai4i.csv output/ai4i.nt
+python benchmark.py data/ai4i.csv
+python benchmark.py data/library_inventory.csv
+python benchmark.py data/energy_station.csv
 ```
 
-之后三步：把数据放进 `data_<知识库名>/`（按表结构），编辑 `config/lexicon_<知识库名>.json` 设中文字段名，设 `FOOD_KB=<知识库名>` 启动。APP 的品牌/图标/示例问题自动从 kbs.json 读取，无需改代码。验证用 `data_quality.py` + `benchmark_graphrag.py`。
+## 模型配置
+
+`codes/config/model_config.json` 统一管理，`active` 切换：
+
+```json
+{
+  "active": "cloud",
+  "models": {
+    "local": { "type": "ollama", "base_url": "http://127.0.0.1:11434/api/generate", "model": "ornith:latest", "api_key": "" },
+    "cloud": { "type": "openai", "base_url": "https://api.deepseek.com/v1/chat/completions", "model": "deepseek-chat", "api_key": "" }
+  }
+}
+```
+
+规则能答的走规则（省 token、快、准、可复现），规则未命中才走 LLM。本地 Ollama 可全离线运行，数据不出厂。
 
 ## 设计原则
 
-1. **建模是桥不是终点**： 让大模型“懂领域”，别为建模而建模
-2. **原子性是积木**： 模块单一职责、可组合、可替换
-3. **编排器是组织者**： 轻量调度器按任务类型路由，零依赖可部署现场
-4. **泛化靠外置**： 词典/字段映射外置成配置，换领域只换配置
-5. **规则兜底 + LLM 泛化**： 确定性走规则，模糊走 LLM
-6. **零依赖可部署**： 纯标准库，能带到任何现场
+1. **建模是桥不是终点**：让模型懂领域，别为建模而建模
+2. **规则兜底 + LLM 泛化**：确定性走规则，模糊走 LLM
+3. **泛化靠外置**：词典、schema、字段映射全是配置，换领域只换配置
+4. **单一职责**：每个模块只做一件事，可替换
+5. **零依赖可部署**：核心路径纯标准库，能带到任何现场
 
 ## 文档
 
-- `docs/方法论文-本体vs裸LLM.md`： 实证论文：本体规则引擎 100% vs 裸 LLM 78%（+22pp）
-- `docs/泛化方法论.md`： 领域无关泛化方法论 + 多领域 benchmark 实证
-- `docs/交付方法论.md` / `docs/交付白皮书.md`： 现场落地方法
-- `docs/开源调研.md`： 本体/知识图谱开源生态调研
-- `codes/food_demo.py`： 食品企业溯源可复现案例（一条命令运行）
-- `docs/部署.md`： 小型企业部署指南（API + APP + 语音，换数据即用）
+- [方法论文-本体vs裸LLM](docs/方法论文-本体vs裸LLM.md)：实证论文，本体规则引擎 100% vs 裸 LLM 78%（+22pp）
+- [泛化方法论](docs/泛化方法论.md)：schema 驱动建模 + 本体驱动混合检索 + 本体约束，多领域 benchmark 实证
+- [交付方法论](docs/交付方法论.md) / [交付白皮书](docs/交付白皮书.md)：现场落地方法
+- [部署](docs/部署.md)：小型企业部署指南（API + APP + 语音）
+- [开源调研](docs/开源调研.md)：本体/知识图谱开源生态调研
+- [合规](docs/合规.md)：溯源合规与召回场景
 
-## 版本
+## 贡献指南
 
-完整变更见 [CHANGELOG.md](CHANGELOG.md)。
+欢迎提 issue 和 PR。
+
+- **Bug 报告**：附复现命令（数据文件 + 问题 + 期望/实际输出）
+- **PR 要求**：代码 + 对应测试；跑通 `python -m pytest tests`；涉及问答能力的改动，附 benchmark 复现结果
+- **示例数据一律用虚构数据**：仓库不接收任何真实工厂数据
+- **保持词典驱动**：不要在规则引擎里硬编码具体中文词，字段语义走 lexicon
+- 提问模板类改动，先看 `ontology_qa_v3.py` 的模板顺序注释，避免同类劫持回归
+
+## 版本更新记录
+
+v0.1.x 是当前版本线（schema 驱动重构后的新基线）；2.9.x 及更早为重构前的能力演进，多数能力（REST API、溯源、多租户、图存储、逻辑桥、语音、MCP）保留在代码中。完整变更见 [CHANGELOG.md](CHANGELOG.md)。
+
+| 版本 | 内容 |
+|------|------|
+| **v0.1.4** | 厂区数据真实化（GB/T 32808 型号编码、材料牌号、API 598 试压矩阵）+ 检索容错（同义词扩展，问"不锈钢"命中 CF8/304） |
+| **v0.1.3** | 安全加固：建模失败报告、SQL 注入白名单、编码正确性 |
+| **v0.1.2** | 本体驱动增强：本体引导 GraphRAG 种子、本体约束减幻觉、suggest_schema 自动推断 |
+| **v0.1.1** | schema 驱动统一建模（重构新基线，融入 sme 本体重构精髓：属性语义角色/类型体系/validate/traverse/build_graph/to_nt） |
+
+## 诚实边界
+
+- **能力边界**：规则引擎覆盖结构化查询（数量/极值/平均/过滤/范围/计数）；开放式/关系/模糊问题走 GraphRAG 或 LLM 兜底，命中率不保证
+- **本体定位**：轻量 JSON schema，非 W3C OWL 推理本体。输出 N-Triples 仅为标准序列化，不涉及推理机
+- **数据形态**：最适配结构化台账（单表/多表 CSV）；不处理非结构化文本，无大规模语义检索（种子定位是子串匹配 + 同义词扩展）
+- **规模**：内存图为主，台账级；20 万实体可用 SQLite 图持久化过渡，不适合百万级实体图
+- **词典校对**：自动词典偶有误判，关键字段需人工确认
+- **LLM 稳定性**：本地小模型偶发空响应，生产建议用更强模型
+- **工程化程度**：有 CI / pytest / Docker 基础部署，无分布式，无大规模生产部署故事。它是可复现的方法论实现，不是开箱即用的生产平台
 
 ## License
 
