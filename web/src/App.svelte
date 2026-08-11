@@ -1,7 +1,7 @@
 <script>
   // 工厂智能体 · 本体问答 — 独立 Web 应用（工业软件浅色风格）
   import { onMount } from 'svelte';
-  import { setupOntology, askOntology, analyzeOntology, getModel, setModel } from './lib/api.js';
+  import { setupOntology, askOntology, analyzeOntology, getModel, setModel, fetchVersion } from './lib/api.js';
   import DashboardPanel from './components/DashboardPanel.svelte';
   import ModelGraph from './components/ModelGraph.svelte';
   import AnalysisResult from './components/AnalysisResult.svelte';
@@ -21,6 +21,7 @@
   let analysis = $state(null);       // {report, stats} 智能分析结果
   let modelList = $state([]);        // 可用模型
   let activeModel = $state('');      // 当前生效模型 key
+  let appVersion = $state('');       // 代码版本(读后端)
   let status = $state('idle');       // idle | modeling | ready | asking
   let statusMsg = $state('等待数据导入');
   let statusType = $state('info');   // info | ok | err
@@ -50,6 +51,10 @@
         modelList = res.models || [];
         activeModel = res.active || '';
       }
+    } catch (e) { /* 忽略 */ }
+    try {
+      const v = await fetchVersion();
+      if (v.ok && v.version) appVersion = v.version;
     } catch (e) { /* 忽略 */ }
   });
 
@@ -228,7 +233,7 @@
       <span class="logo">🏭</span>
       <div class="brand">
         <div class="brand-name">工厂智能体 · 本体问答</div>
-        <div class="brand-sub">Factory Ontology QA System</div>
+        <div class="brand-sub">Factory Ontology QA System{#if appVersion} · v{appVersion}{/if}</div>
       </div>
     </div>
     <div class="toolbar-right">

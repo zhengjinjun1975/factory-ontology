@@ -54,3 +54,8 @@ export async function setModel(key) {
   });
   return resp.json();
 }
+
+export async function fetchVersion() {
+  const resp = await fetch('/api/ontology/version');
+  return resp.json();
+}
