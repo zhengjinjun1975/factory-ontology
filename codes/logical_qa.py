@@ -183,6 +183,35 @@ def _matches_filter(rec, filter_cn, D):
     return False
 
 
+def _is_relevant(question: str, D: dict) -> bool:
+    """无关输入前置检测（确定性，零 token，比 LLM 判断可靠）。
+
+    问题必须含领域触发词才算相关，否则走 miss：
+    - 词典属性中文/英文名（attr_cn2en / attr_en2cn 的键）
+    - 枚举值（status_cn2en/type_cn2en 等的中文/英文值）
+    - 通用查询触发词（数量/多少/最/高/低/前/一共等）
+    防止"完全无关xyz"被 LLM 强行翻译成 total/count 意图而错误接管。
+    """
+    q = question.lower()
+    # 1. 词典属性名
+    for k in D.get("attr_cn2en", {}):
+        if k and k.lower() in q:
+            return True
+    for k in D.get("attr_en2cn", {}):
+        if k and k.lower() in q:
+            return True
+    # 2. 枚举值（status/type/zone 等）
+    for key in ("status_cn2en", "type_cn2en", "zone_cn2en", "category_cn2en"):
+        for k in D.get(key, {}):
+            if k and k.lower() in q:
+                return True
+    # 3. 通用查询触发词
+    triggers = ("数量", "多少", "几个", "总共", "一共有", "最", "前", "高于", "低于",
+                "大于", "小于", "大于等于", "小于等于", "列出", "有哪些", "多少台", "多少条",
+                "count", "total", "max", "min", "top", "filter", "number", "how many", "how much")
+    return any(t in q for t in triggers)
+
+
 def execute_query(query, data, D):
     """确定性执行逻辑查询。
 
@@ -275,6 +304,10 @@ def answer(question, data, D):
     成功返回 (answer_str, "logical")。
     """
     if not question or not data or not D:
+        return None
+    # 无关输入前置检测（确定性零 token）：不含任何领域触发词 → 直接走 miss，
+    # 防止"完全无关xyz"被 LLM 强行翻译成 total/count 意图错误接管
+    if not _is_relevant(question, D):
         return None
     query = nl_to_query(question, D)
     if query is None:
