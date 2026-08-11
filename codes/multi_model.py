@@ -27,29 +27,18 @@ def _load(mod, path):
 
 def _build_lexicon(schema, data):
     """从 suggest_schema 生成基础词典（attr_cn2en/attr_en2cn/status_cn2en 等），供 ask 问答使用。
-    极简：属性英文名→中文名用常见后缀映射 + 原样兜底。"""
+    极简：直接用 suggest_schema 推断出的中文属性 label 生成自然词典
+    （生产日期→produce_date / 批次编号→batch_id / 原料→raw_parts），缺失时用英文名兜底。"""
     cn = {}  # 中文名 -> 英文名
     en = {}  # 英文名 -> 中文名
-    _SUFFIX_CN = {"id": "编号", "name": "名称", "type": "类型", "status": "状态", "date": "日期",
-                  "quantity": "数量", "amount": "金额", "price": "价格", "stock": "库存",
-                  "material": "材质", "region": "区域", "supplier": "供应商", "result": "结果"}
-    def _cn_for(attr):
-        base = attr.replace("_", " ")
-        # 取语义核心词（去掉 _id/_code 后缀）映射
-        core = attr
-        for suf in ("_id", "_code", "_key"):
-            if core.endswith(suf):
-                core = core[:-len(suf)]
-                return _SUFFIX_CN.get("id", "编号") if core in ("",) and suf == "_id" else _SUFFIX_CN.get(core, core) + ("" if suf != "_id" else "编号")
-        return _SUFFIX_CN.get(core, core)
-    # 收集所有实体的属性
     for e in schema.get("entities", []):
         for a in e.get("attributes", []):
             name = a["name"]
-            if name not in en:
-                c = _cn_for(name)
-                cn[c] = name
-                en[name] = c
+            if name in en:
+                continue
+            label = a.get("label") or name   # 中文 label（LLM/规则），缺失则英文兜底
+            cn[label] = name
+            en[name] = label
     return {
         "description": "自动生成词典（multi_model, suggest_schema 推断）",
         "attr_cn2en": cn, "attr_en2cn": en,

@@ -169,20 +169,77 @@ def build_ontology_model(data: dict, schema: dict) -> dict:
 
 
 # ═══════════ 外键推断 + 跨表建图 ═══════════
+# 关系中文 label（按 FK 语义词映射，避免 auto_ 英文前缀）
+_REL_CN = {
+    "product": "生产产品", "raw": "使用原料", "batch": "所属批次",
+    "customer": "售予客户", "equipment": "使用设备", "supplier": "采购自供应商",
+    "material": "使用原料",
+}
+
+
+def _singular(w: str) -> str:
+    """极简英文单词单数化（词干匹配用）：products→product / batches→batch / materials→material。"""
+    w = str(w).lower()
+    if w.endswith("ies") and len(w) > 3:
+        return w[:-3] + "y"
+    if len(w) > 3 and w.endswith(("ches", "shes", "xes", "zes", "ses")):
+        return w[:-2]
+    if w.endswith("s") and not w.endswith("ss") and len(w) > 1:
+        return w[:-1]
+    return w
+
+
+def _match_target(raw: str, table: str, data: dict):
+    """FK 目标实体匹配：单复数词干匹配表名语义词 + 排除自身。每 FK 列至多一个目标。
+
+    参考 sme modeling.suggest_schema 的 `_match_target`（词干匹配 + 排除自身）。
+    同词干多候选时优先主键为 id 的顶层实体，避免 FK 指向明细/关联表自身
+    （如 valve_batch_ingredient.batch_id → Valve_batches 而非自身）。
+    """
+    raw_s = _singular(raw)
+    cand = []
+    for tname, rows in data.items():
+        if tname == table or not rows:
+            continue
+        toks = [_singular(p) for p in tname.lower().split("_") if p]
+        if raw_s in toks or raw.lower() in toks:
+            cand.append(tname)
+    if not cand:
+        return None
+
+    def _score(t):
+        toks = [_singular(p) for p in t.lower().split("_") if p]
+        exact = 0 if (raw_s in toks or raw.lower() in toks) else 1
+        has_id = 0 if "id" in (data[t][0].keys() if data[t] else []) else 1
+        return (exact, has_id)
+
+    return _cap(min(cand, key=_score))
+
+
 def _infer_relations(data: dict) -> list:
-    """外键推断（自动）：`*_id`/`*_code` 列指向另一实体主键 → 关系。"""
+    """外键推断（自动）：`*_id`/`*_code`/`*_key` 列指向另一实体主键 → 关系（N:1）。
+
+    修正：一个 FK 列只对应一个目标实体（_match_target 单复数词干匹配 + 排除自身），
+    不再因子串匹配产生重复/错向（如 batch_id 只指向 Valve_batches）。
+    关系 id 用 {表}_{列}（无 auto_ 前缀），label 用中文（product_id→生产产品）。
+    """
     inferred = []
     for table, rows in data.items():
         if not rows:
             continue
         sample = rows[0]
         for col in sample:
-            if col.endswith("_id") or col.endswith("_code") or col.endswith("_key"):
-                target = col.replace("_id", "").replace("_code", "").replace("_key", "")
-                for tname in data:
-                    if target.lower() in tname.lower():
-                        inferred.append({"id": f"auto_{table}_{col}", "from": _cap(table),
-                                         "to": _cap(tname), "fk": f"{table}.{col}", "cardinality": "N:1", "label": "关联", "auto": True})
+            if not (col.endswith("_id") or col.endswith("_code") or col.endswith("_key")):
+                continue
+            raw = col.replace("_id", "").replace("_code", "").replace("_key", "")
+            target = _match_target(raw, table, data)
+            if target is None:
+                continue
+            label = _REL_CN.get(raw) or _REL_CN.get(_singular(raw)) or "关联" + _entity_cn_label(target)
+            inferred.append({
+                "id": f"{table}_{col}", "from": _cap(table), "to": target,
+                "fk": f"{table}.{col}", "cardinality": "N:1", "label": label, "auto": True,
+            })
     return inferred
 
 
@@ -213,6 +270,101 @@ def _guess_col_type(values) -> str:
     if seen_num:
         return "number"
     return "string"
+
+
+# ═══════════ 中文 label 规则映射（LLM 失败回落，确定性兜底）═══════════
+_ENTITY_CN = {
+    "batch": "批次", "batches": "批次", "batch_ingredient": "批次配料",
+    "product": "产品", "products": "产品", "customer": "客户", "customers": "客户",
+    "equipment": "设备", "raw_material": "原料", "raw_materials": "原料",
+    "sale": "销售", "sales": "销售", "qc": "质检", "qc_check": "质检",
+}
+_ATTR_CN = {
+    "id": "编号", "name": "名称", "type": "类型", "status": "状态",
+    "product_name": "产品名称", "device_name": "设备名称", "customer_name": "客户名称",
+    "device_type": "设备类型", "model_code": "型号代码", "part_name": "部件名称",
+    "produce_date": "生产日期", "check_date": "检查日期", "sale_date": "销售日期",
+    "batch_id": "批次编号", "product_id": "产品编号", "raw_id": "原料编号", "customer_id": "客户编号",
+    "raw_parts": "原料", "material": "材质", "supplier": "供应商", "region": "区域", "industry": "行业",
+    "credit_level": "信用等级", "workshop": "车间", "power_kw": "功率(kW)",
+    "pressure_grade": "压力等级", "connection": "连接方式", "seal_material": "密封材质",
+    "body_material": "阀体材质", "standard_no": "标准号", "temp_range": "温度范围",
+    "quantity": "数量", "amount": "金额", "price": "价格", "stock": "库存",
+    "check_item": "检查项目", "press_rule": "压力规则", "hold_sec": "保压秒数",
+    "leak_bubbles_min": "泄漏气泡", "result": "结果", "checker": "检查员",
+    "team": "班组", "qc_result": "质检结果", "vibration_mm_s": "振动(mm/s)",
+    "temp_c": "温度(℃)", "current_a": "电流(A)", "size_mm": "尺寸(mm)",
+}
+
+
+def _looks_english(s: str) -> bool:
+    """是否英文/无中文（用于判断 label 是否缺中文名）。"""
+    return bool(s) and not any("\u4e00" <= ch <= "\u9fff" for ch in str(s))
+
+
+def _entity_cn_label(name: str) -> str:
+    """实体中文 label（规则兜底）：表名/实体id → 中文名。Valve_batches→批次、Valve_equipment→设备。"""
+    core = str(name).lower()
+    for pref in ("valve_", "factory_", "t_", "tb_"):
+        if core.startswith(pref):
+            core = core[len(pref):]
+            break
+    if core in _ENTITY_CN:
+        return _ENTITY_CN[core]
+    last = core.split("_")[-1]
+    return _ENTITY_CN.get(last, last)
+
+
+def _attr_cn_label(name: str) -> str:
+    """属性中文 label（规则兜底）：produce_date→生产日期、raw_parts→原料、batch_id→批次编号。"""
+    if name in _ATTR_CN:
+        return _ATTR_CN[name]
+    for suf in ("_id", "_code", "_key"):
+        if name.endswith(suf):
+            base = name[:-len(suf)]
+            return (_ATTR_CN.get(base, base) if base else "编号") + "编号"
+    words = [w for w in str(name).replace("-", "_").split("_") if w]
+    return "".join(_ATTR_CN.get(w, w) for w in words) if words else name
+
+
+def llm_enhance(schema: dict, use_llm: bool = True) -> dict:
+    """LLM 中文 label 增强（实体 + 属性）。
+
+    参考 sme modeling.llm_enhance：规则引擎兜底（确定性中文名）+ LLM 可选精修，
+    失败/无 key/断网一律回落规则，不阻塞建模。label 写入 schema 实体/属性，
+    to_nt 用中文 RDFS label 展示。
+    """
+    # 1) 规则兜底：保证所有实体/属性有中文 label（零 token，确定性）
+    for e in schema.get("entities", []):
+        if not e.get("label") or e["label"] == e["id"] or _looks_english(e["label"]):
+            e["label"] = _entity_cn_label(e.get("table") or e["id"])
+        for a in e.get("attributes", []):
+            if not a.get("label") or a["label"] == a["name"] or _looks_english(a["label"]):
+                a["label"] = _attr_cn_label(a["name"])
+    if not use_llm:
+        return schema
+    # 2) LLM 精修（可选）：无 key 直接回落（规则 label 已够）
+    try:
+        from model_llm import llm_generate, get_model_config
+        cfg = get_model_config()
+        if cfg.get("type") == "openai" and not cfg.get("api_key"):
+            import os as _os
+            if not (_os.environ.get("DEEPSEEK_API_KEY") or _os.environ.get("ZHIPU_API_KEY")):
+                return schema
+        need = [e["id"] for e in schema["entities"] if e["label"] == _entity_cn_label(e.get("table") or e["id"])]
+        if not need:
+            return schema
+        prompt = ("为下列工厂实体生成简短准确的中文名，仅输出JSON {\"id\":\"中文名\"}，不要多余文字：\n"
+                  + json.dumps(need, ensure_ascii=False))
+        text = llm_generate(prompt, temperature=0.1, max_tokens=300)
+        if "{" in text:
+            labels = json.loads(text[text.find("{"):text.rfind("}") + 1])
+            for e in schema["entities"]:
+                if e["id"] in labels and labels[e["id"]]:
+                    e["label"] = labels[e["id"]]
+    except Exception:
+        pass
+    return schema
 
 
 def suggest_schema(data: dict) -> dict:
@@ -251,6 +403,8 @@ def suggest_schema(data: dict) -> dict:
     }
     # 与 load_schema 对齐：注入 {id: entity} 索引，供 build_graph/validate/to_nt 直接消费
     schema["_entities"] = {e["id"]: e for e in entities}
+    # 中文 label 增强（规则兜底 + LLM 可选精修），label 供 to_nt RDFS label 中文展示
+    schema = llm_enhance(schema, use_llm=True)
     return schema
 
 
