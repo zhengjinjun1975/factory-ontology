@@ -123,6 +123,7 @@ graph, labels, vi, rev = _load()
 D = v3.load_dict(FOOD_LEX)
 QDATA = v3.build_data(v3.parse_nt(FOOD_NT), D)
 _BM25_INDEX = None  # BM25 混合检索索引(惰性构建)
+_VECTOR_INDEX = None  # 向量语义检索索引(惰性构建)
 
 app = FastAPI(title="食品企业知识库 API", version="0.1.4",
               description="本体驱动的食品企业问答 + 溯源检索（中小型食品企业场景）")
@@ -482,17 +483,33 @@ def ask(req: AskReq):
     gans, ctx = gr.answer_graph(req.question, FOOD_NT, depth=2, max_nodes=40, lexicon=D)
     if not gans.startswith("[图检索]"):
         return {"ok": True, "mode": "graphrag", "answer": gans, "context": ctx[:2000]}
-    # 3.5 BM25 混合检索(轻量稀疏, 提升模糊查询召回, 零 token)
+    # 3.5 混合检索(BM25 稀疏 + 向量语义, 提升模糊/同义/口语化查询召回)
+    # 检索链路: 查询 → 规则 → GraphRAG → BM25(稀疏) → 向量语义(embedding) → 融合 → 下游
+    # 向量层召回语义相近实体(如"最贵"→price、"油轮"→船型); embedding 失败回落 BM25, 绝不阻塞。
     try:
         from bm25_retrieval import BM25Index
-        global _BM25_INDEX
+        from vector_retrieval import VectorIndex
+        global _BM25_INDEX, _VECTOR_INDEX
         if _BM25_INDEX is None:
             _BM25_INDEX = BM25Index.from_graph(graph)
-        hits = _BM25_INDEX.search(req.question, top_k=3, min_score=4.0)
-        if hits:
-            ents = "、".join(h["entity"] for h in hits)
-            return {"ok": True, "mode": "bm25", "answer": f"（混合检索）找到相关实体: {ents}",
-                    "hits": hits[:3]}
+        if _VECTOR_INDEX is None:
+            _VECTOR_INDEX = VectorIndex.from_graph(graph, lexicon=D)
+        bm_hits = _BM25_INDEX.search(req.question, top_k=3, min_score=4.0)
+        # 向量语义召回: 仅强语义信号(min_score 0.60)才触发, 避免对无关问题(如"完全无关xyz"~0.58)误召回。
+        # 模糊/同义查询("最贵/油轮/保质期最长")语义相似度高(≥0.62), 正常触发。
+        vec_hits = _VECTOR_INDEX.search(req.question, top_k=5, min_score=0.60)
+        # 融合: BM25 分数 + 向量相似度 取并集(去重), 保持 BM25 优先排序
+        seen, fused = set(), []
+        for h in (bm_hits + vec_hits):
+            ent = h["entity"]
+            if ent not in seen:
+                seen.add(ent)
+                fused.append(h)
+        if fused:
+            ents = "、".join(h["entity"] for h in fused)
+            return {"ok": True, "mode": "hybrid",
+                    "answer": f"（混合检索）找到相关实体: {ents}",
+                    "hits": fused[:5], "bm25_hits": bm_hits[:3], "vector_hits": vec_hits[:5]}
     except Exception:
         pass
     # 4. 答不上: 从 KB 配置读示例引导(去硬编码)

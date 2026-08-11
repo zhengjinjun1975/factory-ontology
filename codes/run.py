@@ -22,6 +22,11 @@ OUT = os.path.join(ROOT, "output")
 CFG = os.path.join(ROOT, "config")
 STATE = os.path.join(ROOT, "current.json")
 
+# 向量混合检索惰性缓存(按 nt 路径隔离, 切库自动重建; 与 api_server 逻辑一致)
+_GRAPH_CACHE = {}
+_BM25_CACHE = {}
+_VECTOR_CACHE = {}
+
 
 def _load(mod, path):
     spec = importlib.util.spec_from_file_location(mod, path)
@@ -215,11 +220,51 @@ def ask(question, nt=None, lex=None):
     ans = v3.answer(question, data, D)
     if ans == "暂不支持该问题":
         # 图检索兜底(与 API 层一致): 开放式/关系问题走 GraphRAG
-        from graph_rag import answer_graph
+        from graph_rag import answer_graph, build_graph
         gans, _ = answer_graph(question, nt)
-        print(gans)
+        if not gans.startswith("[图检索]"):
+            print(gans)
+        else:
+            _ask_hybrid(question, nt, D, gans)
     else:
         print(ans)
+
+
+def _ask_hybrid(question, nt, D, gans):
+    """混合检索(BM25 稀疏 + 向量语义)兜底，与 api_server 逻辑一致。
+
+    检索链路: 规则 → GraphRAG → BM25(稀疏) → 向量语义(embedding) → 融合 → miss。
+    向量层召回语义相近实体(如"最贵"→price、"油轮"→船型)；embedding 失败回落 BM25/图检索，绝不阻塞。
+    """
+    try:
+        from bm25_retrieval import BM25Index
+        from vector_retrieval import VectorIndex
+        from graph_rag import build_graph
+        if nt not in _GRAPH_CACHE:
+            _GRAPH_CACHE[nt] = build_graph(nt)[0]
+        graph = _GRAPH_CACHE[nt]
+        if nt not in _BM25_CACHE:
+            _BM25_CACHE[nt] = BM25Index.from_graph(graph)
+        if nt not in _VECTOR_CACHE:
+            _VECTOR_CACHE[nt] = VectorIndex.from_graph(graph, lexicon=D)
+        bm_hits = _BM25_CACHE[nt].search(question, top_k=3, min_score=4.0)
+        # 向量语义召回: 仅强语义信号(min_score 0.60)才触发, 避免对无关问题误召回
+        vec_hits = _VECTOR_CACHE[nt].search(question, top_k=5, min_score=0.60)
+        # 融合: BM25 + 向量取并集(去重), 保持 BM25 优先排序
+        seen, fused = set(), []
+        for h in (bm_hits + vec_hits):
+            ent = h["entity"]
+            if ent not in seen:
+                seen.add(ent)
+                fused.append(h)
+        if fused:
+            ents = "、".join(h["entity"] for h in fused)
+            print("（混合检索）找到相关实体:", ents)
+            return
+    except Exception:
+        pass
+    # 混合检索未命中/不可用 → 回落图检索兜底结果
+    print(gans)
 
 
 def self_test():

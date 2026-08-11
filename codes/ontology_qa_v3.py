@@ -124,6 +124,38 @@ _ATTR_CN_ALIASES = {
 }
 
 
+# 通用极值词 -> 目标数值字段中文关键词（跨行业泛化，非硬编码具体行业）。
+# 极值模板"最X的Y"中 X 为形容词(贵/便宜/大/小/高/低)时，据此从 numeric_fields
+# 推断 Y 对应的数值字段：贵/便宜→价格类，大/小→容量/吨位类，高/低→温度/功率/压力类。
+_EXTREME_WORD_FIELDS = {
+    "贵":   ["价格", "售价", "金额", "单价", "价钱", "成本", "投资"],
+    "便宜": ["价格", "售价", "金额", "单价", "价钱", "成本", "投资"],
+    "大":   ["容量", "尺寸", "吨位", "数量", "库存", "面积", "体积", "规模"],
+    "小":   ["容量", "尺寸", "吨位", "数量", "库存", "面积", "体积", "规模"],
+    "高":   ["温度", "价格", "功率", "压力", "高度", "转速", "电流", "电压", "水位", "速度"],
+    "低":   ["温度", "价格", "功率", "压力", "高度", "转速", "电流", "电压", "水位", "速度"],
+}
+
+
+def _extreme_field(dict_data, q):
+    """'最X的Y' 中 X 为通用极值词时，推断 Y 对应数值字段。
+    从 numeric_fields(中文→字段) + attr_cn2en 中挑中文名含目标关键词的字段；
+    按关键词长度降序取首个，保证"价格"先于"金额"等。返回 (en字段, 中文名) 或 (None,None)。"""
+    m = re.search(r"最([贵便宜大小高低]+)[的]?", q)
+    if not m:
+        return None, None
+    kws = _EXTREME_WORD_FIELDS.get(m.group(1))
+    if not kws:
+        return None, None
+    cand = dict(dict_data.get("numeric_fields", {}) or {})
+    cand.update({cn: en for cn, en in dict_data.get("attr_cn2en", {}).items()})
+    for kw in sorted(kws, key=len, reverse=True):
+        for cn in sorted(cand, key=len, reverse=True):
+            if kw in cn:
+                return cand[cn], cn
+    return None, None
+
+
 def _find_attr(dict_data, q):
     """从词典找问题里出现的属性中文词 -> 字段英文。按长度降序避免短词短路。
     词典未命中时兜底查 _ATTR_CN_ALIASES 通用中文别名(保质期→expiry_days)。"""
@@ -141,7 +173,9 @@ def _find_attr(dict_data, q):
     for cn in sorted(nf, key=len, reverse=True):
         if cn in q:
             return nf[cn], cn
-    return None, None
+    # 通用极值词兜底：'最X的Y' 中 X 为形容词(贵/便宜/大/小/高/低)时，
+    # 从数值字段推断 Y（如 最贵→price）。词典直匹配未命中才走这里，不破坏现有命中。
+    return _extreme_field(dict_data, q)
 
 
 def _num(v):
