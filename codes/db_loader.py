@@ -20,8 +20,12 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 def load_db(cfg):
     """从 MySQL/PostgreSQL 读一张表。cfg: {db_type, host, port, user, password, database, table}。
     返回 (表名, 列名列表, 行dict列表)。"""
+    import re as _re
     db_type = (cfg.get("db_type") or "mysql").lower()
     table = cfg["table"]
+    # 表名白名单校验（防 SQL 注入）：只允许合法标识符，与 data_loader 一致
+    if not _re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table):
+        raise ValueError(f"[安全] 非法表名: {table!r}（仅允许字母/数字/下划线开头）")
     host = cfg.get("host", "127.0.0.1")
     port = cfg.get("port")
     user = cfg.get("user", "")

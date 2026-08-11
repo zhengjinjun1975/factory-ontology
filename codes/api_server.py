@@ -124,7 +124,7 @@ D = v3.load_dict(FOOD_LEX)
 QDATA = v3.build_data(v3.parse_nt(FOOD_NT), D)
 _BM25_INDEX = None  # BM25 混合检索索引(惰性构建)
 
-app = FastAPI(title="食品企业知识库 API", version="0.1.2",
+app = FastAPI(title="食品企业知识库 API", version="0.1.3",
               description="本体驱动的食品企业问答 + 溯源检索（中小型食品企业场景）")
 
 # ── 托管移动端食品溯源 APP（与 API 同源，一套部署） ──

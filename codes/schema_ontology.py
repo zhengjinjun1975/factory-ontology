@@ -28,28 +28,59 @@ import json
 
 # ═══════════ 数据加载（复用 factory data_loader 接口）═══════════
 def load_all(data_dir: str) -> dict:
-    """加载数据目录下所有 CSV/JSON/SQLite/Excel 表 → {表名: [行...]}（动态发现）。"""
+    """加载数据目录下所有 CSV/JSON/SQLite/Excel 表 → {表名: [行...]}（动态发现）。
+
+    失败时报告清晰原因：目录不存在 / 目录为空 / 无支持格式数据，而非裸抛异常。
+    """
+    import os as _os
+    if not _os.path.isdir(data_dir):
+        raise FileNotFoundError(f"[建模失败] 数据目录不存在: {data_dir}")
     from data_loader import load_table
     data = {}
-    for f in sorted(os.listdir(data_dir)):
-        if not f.startswith(".") and os.path.splitext(f)[1].lower() in (".csv", ".json", ".db", ".sqlite", ".sqlite3", ".xlsx", ".xls"):
-            name, _headers, rows = load_table(os.path.join(data_dir, f))
+    found = 0
+    for f in sorted(_os.listdir(data_dir)):
+        if not f.startswith(".") and _os.path.splitext(f)[1].lower() in (".csv", ".json", ".db", ".sqlite", ".sqlite3", ".xlsx", ".xls"):
+            found += 1
+            try:
+                name, _headers, rows = load_table(_os.path.join(data_dir, f))
+            except Exception as e:
+                raise ValueError(f"[建模失败] 加载表 {f} 出错: {e}")
             if rows:
                 data[name] = rows
+    if found == 0:
+        raise ValueError(f"[建模失败] 数据目录 {data_dir} 下无 CSV/JSON/SQLite/Excel 数据文件")
+    if not data:
+        raise ValueError(f"[建模失败] 数据目录 {data_dir} 下文件均为空，未加载到任何数据行")
     return data
 
 
 # ═══════════ schema 加载与校验 ═══════════
 def load_schema(path: str) -> dict:
-    """加载 + 校验本体 schema（实体/关系/约束合法性）。"""
-    schema = json.load(open(path, encoding="utf-8"))
+    """加载 + 校验本体 schema（实体/关系/约束合法性）。
+
+    失败时报告清晰原因：文件不存在 / JSON 非法 / 实体冲突 / 关系引用不存在。
+    """
+    import os as _os
+    if not _os.path.exists(path):
+        raise FileNotFoundError(f"[建模失败] schema 文件不存在: {path}")
+    try:
+        schema = json.load(open(path, encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        raise ValueError(f"[建模失败] schema 文件 {path} 不是合法 JSON: {e}")
     entities = {e["id"]: e for e in schema.get("entities", [])}
-    # 实体 id 唯一
-    assert len(entities) == len(schema.get("entities", [])), f"实体 id 重复: {path}"
+    if not entities:
+        raise ValueError(f"[建模失败] schema {path} 未定义任何实体(entities)")
+    # 实体 id 唯一（assert → 显式异常，报告具体重复项）
+    dup = [eid for eid, c in __import__("collections").Counter(
+        e["id"] for e in schema.get("entities", [])).items() if c > 1]
+    if dup:
+        raise ValueError(f"[建模失败] schema 实体 id 重复: {dup}")
     # 关系 from/to 必须存在
     for r in schema.get("relations", []):
-        assert r["from"] in entities, f"关系 {r['id']} 的 from={r['from']} 不存在"
-        assert r["to"] in entities, f"关系 {r['id']} 的 to={r['to']} 不存在"
+        if r["from"] not in entities:
+            raise ValueError(f"[建模失败] 关系 {r['id']} 的 from={r['from']} 不存在于实体")
+        if r["to"] not in entities:
+            raise ValueError(f"[建模失败] 关系 {r['id']} 的 to={r['to']} 不存在于实体")
     schema["_entities"] = entities
     return schema
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.3] — 2026-08-11
+
+### 安全边界 + 核心程序加固 + 编码正确性
+
+> 审查重构后本体建模的安全边界、加固核心程序、确保检索无编码错误。
+
+- **本体建模失败报告**（`schema_ontology.py` / `run.py setup-schema`）：建模各步骤失败时报告清晰原因（`[建模失败] 数据目录不存在` / `schema JSON 非法` / `实体id重复` / `关系引用不存在`），不裸抛异常。`load_schema` 的 assert 改为显式 ValueError（报告具体错误项）
+- **SQL 注入加固**（`db_loader.py`）：表名白名单校验（`re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*")`），拦截 `products; DROP TABLE x` 类注入，与 data_loader 一致
+- **编码正确性验证**：核心文件全 UTF-8；中文 label 无乱码、BM25 中文检索正常、find_seeds 中文匹配、parse_nt 中文 label 正确保留
+- **验证**：错误报告 6/6 + 编码正确性 7/7 + pytest 29 passed + hermes verify ok:True
+
 ## [0.1.2] — 2026-08-11
 
 ### 本体驱动增强（基于 2025-2026 最新技术研究）

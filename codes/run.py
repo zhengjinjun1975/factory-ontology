@@ -14,7 +14,7 @@ import os
 import sys
 import json
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 import importlib.util
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -51,25 +51,41 @@ def setup_schema(data_dir, schema_path, table="factory"):
     nt = os.path.join(OUT, f"{table}.nt")
 
     print(f"\n[工厂智能体] schema 驱动建模: {table}")
-    print(f"[1/3] 加载多表数据 {data_dir}")
-    data = so.load_all(data_dir)
-    print(f"      -> {len(data)} 表: {list(data.keys())}")
+    # 每步失败都报告清晰原因，不裸抛异常
+    try:
+        print(f"[1/3] 加载多表数据 {data_dir}")
+        data = so.load_all(data_dir)
+        print(f"      -> {len(data)} 表: {list(data.keys())}")
+    except Exception as e:
+        print(f"❌ 本体建模失败（步骤1/3 加载数据）: {e}")
+        return None, None
 
-    if not os.path.exists(schema_path):
-        print(f"❌ 无 schema({schema_path}), 需 ontology_schema.json"); return None, None
-    print(f"[2/3] 加载 schema + 约束校验")
-    schema = so.load_schema(schema_path)
-    issues = so.validate(data, schema)
-    if issues:
-        print(f"⚠️ 约束校验 {len(issues)} 问题:", [i["msg"] for i in issues[:3]])
+    try:
+        if not os.path.exists(schema_path):
+            print(f"❌ 本体建模失败（步骤2/3）: 无 schema 文件 {schema_path}，需提供 ontology_schema.json")
+            return None, None
+        print(f"[2/3] 加载 schema + 约束校验")
+        schema = so.load_schema(schema_path)
+        issues = so.validate(data, schema)
+        if issues:
+            print(f"⚠️ 约束校验 {len(issues)} 问题:", [i["msg"] for i in issues[:3]])
+    except Exception as e:
+        print(f"❌ 本体建模失败（步骤2/3 加载 schema）: {e}")
+        return None, None
 
-    print(f"[3/3] 建统一本体 -> {os.path.basename(nt)}")
-    lines = so.to_nt(data, schema, outpath=nt)
-    graph = so.build_graph(data, schema)
-    model = so.build_ontology_model(data, schema)
-    print(f"✅ 本体: {len(lines)} 行 N-Triples | 图 {len(graph['nodes'])} 节点/{len(graph['edges'])} 边")
-    print(f"   类型体系: {[h['name'] for h in model['type_hierarchy']]}")
-    print(f"   语义域: {model['semantic_domains']}")
+    try:
+        print(f"[3/3] 建统一本体 -> {os.path.basename(nt)}")
+        lines = so.to_nt(data, schema, outpath=nt)
+        if not os.path.exists(nt):
+            raise RuntimeError("to_nt 未生成本体文件")
+        graph = so.build_graph(data, schema)
+        model = so.build_ontology_model(data, schema)
+        print(f"✅ 本体: {len(lines)} 行 N-Triples | 图 {len(graph['nodes'])} 节点/{len(graph['edges'])} 边")
+        print(f"   类型体系: {[h['name'] for h in model['type_hierarchy']]}")
+        print(f"   语义域: {model['semantic_domains']}")
+    except Exception as e:
+        print(f"❌ 本体建模失败（步骤3/3 建本体）: {e}")
+        return None, None
 
     json.dump({"nt": os.path.relpath(nt, ROOT), "schema": os.path.relpath(schema_path, ROOT),
                "data_dir": os.path.relpath(data_dir, ROOT), "table": table},
