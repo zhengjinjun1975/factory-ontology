@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "recipe": {
+    "name": "pytest (factory-ontology-kit)",
+    "kind": "python",
+    "bootstrap": [],
+    "build": [],
+    "test": ["cd codes && python -m pytest tests/ -q"],
+    "start": "",
+    "port": null,
+    "readinessPath": null,
+    "evidence": [
+      "Manual: 项目为 Python 库, 测试在 codes/tests/, canonical 命令 cd codes && python -m pytest tests/",
+      "Dockerfile/docker-compose.yml 为可选部署, 非测试入口"
+    ]
+  },
+  "updatedAt": "2026-08-11T01:23:17.144132+00:00"
+}
