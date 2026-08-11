@@ -1,0 +1,6 @@
+﻿id,model_code,product_name,material,pressure_grade,layers,price
+BP1,BW-01,金属波纹管,304不锈钢,PN16,2,1500
+BP2,BW-02,不锈钢膨胀节,316L,PN25,3,3200
+BP3,BW-03,橡胶波纹管,三元乙丙,PN10,1,450
+BP4,BW-04,金属软管,304不锈钢,PN16,2,980
+BP5,BW-05,高压波纹管,合金钢,PN40,4,5800

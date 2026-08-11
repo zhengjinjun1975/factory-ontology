@@ -1,0 +1,6 @@
+﻿id,model_code,product_name,material,precision_grade,surface_roughness,price
+PR1,JM-001,精密主轴,GCr15轴承钢,IT4,0.2,8600
+PR2,JM-002,滚珠丝杠,GCr15轴承钢,IT5,0.4,5200
+PR3,JM-003,涡轮叶片,高温合金,IT4,0.8,12800
+PR4,JM-004,光学镜筒,铝合金,IT6,0.1,3800
+PR5,JM-005,精密齿轮,20CrMnTi,IT5,0.5,2900

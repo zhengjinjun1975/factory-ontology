@@ -79,13 +79,52 @@ def _build_synonym_map(terms):
     return smap
 
 
+def _has_cjk(s) -> bool:
+    """是否含中文字符（用于判断中文 label）。"""
+    return bool(s) and any("\u4e00" <= ch <= "\u9fff" for ch in str(s))
+
+
+# 实体表名词干 -> 中文计数词（跨行业泛化：建库时把任意新行业表名映射为中文实体词）。
+# 与 schema_ontology._ENTITY_CN 互补——覆盖 schema-free 表名去域前缀后的通用词干。
+_ENTITY_STEM_CN = {
+    "equipment": "设备", "product": "产品", "products": "产品",
+    "line": "测线", "lines": "测线", "shot": "炮点", "shots": "炮点",
+    "project": "项目", "projects": "项目",
+    "vessel": "船", "vessels": "船", "order": "订单", "orders": "订单",
+    "batch": "批次", "batches": "批次", "batch_ingredient": "批次配料",
+    "customer": "客户", "customers": "客户",
+    "raw_material": "原料", "raw_materials": "原料", "sale": "销售", "sales": "销售",
+    "qc": "质检", "team": "班组", "dock": "船坞", "dock_yard": "船坞",
+}
+
+# 数值属性名 -> 中文名（data profiling 自动识别数值列后，给中文极值词）。
+# 覆盖高频数值语义：精度/投资/价格/吨位/金额/容量/功率等。
+_NUMERIC_ATTR_CN = {
+    "accuracy": "精度", "investment": "投资", "investment_wan": "投资",
+    "price": "价格", "amount": "金额", "tonnage": "吨位", "tonnage_dwt": "吨位",
+    "capacity": "容量", "capacity_t": "容量", "power": "功率", "power_kw": "功率",
+    "quantity": "数量", "stock": "库存", "layers": "层数", "progress": "进度",
+    "progress_pct": "进度", "contract_amount": "合同金额", "contract_amount_wan": "合同金额",
+    "lifting_capacity_t": "起重能力", "shotpoints": "炮点数", "receivers": "检波点数",
+    "charge_kg": "药量", "depth_m": "炮点深度", "record_length_s": "记录长度",
+}
+# 数值关键字（类型推断为 number 之外的兜底识别）
+_NUMERIC_KEYWORDS = {
+    "accuracy", "investment", "price", "tonnage", "amount", "capacity", "power",
+    "quantity", "layers", "progress", "stock", "temperature", "pressure", "depth",
+    "weight", "rate", "score", "amount_wan", "cost",
+}
+
+
 def _build_lexicon(schema, data):
     """从 suggest_schema 生成基础词典（attr_cn2en/attr_en2cn/status_cn2en/type_cn2en 等），供 ask 问答使用。
     极简：直接用 suggest_schema 推断出的中文属性 label 生成自然词典
     （生产日期→produce_date / 批次编号→batch_id / 原料→raw_parts），缺失时用英文名兜底。
     - attr_cn2en 额外生成去掉单位的基名别名（功率(kW)→功率），兼容用户口语（功率最大的设备）。
     - type_cn2en 从类型列（device_type/type/category）的实际值生成：设备类型值→中文。
-    - status_cn2en 优先用数据里的真实枚举值（中文值直接映射自身），英文运维词兜底。"""
+    - status_cn2en 优先用数据里的真实枚举值（中文值直接映射自身），英文运维词兜底。
+    - entity_cn2en：data profiling 自动生成 {中文实体名: 表名}，替代实体总数硬编码。
+    - numeric_fields：data profiling 识别数值列 -> {中文极值词: 英文字段}，替代极值硬编码。"""
     import re as _re
     cn = {}  # 中文名 -> 英文名
     en = {}  # 英文名 -> 中文名
@@ -142,13 +181,71 @@ def _build_lexicon(schema, data):
     # 失败回落返回 {}，不阻塞建模。词源：类型/状态/区域枚举值 + 属性中文名。
     _terms = list(type_vals) + list(status_vals) + list(zone_vals) + list(cn)
     synonym_map = _build_synonym_map(_terms)
+
+    # ── data profiling: 实体总数映射 {中文实体名: 表名}（替代硬编码 {设备:equipment,...}）──
+    # 计数词双来源：① 表名词干→中文（projects→项目/船/vessels→船，用户常问的词，稳定）；
+    #               ② schema 中文 label（Valve_batches→批次，或 LLM 增强的 环保项目/船舶）。
+    # 两者都注册为计数词，保证"有多少个项目/有多少艘船"等口语命中。
+    entity_cn2en = {}
+    for e in schema.get("entities", []):
+        table = e.get("table")
+        if not table:
+            continue
+        label = e.get("label") or ""
+        # 表名去域前缀：<domain>_<stem>（valve_batches→batches / seis_lines→lines）
+        stem = table.split("_", 1)[1] if "_" in table else table
+        stem_word = (_ENTITY_STEM_CN.get(stem) or _ENTITY_STEM_CN.get(stem.split("_")[-1]) or "")
+        words = []
+        if stem_word:
+            words.append(stem_word)
+        if _has_cjk(label) and label != stem_word:
+            words.append(label)
+        for w in words:
+            entity_cn2en.setdefault(w, table)
+
+    # ── data profiling: 极值字段 {中文极值词: 英文字段}（替代极值硬编码）──
+    def _numeric_cn(snake):
+        """数值字段名 -> 中文极值词。优先精确匹配，其次前缀匹配（accuracy_mm→精度）。"""
+        if snake in _NUMERIC_ATTR_CN:
+            return _NUMERIC_ATTR_CN[snake]
+        for k in sorted(_NUMERIC_ATTR_CN, key=len, reverse=True):
+            if snake.startswith(k + "_"):
+                return _NUMERIC_ATTR_CN[k]
+        return _NUMERIC_ATTR_CN.get(snake.split("_")[-1], "")
+
+    numeric_fields = {}
+    for e in schema.get("entities", []):
+        table = e.get("table")
+        for a in e.get("attributes", []):
+            name = a.get("name") or ""
+            if not name:
+                continue
+            ptype = a.get("type") or ""
+            label = a.get("label") or name
+            snake = _re.sub(r'([a-z])([A-Z])', r'\1_\2', name).lower()
+            last = snake.split("_")[-1]
+            # 数值列识别：类型推断为 number，或字段名含数值语义关键字
+            is_num = ptype == "number" or last in _NUMERIC_KEYWORDS \
+                or snake in _NUMERIC_ATTR_CN or last in _NUMERIC_ATTR_CN \
+                or any(snake.startswith(k + "_") for k in _NUMERIC_ATTR_CN)
+            if not is_num:
+                continue
+            base = _re.sub(r'[（(][^）)]*[）)]', '', label).strip()
+            # 优先用显式数值语义映射（合同金额/投资/吨位…），避免 label 混拼(contract金额wan)；
+            # 否则用去单位的中文 label（功率(kW)→功率）。
+            cname = _numeric_cn(snake) or (base if _has_cjk(base) else "")
+            if cname:
+                numeric_fields.setdefault(cname, name)
+
     return {
-        "description": "自动生成词典（multi_model, suggest_schema 推断 + LLM 语义聚类同义词）",
+        "description": "自动生成词典（multi_model, suggest_schema 推断 + LLM 语义聚类同义词 + data profiling 映射）",
         "attr_cn2en": cn, "attr_en2cn": en,
         "status_cn2en": status_cn2en,
         "type_cn2en": type_vals,
         "zone_cn2en": zone_vals,
         "synonym_map": synonym_map,
+        "entity_cn2en": entity_cn2en,          # {中文实体名: 表名} 实体总数映射
+        "numeric_fields": numeric_fields,      # {中文极值词: 英文字段}
         "field_aliases": {"status": ["status"], "deviceType": ["deviceType", "device_type", "type"], "deviceName": ["deviceName", "device_name", "name"]},
         "value_fields": [],
     }

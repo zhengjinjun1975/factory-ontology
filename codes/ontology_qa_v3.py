@@ -135,6 +135,12 @@ def _find_attr(dict_data, q):
     for cn in sorted(_ATTR_CN_ALIASES, key=len, reverse=True):
         if len(cn) >= 2 and cn in q:
             return _ATTR_CN_ALIASES[cn], cn
+    # data profiling 极值字段兜底：词典 numeric_fields {中文极值词: 英文字段}
+    # （精度/投资/价格/吨位/金额/合同金额/容量/功率…，替代硬编码的极值字段集）
+    nf = dict_data.get("numeric_fields", {}) or {}
+    for cn in sorted(nf, key=len, reverse=True):
+        if cn in q:
+            return nf[cn], cn
     return None, None
 
 
@@ -214,6 +220,43 @@ def _fmt_names(names, limit=20):
     return out
 
 
+def _value_filter_count(q, data):
+    """属性值过滤计数（泛化）：形如"XX的数量/多少"——问题含某属性的取值(或其公共子串)时统计符合行。
+    - 提取问题核心片段(去掉 数量/多少/共/总 等量词)，取其 2~3 字公共子串作为过滤指纹；
+    - 对每个记录的各文本取值，若与指纹有>=2字公共子串则视为该字段命中；
+    - 跨多个字段命中(如材质+名称：不锈钢波纹管)按 AND 取交集返回；单字段命中按该字段计数。
+    data profiling 未覆盖的复合过滤（材质/名称/类型取值）走此兜底，命中即返回，避免"暂不支持"。
+    返回 (count, 描述) 或 None(无命中)。"""
+    core = re.sub(r'(的数量|有多少个|有多少|多少个|共有多少|共多少|数量|多少|总数|共|总)', '', q)
+    core = core.strip().replace(" ", "")
+    if len(core) < 2 or not re.search(r'(数量|多少)', q):
+        return None
+    grams = set()
+    for i in range(len(core)):
+        for L in (2, 3):
+            if i + L <= len(core):
+                grams.add(core[i:i + L])
+    if not grams:
+        return None
+    records = []  # (name, 命中的字段集合)
+    for n, d in data.items():
+        fields = set()
+        for k, v in d.items():
+            vs = str(v)
+            if len(vs) < 2 or _num(vs) is not None:
+                continue
+            if any(g in vs for g in grams):
+                fields.add(k)
+        records.append((n, fields))
+    strong = [(n, f) for n, f in records if len(f) >= 2]
+    weak = [(n, f) for n, f in records if len(f) == 1]
+    if strong:
+        return len(strong), "多字段(材质+名称等)"
+    if weak:
+        return len(weak), "单字段取值"
+    return None
+
+
 # ------------------------------------------------------------------ 问答主逻辑
 
 _EXTREME = re.compile(r"最(大|高|多|低|小|少|长|短|贵|便宜|快|慢|久|重|轻|新|老|早|晚|近)")
@@ -290,24 +333,33 @@ def answer(q, data, D):
                 and float(_num(_field(d, attr_en, aliases))) == tv)
         if n == 0:  # 可能以字符串存储
             n = sum(1 for d in data.values() if str(_field(d, attr_en, aliases)).strip() == target)
-        cname = cn2cn.get(attr_en, attr_en)
+        cname = attr_cn or cn2cn.get(attr_en, attr_en)
         return "%s=%s 的数量是 %d" % (cname, target, n)
 
     # ---- 实体总数: 有多少台设备/产品总数 等 (实体类, 非类型值) ----
     # 实体类中文名 -> URI 子串。仅当问题里"多少[台个条]/总数/共多少"直接修饰实体类词时才触发，
     # 从而不误伤"有多少台空压机"(空压机是 deviceType 值, 走下方类型模板)。
+    # 优先用建库时 data profiling 生成的 entity_cn2en {中文实体名: 表名}（测线/炮点/项目/船…），
+    # 兜底保留原硬编码映射（兼容旧词典）。
     _ENTITY_CN2URI = {
         "设备": "equipment", "产品": "product", "客户": "customer",
         "批次": "batch", "原料": "raw_material", "原材料": "raw_material",
         "销售": "sale", "质检": "qc",
     }
-    for cn in sorted(_ENTITY_CN2URI, key=len, reverse=True):
-        if (re.search(r'多少[台个条]?' + cn, q)          # 有多少台设备 / 多少设备
-                or re.search(cn + r'(总数|共有多少|有多少|共多少)', q)  # 设备总数 / 设备共有多少
+    _entity_map = dict(_ENTITY_CN2URI)
+    _entity_map.update(D.get("entity_cn2en", {}) or {})
+    # 计数量词：按实体词选择合适量词（测线→条 / 船→艘 / 项目→个 / 设备→台），缺省"个"
+    _MEASURE = {"设备": "台", "测线": "条", "线": "条", "船": "艘", "产品": "个",
+                "项目": "个", "订单": "个", "批次": "批", "客户": "家", "炮点": "个", "质检": "个"}
+    for cn in sorted(_entity_map, key=len, reverse=True):
+        if (re.search(r'多少[台个条艘]?' + cn, q)          # 有多少台设备 / 有多少艘船
+                or re.search(cn + r'(总数|共有多少|有多少|共多少)', q)  # 设备总数 / 炮点总数
                 or re.search(r'共\s*多少\s*' + cn, q)):   # 共多少设备
-            uri_sub = _ENTITY_CN2URI[cn]
+            uri_sub = _entity_map[cn]
             n = sum(1 for k in data if uri_sub in k.lower())
-            return "%s总数 %d" % (cn, n) if "总数" in q else "有 %d 台%s" % (n, cn)
+            if "总数" in q:
+                return "%s总数 %d" % (cn, n)
+            return "有 %d %s%s" % (n, _MEASURE.get(cn, "个"), cn)
 
     # ---- 数量: 状态/类型/区域 ----
     st_en, st_cn = _find_enum(D, q, "status")
@@ -318,6 +370,11 @@ def answer(q, data, D):
     if ty_en and ("多少" in q or "数量" in q):
         n = sum(1 for d in data.values() if _field(d, "deviceType", aliases) == ty_en)
         return "有 %d %s" % (n, ty_cn)
+    # 类型词 + 的：按类型过滤计数/列出（"大气治理的项目" / "油轮的" 等，非"多少"式）
+    if ty_en and "的" in q:
+        matched = [(n, d) for n, d in data.items() if _field(d, "deviceType", aliases) == ty_en]
+        nm = names(matched)
+        return "%s(%d):\n%s" % (ty_cn, len(nm), _fmt_names(nm)) if nm else "无%s" % ty_cn
 
     # ---- 列出 / 有哪些 / 信息 ----
     if "列出" in q or "哪些" in q or "有哪些" in q or "信息" in q or "详情" in q:
@@ -337,7 +394,7 @@ def answer(q, data, D):
         items = [(d, v) for d, v in items if v is not None]
         is_max = _is_max(q)
         items.sort(key=lambda x: x[1], reverse=is_max)
-        cname = cn2cn.get(attr_en, attr_en)
+        cname = attr_cn or cn2cn.get(attr_en, attr_en)
         rows = ["  - %s (%s=%s)" % (_display_name(d, aliases, default=""), cname, v) for d, v in items[:n]]
         return "%s%s的%d个:\n%s" % ("最高" if is_max else "最低", cname, n, "\n".join(rows))
 
@@ -348,7 +405,7 @@ def answer(q, data, D):
         if items:
             is_max = _is_max(q)
             best = max(items, key=lambda x: x[1]) if is_max else min(items, key=lambda x: x[1])
-            cname = cn2cn.get(attr_en, attr_en)
+            cname = attr_cn or cn2cn.get(attr_en, attr_en)
             return "%s的记录: %s (%s=%s)" % (("最大" if is_max else "最小") + cname, _display_name(best[0], aliases, default=""), cname, best[1])
 
     # ---- 平均 ----
@@ -356,7 +413,7 @@ def answer(q, data, D):
         vals = [_num(_field(d, attr_en, aliases)) for d in data.values()]
         vals = [v for v in vals if v is not None]
         if vals:
-            cname = cn2cn.get(attr_en, attr_en)
+            cname = attr_cn or cn2cn.get(attr_en, attr_en)
             return "%s平均值 %.2f (%d条)" % (cname, sum(vals)/len(vals), len(vals))
 
     # ---- 总和 ----
@@ -364,7 +421,7 @@ def answer(q, data, D):
         vals = [_num(_field(d, attr_en, aliases)) for d in data.values()]
         vals = [v for v in vals if v is not None]
         if vals:
-            cname = cn2cn.get(attr_en, attr_en)
+            cname = attr_cn or cn2cn.get(attr_en, attr_en)
             return "%s总和 %.2f" % (cname, sum(vals))
 
     # ---- 范围 (属性>N / <N / 在A到B) ----
@@ -376,19 +433,19 @@ def answer(q, data, D):
             lo, hi = nums[0], nums[1]
             matched = [(d, _num(_field(d, attr_en, aliases))) for d in data.values()]
             matched = [(d, v) for d, v in matched if v is not None and lo <= v <= hi]
-            cname = cn2cn.get(attr_en, attr_en)
+            cname = attr_cn or cn2cn.get(attr_en, attr_en)
             return "%s在%s到%s之间的(%d):\n%s" % (cname, lo, hi, len(matched), _fmt_names([_display_name(d, aliases, default="") for d, _ in matched]))
         elif has_gt and nums:
             n = nums[0]
             matched = [(d, _num(_field(d, attr_en, aliases))) for d in data.values()]
             matched = [(d, v) for d, v in matched if v is not None and v > n]
-            cname = cn2cn.get(attr_en, attr_en)
+            cname = attr_cn or cn2cn.get(attr_en, attr_en)
             return "%s大于%s的(%d):\n%s" % (cname, n, len(matched), _fmt_names([_display_name(d, aliases, default="") for d, _ in matched]))
         elif has_lt and nums:
             n = nums[0]
             matched = [(d, _num(_field(d, attr_en, aliases))) for d in data.values()]
             matched = [(d, v) for d, v in matched if v is not None and v < n]
-            cname = cn2cn.get(attr_en, attr_en)
+            cname = attr_cn or cn2cn.get(attr_en, attr_en)
             return "%s小于%s的(%d):\n%s" % (cname, n, len(matched), _fmt_names([_display_name(d, aliases, default="") for d, _ in matched]))
 
     # ---- 分组统计 ----
@@ -418,8 +475,14 @@ def answer(q, data, D):
     # ---- 反查: 哪些[属性]=值 ----
     if attr_en and ("哪些" in q or "是什么" in q):
         matched = [(d, _field(d, attr_en, aliases)) for d in data.values() if _field(d, attr_en, aliases)]
-        cname = cn2cn.get(attr_en, attr_en)
+        cname = attr_cn or cn2cn.get(attr_en, attr_en)
         return "%s信息:\n%s" % (cname, "\n".join(f"  {_display_name(d, aliases, default='')}: {v}" for d, v in matched[:20]))
+
+    # ---- 属性值过滤计数 (泛化): "不锈钢波纹管的数量" / "船坞的数量" ----
+    # data profiling 未覆盖的复合/取值过滤计数兜底（位于所有具名模板之后）。
+    _vc = _value_filter_count(q, data)
+    if _vc:
+        return "符合条件共 %d 条(%s)" % _vc
 
     # ---- 总数: 一共有多少条记录 ----
     if ("一共" in q or "总共有" in q or "总共" in q) and ("记录" in q or "多少" in q):
