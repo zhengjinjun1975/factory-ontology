@@ -306,6 +306,87 @@ def _rewrite_query(question, model_key=None):
         return None
 
 
+# ── 动态调温：按查询类型选 LLM 温度（替代固定 0.6）──
+# 精确数值/极值/计数查询需确定性(低温)，开放解释查询需多样性(高温)，其余取中间值。
+# 依据调研：Selective Sampling + Tetrate 分场景温度(结构化0.0-0.2/对话0.6-0.8)。
+_LOW_TEMP_WORDS = ("多少", "几", "最", "数量", "最大值", "最小值", "平均", "汇总",
+                   "合计", "台", "个", "条", "总计", "共", "总数")
+_HIGH_TEMP_WORDS = ("分析", "怎么样", "如何", "状况", "整体", "健康", "为什么",
+                    "建议", "说明", "趋势", "评价", "原因", "解读")
+
+
+def _pick_temperature(question):
+    """按查询类型动态选温度：精确/极值/计数查询低温 0.2，开放/解释查询高温 0.7，其余 0.4。"""
+    q = question or ""
+    if any(w in q for w in _LOW_TEMP_WORDS):
+        return 0.2
+    if any(w in q for w in _HIGH_TEMP_WORDS):
+        return 0.7
+    return 0.4
+
+
+# ── schema→prompt：把本体结构(schema)注入 LLM 上下文，提升未见行业查询准确率 ──
+# 依据调研：ShEx-augmented prompting(未见KG F1 0.00→0.28) + OntoSCPrompt(schema引导prompt)。
+# 极简：解析一次 nt，提取 owl:Class 的中文 label(实体类型) + 各类型 Datatype/ObjectProperty
+# 的中文 label(属性名) 归组；失败回落用 lexicon 的 attr_cn2en/type_cn2en；再失败返回空串(不阻塞)。
+
+
+def _schema_context(nt_file, lexicon=None):
+    """从本体(.nt)提取 schema 上下文：实体类型(中文名)+各类型属性(中文名)，供 LLM 理解问题。
+
+    返回形如: "知识图谱包含以下实体/属性: 设备(设备名称,设备类型,功率...), 产品(产品名称,...) 等，请据此理解问题回答。"
+    解析失败 / 无信息时回落 lexicon 词典；仍无则返回空串（不阻塞 LLM 生成）。
+    """
+    from collections import defaultdict as _dd
+    # 英文属性名->中文名：lexicon 为 snake_case(produce_date)，nt 尾为 camelCase(produceDate)。
+    # 归一化(去下划线+小写)后做不敏感匹配，缺中文label时翻译。
+    try:
+        en2cn = {}
+        for _en, _cn in ((lexicon or {}).get("attr_en2cn") or {}).items():
+            en2cn[str(_en).replace("_", "").lower()] = _cn
+    except Exception:
+        en2cn = {}
+    try:
+        from ontology_qa_v3 import parse_nt as _parse
+        triples = _parse(nt_file)
+        res_label = {}     # 资源URI -> 中文label
+        prop_domain = {}   # 属性URI -> domain类URI
+        for s, p, o in triples:
+            pn = tail(p)
+            if pn == "label":
+                res_label[s] = str(o).strip('"')
+            elif pn == "domain":
+                prop_domain[s] = o
+        cls_attrs = _dd(list)
+        for prop, dom in prop_domain.items():
+            cname = res_label.get(dom) or tail(dom)
+            aname = res_label.get(prop) or tail(prop)
+            if not res_label.get(prop) and aname.replace("_", "").lower() in en2cn:  # 缺中文label时用词典翻译
+                aname = en2cn[aname.replace("_", "").lower()]
+            if aname and aname not in cls_attrs[cname]:
+                cls_attrs[cname].append(aname)
+        if cls_attrs:
+            parts = [f"{c}({', '.join(a)})" for c, a in cls_attrs.items()]
+            return "知识图谱包含以下实体/属性: " + ", ".join(parts) + " 等，请据此理解问题回答。"
+    except Exception:
+        pass
+    # 回落：lexicon 词典（attr_cn2en 属性中文名 + type_cn2en 实体类型中文名）
+    if lexicon:
+        try:
+            seg = []
+            types = [str(t) for t in (lexicon.get("type_cn2en") or {}).keys() if str(t).strip()]
+            if types:
+                seg.append("实体类型: " + ", ".join(types))
+            attrs = [str(a) for a in (lexicon.get("attr_cn2en") or {}).keys() if str(a).strip()]
+            if attrs:
+                seg.append("属性: " + ", ".join(attrs))
+            if seg:
+                return "知识图谱包含以下实体/属性: " + "; ".join(seg) + " 等，请据此理解问题回答。"
+        except Exception:
+            pass
+    return ""
+
+
 def answer_graph(question, nt_file, depth=1, max_nodes=40, model_key=None, lexicon=None):
     """GraphRAG 主入口：查询改写(CoTKR)->种子(词典引导)->子图->LLM生成。返回 (答案, 子图文本)。"""
     graph, labels, value_index, reverse = build_graph(nt_file)
@@ -325,14 +406,19 @@ def answer_graph(question, nt_file, depth=1, max_nodes=40, model_key=None, lexic
     sub = extract_subgraph(graph, reverse, seeds, depth=depth, max_nodes=max_nodes)
     context = serialize_subgraph(sub, labels)
     from model_llm import llm_generate
+    # schema→prompt：把本体结构(实体类型+属性中文名)注入上下文，提升未见行业查询准确率(ShEx思路)
+    schema_ctx = _schema_context(nt_file, lexicon)
+    head = ("你是数据问答助手。\n" + schema_ctx + "\n\n") if schema_ctx else "你是数据问答助手。\n"
     prompt = (
-        "你是数据问答助手。下面是从知识图谱中检索到的相关子图(实体+关系+属性值):\n"
+        head +
+        "下面是从知识图谱中检索到的相关子图(实体+关系+属性值):\n"
         f"{context}\n\n"
         f"请只依据上图信息回答问题: {question}\n"
         "只依据提供的子图事实回答，不编造不在图中的关系、实体或属性值。"
         "如果图中信息不足，如实说明。不要编造。"
     )
-    ans = llm_generate(prompt, temperature=0.6, max_tokens=400, model_key=model_key)
+    temp = _pick_temperature(question)  # 动态调温：精确/极值/计数→0.2，开放解释→0.7，其余→0.4
+    ans = llm_generate(prompt, temperature=temp, max_tokens=400, model_key=model_key)
     return ans, context
 
 
