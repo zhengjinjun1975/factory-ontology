@@ -142,7 +142,8 @@ def ask(question, nt=None, lex=None):
         return
     st = json.load(open(STATE, encoding="utf-8"))
     nt = nt or st["nt"]
-    lex = lex or st["lexicon"]
+    # setup-schema 不写 lexicon, 缺省用 config/lexicon.json
+    lex = lex or st.get("lexicon") or os.path.join(CFG, "lexicon.json")
     # 兼容相对/绝对路径：相对则基于包根 ROOT 解析（迁移后路径自动重定位）
     nt = nt if os.path.isabs(nt) else os.path.join(ROOT, nt)
     lex = lex if os.path.isabs(lex) else os.path.join(ROOT, lex)

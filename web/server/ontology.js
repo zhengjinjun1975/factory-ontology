@@ -310,7 +310,7 @@ export async function schemaOntology() {
       nt = cur.nt || 'output/equipment.nt';
       lex = cur.lexicon || 'config/lexicon_equipment.json';
     }
-    const r = await run(PY, ['model_schema.py', nt, lex], KIT);
+    const r = await run(PY, ['ontology_schema_info.py', nt], KIT);
     if (!r.ok) return { ok: false, error: r.error || '模型结构解析失败' };
     const schema = JSON.parse(r.output);
     return { ok: true, schema };

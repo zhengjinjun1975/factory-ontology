@@ -71,17 +71,14 @@ def build_data(triples, dict_data):
     def tail(uri):
         return uri.split("#")[-1] if "#" in uri else uri.split("/")[-1]
 
-    # 自动发现类名
-    cls_name = None
-    for s, p, o in triples:
-        if tail(p) == "type" and tail(o) == "Class":
-            cls_name = tail(s)
-            break
-    if not cls_name:
+    # 自动发现实体类：多表建模含多个类。类名是 "X type owl:Class" 的 subject
+    classes = {tail(s) for s, p, o in triples
+               if tail(p) == "type" and tail(o) == "Class"}
+    if not classes:
         return {}
     individuals = set()
     for s, p, o in triples:
-        if tail(p) == "type" and tail(o) == cls_name:
+        if tail(p) == "type" and tail(o) in classes:
             individuals.add(s)
     data = {tail(i): {} for i in individuals}
     for s, p, o in triples:
@@ -247,6 +244,22 @@ def answer(q, data, D):
             n = sum(1 for d in data.values() if str(_field(d, attr_en, aliases)).strip() == target)
         cname = cn2cn.get(attr_en, attr_en)
         return "%s=%s 的数量是 %d" % (cname, target, n)
+
+    # ---- 实体总数: 有多少台设备/产品总数 等 (实体类, 非类型值) ----
+    # 实体类中文名 -> URI 子串。仅当问题里"多少[台个条]/总数/共多少"直接修饰实体类词时才触发，
+    # 从而不误伤"有多少台空压机"(空压机是 deviceType 值, 走下方类型模板)。
+    _ENTITY_CN2URI = {
+        "设备": "equipment", "产品": "product", "客户": "customer",
+        "批次": "batch", "原料": "raw_material", "原材料": "raw_material",
+        "销售": "sale", "质检": "qc",
+    }
+    for cn in sorted(_ENTITY_CN2URI, key=len, reverse=True):
+        if (re.search(r'多少[台个条]?' + cn, q)          # 有多少台设备 / 多少设备
+                or re.search(cn + r'(总数|共有多少|有多少|共多少)', q)  # 设备总数 / 设备共有多少
+                or re.search(r'共\s*多少\s*' + cn, q)):   # 共多少设备
+            uri_sub = _ENTITY_CN2URI[cn]
+            n = sum(1 for k in data if uri_sub in k.lower())
+            return "%s总数 %d" % (cn, n) if "总数" in q else "有 %d 台%s" % (n, cn)
 
     # ---- 数量: 状态/类型/区域 ----
     st_en, st_cn = _find_enum(D, q, "status")
