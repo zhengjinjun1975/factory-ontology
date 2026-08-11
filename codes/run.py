@@ -136,14 +136,74 @@ def setup(source_path, table=None, use_llm=True):
     return nt, lex
 
 
+def _ensure_lexicon(st):
+    """确保 lexicon 文件存在。若 current.json 指向的词典不存在(如被清理),
+    从 data_dir 用 suggest_schema 自动重建(复用 multi_model._build_lexicon), 更新 current.json。
+    返回 lexicon 绝对路径。失败则返回 None(调用方降级)。"""
+    lex = st.get("lexicon")
+    if lex:
+        lex_abs = lex if os.path.isabs(lex) else os.path.join(ROOT, lex)
+        if os.path.exists(lex_abs):
+            return lex_abs
+    # 词典不存在 → 重建（优先从 data_dir, 否则从 nt 解析实体/属性）
+    try:
+        mm = _load("multi_model", os.path.join(ROOT, "multi_model.py"))
+        so = _load("schema_ontology", os.path.join(ROOT, "schema_ontology.py"))
+        lexicon = None
+        # 路径1: data_dir 重建
+        data_dir = st.get("data_dir")
+        if data_dir:
+            data_dir_abs = data_dir if os.path.isabs(data_dir) else os.path.join(ROOT, data_dir)
+            if os.path.isdir(data_dir_abs):
+                data = so.load_all(data_dir_abs)
+                schema = so.suggest_schema(data)
+                lexicon = mm._build_lexicon(schema, data)
+        # 路径2: 从 nt 解析实体/属性重建(不依赖 data_dir)
+        if not lexicon:
+            nt = st.get("nt")
+            if nt:
+                nt_abs = nt if os.path.isabs(nt) else os.path.join(ROOT, nt)
+                if os.path.exists(nt_abs):
+                    from ontology_qa_v3 import parse_nt as _parse
+                    triples = _parse(nt_abs)
+                    attrs = set()
+                    for s, p, o in triples:
+                        p_ = str(p)
+                        if "rdf-schema#label" in p_ and "class" not in str(o).lower():
+                            continue
+                        # 数据属性: 对象是字面量
+                        if not str(o).startswith(("http://", "https://")):
+                            a = str(p).split("#")[-1].split("/")[-1].strip("<>")
+                            if a and not a.startswith("rdf") and a not in ("type", "label"):
+                                attrs.add(a)
+                    schema = {"entities": [{"id": "Auto", "attributes": [{"name": a} for a in attrs]}]}
+                    lexicon = mm._build_lexicon(schema, {})
+        if lexicon:
+            table = st.get("table", "auto")
+            lex_path = os.path.join(CFG, f"lexicon_{table}.json")
+            with open(lex_path, "w", encoding="utf-8") as f:
+                json.dump(lexicon, f, ensure_ascii=False, indent=2)
+            st["lexicon"] = os.path.relpath(lex_path, ROOT)
+            with open(STATE, "w", encoding="utf-8") as f:
+                json.dump(st, f, ensure_ascii=False, indent=2)
+            return lex_path
+    except Exception:
+        pass
+    return None
+
+
 def ask(question, nt=None, lex=None):
     if not os.path.exists(STATE):
         print("请先运行: python run.py setup <数据文件>")
         return
     st = json.load(open(STATE, encoding="utf-8"))
     nt = nt or st["nt"]
-    # setup-schema 不写 lexicon, 缺省用 config/lexicon.json
+    # setup-schema 不写 lexicon, 缺省用 config/lexicon.json; 词典不存在则自动重建
     lex = lex or st.get("lexicon") or os.path.join(CFG, "lexicon.json")
+    lex_abs = _ensure_lexicon(st)
+    if not lex_abs:
+        print("词典不可用，请重新建模"); return
+    lex = lex_abs
     # 兼容相对/绝对路径：相对则基于包根 ROOT 解析（迁移后路径自动重定位）
     nt = nt if os.path.isabs(nt) else os.path.join(ROOT, nt)
     lex = lex if os.path.isabs(lex) else os.path.join(ROOT, lex)
