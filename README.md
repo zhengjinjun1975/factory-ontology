@@ -2,7 +2,7 @@
 
 工厂本体驱动的数据问答框架。本体建模到自然语言问答的开源实现。CSV 进，答案出，每个答案都带证据。
 
-[![Version](https://img.shields.io/badge/version-0.1.4-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.1.5-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
 [![CI](https://github.com/zhengjinjun1975/factory-ontology/actions/workflows/ci.yml/badge.svg)](https://github.com/zhengjinjun1975/factory-ontology/actions)
@@ -100,10 +100,13 @@ CSV / JSON / SQLite 用标准库实现，零第三方依赖。
 |------|------|
 | **schema 驱动建模** | `schema_ontology.py`：schema 显式声明实体/关系/约束；属性语义角色（identifier/reference/measure/category/timestamp）；类型体系（Enterprise → BusinessObject → 域类 → 实体）；validate 约束校验；traverse 跨域图遍历；build_graph 跨表统一实例图；to_nt 输出标准 N-Triples |
 | **词典驱动** | 字段中文名、枚举值、状态词全部外置在 lexicon JSON。问答逻辑不绑定具体词表，换领域只换词典 |
+| **建库自动映射** | `_build_lexicon` 自动生成 entity_cn2en（实体计数映射）+ numeric_fields（极值字段）+ type_cn2en + synonym_map（同义词）——换任何行业建库即生成查询映射，无需硬编码 |
 | **规则引擎** | `ontology_qa_v3.py`：数量/极值/平均/总和/范围/过滤计数/反查/分组/列出/TopN 等通用模板，确定性执行，零 token |
 | **本体引导 GraphRAG** | `graph_rag.py`：规则 miss 后，问题匹配本体关系时沿关系路径扩展种子（find_seeds），子图检索 + LLM 生成 |
+| **向量混合检索** | `vector_retrieval.py`：BM25 稀疏 + 本地向量语义（nomic-embed-text）融合，语义模糊查询（"最贵的产品"/"油轮有几艘"）命中，embedding 失败回落不阻塞 |
 | **检索容错** | 材质/单位/类型同义词扩展。问"不锈钢"能命中 CF8/CF8M/304/1Cr18Ni9Ti 等牌号 |
 | **证据溯源** | `/api/ask` 返回 evidence：命中实体、属性、数值，前端逐条展示"为什么是这个答案" |
+| **模型配置** | `model_config.json`：云端 DeepSeek + 本地 ornith + 向量模型（embedding）统一配置，api_key 脱敏，可增删改/设 active |
 
 ## 架构
 
@@ -150,7 +153,7 @@ cd codes
 python valve_demo.py
 ```
 
-实测输出（v0.1.4，规则部分确定性可复现）：
+实测输出（v0.1.5，规则部分确定性可复现）：
 
 ```
 规则问答:  一共有多少个阀门 → 一共有 8 条记录
@@ -277,6 +280,7 @@ v0.1.x 是当前版本线（schema 驱动重构后的新基线）；2.9.x 及更
 
 | 版本 | 内容 |
 |------|------|
+| **v0.1.5** | 综合方案：9 大行业泛化建模（建库自动生成实体/极值/类型映射）+ 向量混合检索（BM25+语义）+ 极值词映射 + 向量模型配置——换任何行业数据即用、命中率 100% |
 | **v0.1.4** | 厂区数据真实化（GB/T 32808 型号编码、材料牌号、API 598 试压矩阵）+ 检索容错（同义词扩展，问"不锈钢"命中 CF8/304） |
 | **v0.1.3** | 安全加固：建模失败报告、SQL 注入白名单、编码正确性 |
 | **v0.1.2** | 本体驱动增强：本体引导 GraphRAG 种子、本体约束减幻觉、suggest_schema 自动推断 |

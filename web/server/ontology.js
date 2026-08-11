@@ -494,7 +494,15 @@ export async function getModels() {
       if (fromEnv && hasKey) status = status + '（.env）';
       return { key: k, name: v.name, type: v.type, base_url: v.base_url, model: v.model, has_key: hasKey, api_key_status: status, active: cfg.active === k };
     });
-    return { ok: true, active: cfg.active, models };
+    // 向量检索(embedding)模型配置（只读返回非敏感字段）
+    const emb = (cfg.embedding && typeof cfg.embedding === 'object') ? cfg.embedding : {};
+    const embedding = {
+      name: emb.name || '本地向量模型',
+      type: emb.type || 'ollama',
+      base_url: emb.base_url || 'http://127.0.0.1:11434',
+      model: emb.model || 'nomic-embed-text',
+    };
+    return { ok: true, active: cfg.active, models, embedding };
   } catch (e) {
     return { ok: false, error: String(e.message || e) };
   }
@@ -533,7 +541,17 @@ export async function saveModels(cfg) {
     }
     if (!seenActive || !active) active = Object.keys(newModels)[0];
 
-    atomicWriteJson(cfgPath, { ...existing, active, models: newModels });
+    // embedding 配置：前端传入则更新，否则保留原值（不破坏向量模型配置）
+    const emb = (cfg.embedding && typeof cfg.embedding === 'object') ? cfg.embedding : {};
+    const embedding = {
+      name: String(emb.name || '本地向量模型'),
+      type: String(emb.type || 'ollama'),
+      base_url: String(emb.base_url || 'http://127.0.0.1:11434'),
+      model: String(emb.model || 'nomic-embed-text'),
+      api_key: String(emb.api_key || ''),
+    };
+
+    atomicWriteJson(cfgPath, { ...existing, active, models: newModels, embedding });
     return { ok: true, active };
   } catch (e) {
     return { ok: false, error: String(e.message || e) };

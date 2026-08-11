@@ -21,8 +21,14 @@ import json
 import urllib.request
 import urllib.error
 
-OLLAMA_BASE = os.environ.get("OLLAMA_BASE", "http://127.0.0.1:11434")
-EMBED_MODEL = os.environ.get("EMBED_MODEL", "nomic-embed-text")
+# 从 model_config 读取向量模型配置（默认本地 nomic-embed-text）。读取失败回落默认，不阻塞。
+try:
+    from model_llm import get_embedding_config as _get_emb
+    _emb = _get_emb()
+except Exception:
+    _emb = {}
+OLLAMA_BASE = _emb.get("base_url") or os.environ.get("OLLAMA_BASE", "http://127.0.0.1:11434")
+EMBED_MODEL = _emb.get("model") or os.environ.get("EMBED_MODEL", "nomic-embed-text")
 
 
 def embed_text(text: str, base=OLLAMA_BASE, model=EMBED_MODEL):

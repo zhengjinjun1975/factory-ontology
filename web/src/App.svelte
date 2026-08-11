@@ -39,6 +39,7 @@
   let modelEditBusy = $state(false);
   let editModels = $state([]);       // 可编辑模型配置 [{key,name,type,base_url,model,api_key}]
   let editActive = $state('');       // 编辑态 active
+  let editEmbedding = $state({ name: '', type: 'ollama', base_url: 'http://127.0.0.1:11434', model: 'nomic-embed-text' }); // 向量检索(embedding)模型
   let appVersion = $state('');       // 代码版本(读后端)
   let status = $state('idle');       // idle | modeling | ready | asking
   let statusMsg = $state('等待数据导入');
@@ -186,6 +187,7 @@
       key: m.key, name: m.name, type: m.type, base_url: m.base_url || '',
       model: m.model || '', api_key: m.has_key ? (m.api_key_status || '已配置') : '',
     }));
+    if (res.embedding) editEmbedding = { name: res.embedding.name || '', type: res.embedding.type || 'ollama', base_url: res.embedding.base_url || '', model: res.embedding.model || 'nomic-embed-text' };
   }
 
   async function refreshModels() {
@@ -221,7 +223,7 @@
     if (list.length === 0) { setStatus('err', '至少保留一个模型'); return; }
     modelEditBusy = true;
     try {
-      const res = await saveModels({ models: list, active: editActive });
+      const res = await saveModels({ models: list, active: editActive, embedding: editEmbedding });
       if (res.ok) {
         setStatus('ok', `模型配置已保存，当前：${res.active}`);
         await refreshModels();
@@ -612,6 +614,20 @@
                 </div>
               </div>
             {/each}
+            <div class="m-embed">
+              <div class="m-embed-title">🔎 向量检索模型（embedding，默认本地）</div>
+              <div class="db-row">
+                <div class="form-group">
+                  <span class="form-label">Base URL</span>
+                  <input class="db-input" placeholder="http://127.0.0.1:11434" bind:value={editEmbedding.base_url} />
+                </div>
+                <div class="form-group">
+                  <span class="form-label">Model</span>
+                  <input class="db-input" placeholder="nomic-embed-text" bind:value={editEmbedding.model} />
+                </div>
+              </div>
+              <div class="db-hint">向量语义检索用本地 embedding，零 API 成本。改这里可切换向量模型/地址。</div>
+            </div>
             <div class="m-actions">
               <button class="btn-action btn-default" onclick={addModel}>＋ 新增模型</button>
               <button class="btn-action" onclick={saveModelConfig} disabled={modelEditBusy}>
@@ -938,6 +954,13 @@
   }
   .m-key { flex: 1; font-size: 11px; color: #94a3b8; font-family: 'Consolas', monospace; }
   .m-actions { display: flex; gap: 8px; }
+
+  /* ─── 向量检索(embedding)模型 ─── */
+  .m-embed {
+    border: 1px dashed #bfdbfe; border-radius: 4px; padding: 10px;
+    display: flex; flex-direction: column; gap: 8px; background: #f0f7ff;
+  }
+  .m-embed-title { font-size: 12px; font-weight: 700; color: #1e3a8a; }
 
   .file-icon { font-size: 16px; }
 

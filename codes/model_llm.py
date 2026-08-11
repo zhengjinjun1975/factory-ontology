@@ -26,6 +26,23 @@ def _load_config():
     return {"active": "local", "models": {}}
 
 
+def get_embedding_config():
+    """返回向量检索(embedding)模型配置 dict。默认本地 nomic-embed-text + Ollama。"""
+    cfg = _load_config()
+    emb = cfg.get("embedding")
+    if not isinstance(emb, dict) or not emb.get("model"):
+        # 兜底默认本地向量模型
+        return {"name": "本地向量模型", "type": "ollama",
+                "base_url": "http://127.0.0.1:11434", "model": "nomic-embed-text", "api_key": ""}
+    return {
+        "name": emb.get("name", "本地向量模型"),
+        "type": emb.get("type", "ollama"),
+        "base_url": emb.get("base_url", "http://127.0.0.1:11434"),
+        "model": emb.get("model", "nomic-embed-text"),
+        "api_key": emb.get("api_key", ""),
+    }
+
+
 def get_model_config(model_key=None):
     """返回当前生效的模型配置 dict。model_key 可选 'local'/'cloud'，默认读 active。"""
     cfg = _load_config()

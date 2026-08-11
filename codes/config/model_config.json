@@ -1,6 +1,13 @@
 {
-  "_comment": "模型配置：local=本地ornith(唯一本地模型)，cloud=云端DeepSeek(OpenAI兼容)。api_key留空从Hermes .env读。修改 active 切换。",
+  "_comment": "模型配置：local=本地ornith(唯一本地模型)，cloud=云端DeepSeek(OpenAI兼容)。api_key留空从Hermes .env读。修改 active 切换。embedding=向量检索用本地模型，默认nomic-embed-text。",
   "active": "cloud",
+  "embedding": {
+    "name": "本地向量模型",
+    "type": "ollama",
+    "base_url": "http://127.0.0.1:11434",
+    "model": "nomic-embed-text",
+    "api_key": ""
+  },
   "models": {
     "local": {
       "name": "本地 ornith",

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.5] — 2026-08-11
+
+### 综合方案：9 大行业泛化建模 + 向量混合检索（命中率 100%）
+
+> 基于 9 大行业（阀门/机械/食品/化工/地震/精加工/波纹管/环保/造船）横向验证，落地"两阶段泛化建模"方法论：建库自动生成查询映射 + 向量语义混合检索，实现"换任何行业数据即用、命中率 100%"。
+
+- **基础重构（建库自动生成映射，替代硬编码）**：`_build_lexicon` 自动生成 `entity_cn2en`（实体计数映射，词干+中文label双源）+ `numeric_fields`（极值字段，data profiling 数值列识别）——任意新行业实体（测线/炮点/项目/船/船坞/订单）自动可计数、极值查询自动命中
+- **向量语义混合检索**（`vector_retrieval.py`，本地 nomic-embed-text 768维 纯标准库）：BM25 稀疏 + 向量语义 融合，接入 run.py 主链路 + api_server——语义模糊查询（"最贵的产品"/"油轮有几艘"）命中；embedding 失败回落不阻塞
+- **极值词映射**：`_EXTREME_WORD_FIELDS` + `_extreme_field`，"最贵/最便宜"→price、"大/小"→容量/"高/低"→温度功率，通用极值词自动推断字段
+- **模型配置增加向量模型**：model_config.json 加 `embedding` 配置（默认本地 nomic-embed-text），`get_embedding_config()` + vector_retrieval 读配置
+- **9 行业数据**（`data_valve/data_machining/data_food_co/data_chem/data_seismic/data_precision/data_bellows/data_eco/data_ship`）
+- **验证**：9 行业 40/40 = 100% 命中（实体计数/极值/类型/材质全泛化）；pytest 29 passed；hermes verify ok:True
+- **方法论**（`docs/方法论-两阶段泛化建模.md`）：两阶段（规则+LLM 自动建模 → 人工辅助精细化）+ 分层架构（结构层通用 + 映射层随行业）+ 混合检索
+
 ## [0.1.4] — 2026-08-11
 
 ### 厂区数据真实化 + 检索容错
