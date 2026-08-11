@@ -93,7 +93,8 @@ def build_data(triples, dict_data):
 
 def _field(rec, canonical, aliases):
     """按字段别名取标准字段值。canonical 如 status/deviceType/deviceName/location。
-    别名找不到时，兜底匹配 csv_to_owl 驼峰化后的字段名(pump_status→pumpStatus)。"""
+    别名找不到时，兜底匹配 csv_to_owl 驼峰化后的字段名(pump_status→pumpStatus)。
+    再兜底做大小写不敏感的蛇形/驼峰归一化匹配(expiry_days↔expiryDays)。"""
     for alias in aliases.get(canonical, [canonical]):
         if alias in rec:
             return rec[alias]
@@ -103,7 +104,38 @@ def _field(rec, canonical, aliases):
         camel = parts[0] + "".join(p.capitalize() for p in parts[1:])
         if camel in rec:
             return rec[camel]
+    # 大小写不敏感归一化兜底: 字段名去下划线+小写后匹配(expiry_days↔expiryDays)
+    canon_norm = canonical.replace("_", "").lower()
+    rn = {k.replace("_", "").lower(): v for k, v in rec.items()}
+    if canon_norm in rn:
+        return rn[canon_norm]
     return rec.get(canonical, "")
+
+
+# 常见数值/极值字段的中文别名 -> 规范英文字段名（跨行业泛化，非硬编码具体行业）。
+# 词典 attr_cn2en 缺失时兜底，覆盖高频中文口语：保质期/质保/寿命等。
+_ATTR_CN_ALIASES = {
+    "保质期": "expiry_days", "保质": "expiry_days", "保质天数": "expiry_days",
+    "shelf": "expiry_days", "shelflife": "expiry_days",
+    "质保": "warranty", "质保期": "warranty",
+    "价格": "price", "售价": "price", "单价": "price",
+    "功率": "power", "库存": "stock", "数量": "quantity",
+    "温度": "temperature", "振动": "vibration", "压力": "pressure",
+}
+
+
+def _find_attr(dict_data, q):
+    """从词典找问题里出现的属性中文词 -> 字段英文。按长度降序避免短词短路。
+    词典未命中时兜底查 _ATTR_CN_ALIASES 通用中文别名(保质期→expiry_days)。"""
+    attr_cn2en = dict_data.get("attr_cn2en", {})
+    for cn, en in sorted(attr_cn2en.items(), key=lambda x: len(x[0]), reverse=True):
+        if cn in q:
+            return en, cn
+    # 通用中文别名兜底：词典缺"保质期"等口语时，映射到规范英文，供极值/过滤模板用
+    for cn in sorted(_ATTR_CN_ALIASES, key=len, reverse=True):
+        if len(cn) >= 2 and cn in q:
+            return _ATTR_CN_ALIASES[cn], cn
+    return None, None
 
 
 def _num(v):
@@ -119,19 +151,11 @@ def _display_name(rec, aliases, default=""):
     if n:
         return n
     # 兜底: 尝试常见主键字段 (含驼峰)
-    for key in ("id", "udi", "UDI", "device_id", "serial_no", "code", "name"):
+    for key in ("id", "udi", "UDI", "device_id", "serial_no", "code", "name",
+                "product_name", "productName", "raw_name", "rawName"):
         if key in rec:
             return rec[key]
     return default
-
-
-def _find_attr(dict_data, q):
-    """从词典找问题里出现的属性中文词 -> 字段英文。按长度降序避免短词短路。"""
-    attr_cn2en = dict_data.get("attr_cn2en", {})
-    for cn, en in sorted(attr_cn2en.items(), key=lambda x: len(x[0]), reverse=True):
-        if cn in q:
-            return en, cn
-    return None, None
 
 
 # 内置中文状态词 → 英文值兜底（当词典缺失中文映射时，覆盖高频运维词汇）

@@ -330,6 +330,11 @@ def _pick_temperature(question):
 # 极简：解析一次 nt，提取 owl:Class 的中文 label(实体类型) + 各类型 Datatype/ObjectProperty
 # 的中文 label(属性名) 归组；失败回落用 lexicon 的 attr_cn2en/type_cn2en；再失败返回空串(不阻塞)。
 
+# 属性值同义词通用提示：本体里材质/类型等属性值多为代号(CF8/304/WCB/A105)，
+# 中文俗称(不锈钢/碳钢)不在图中。提示 LLM 把"不锈钢"关联到 bodyMaterial=CF8(304)。
+_SCHEMA_HINT = ("提示：属性值可能有中文别名或材质简称，请结合常识理解"
+                "（如 不锈钢=CF8/304/316、碳钢=WCB/A105）。\n")
+
 
 def _schema_context(nt_file, lexicon=None):
     """从本体(.nt)提取 schema 上下文：实体类型(中文名)+各类型属性(中文名)，供 LLM 理解问题。
@@ -367,7 +372,8 @@ def _schema_context(nt_file, lexicon=None):
                 cls_attrs[cname].append(aname)
         if cls_attrs:
             parts = [f"{c}({', '.join(a)})" for c, a in cls_attrs.items()]
-            return "知识图谱包含以下实体/属性: " + ", ".join(parts) + " 等，请据此理解问题回答。"
+            return (_SCHEMA_HINT + "知识图谱包含以下实体/属性: "
+                    + ", ".join(parts) + " 等，请据此理解问题回答。")
     except Exception:
         pass
     # 回落：lexicon 词典（attr_cn2en 属性中文名 + type_cn2en 实体类型中文名）
@@ -381,7 +387,8 @@ def _schema_context(nt_file, lexicon=None):
             if attrs:
                 seg.append("属性: " + ", ".join(attrs))
             if seg:
-                return "知识图谱包含以下实体/属性: " + "; ".join(seg) + " 等，请据此理解问题回答。"
+                return (_SCHEMA_HINT + "知识图谱包含以下实体/属性: "
+                        + "; ".join(seg) + " 等，请据此理解问题回答。")
         except Exception:
             pass
     return ""
