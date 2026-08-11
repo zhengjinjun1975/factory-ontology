@@ -107,6 +107,14 @@ def extract(nt_file):
     for s_, o_ in inst_type.items():
         inst_cls[tail(s_)] = tail(o_)
 
+    # 中文 label 查找：cls_labels 的 key 是完整 URI(可能带#或/), 转成 tail 类名匹配
+    def _lbl(cn):
+        """从 cls_labels 按类名 tail 匹配中文 label, 无则返回原类名。"""
+        for full_uri, l in cls_labels.items():
+            if tail(full_uri) == cn:
+                return l
+        return cn
+
     # 实例节点 + 类节点（按类分组，每类实例上限防止超大图）
     MAX_INST = 60
     class_nodes = {}      # cn -> {id, name, entity, domain}
@@ -115,7 +123,7 @@ def extract(nt_file):
     for s_, o_ in sorted(inst_type.items()):
         cn = tail(o_)
         if cn not in class_nodes:
-            class_nodes[cn] = {"id": "cls_" + cn, "name": cn, "entity": cn, "domain": domain_of(cn)}
+            class_nodes[cn] = {"id": "cls_" + cn, "name": _lbl(cn), "entity": cn, "domain": domain_of(cn)}
         if inst_count_by_cls[cn] >= MAX_INST:
             continue
         inst_count_by_cls[cn] += 1
