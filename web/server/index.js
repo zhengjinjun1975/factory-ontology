@@ -4,7 +4,7 @@ import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, analyzeOntology, getModel, setModel, listExamples, readExample } from './ontology.js';
+import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, analyzeOntology, getModel, setModel, listExamples, readExample, setupOntologyMulti, dbSetup } from './ontology.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
@@ -49,6 +49,42 @@ const server = createServer(async (req, res) => {
         return;
       }
       const result = await setupOntology(csvName, csvContent);
+      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 多文件统一建模 ──
+  if (req.method === 'POST' && url === '/api/ontology/setup-multi') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const { files } = body;
+      if (!Array.isArray(files) || files.length === 0) {
+        res.writeHead(400, { 'Content-Type': 'application/json;charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: 'files 必填（[{name, content}] 数组）' }));
+        return;
+      }
+      const result = await setupOntologyMulti(files);
+      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 数据库接入建模（本地局域网场景）──
+  if (req.method === 'POST' && url === '/api/ontology/db-setup') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const { db_type, host, port, user, password, database, tables } = body;
+      const cfg = { db_type, host, port, user, password, database, tables };
+      const result = await dbSetup(cfg);
       res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8' });
       res.end(JSON.stringify(result));
     } catch (err) {

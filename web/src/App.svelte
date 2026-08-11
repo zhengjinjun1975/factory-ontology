@@ -1,17 +1,21 @@
 <script>
   // 工厂智能体 · 本体问答 — 独立 Web 应用（工业软件浅色风格）
   import { onMount } from 'svelte';
-  import { setupOntology, askOntology, analyzeOntology, getModel, setModel, fetchVersion, fetchExamples, fetchExample } from './lib/api.js';
+  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, getModel, setModel, fetchVersion } from './lib/api.js';
   import DashboardPanel from './components/DashboardPanel.svelte';
   import ModelGraph from './components/ModelGraph.svelte';
   import AnalysisResult from './components/AnalysisResult.svelte';
 
   // ─── 状态 ───
   let activeTab = $state('model');   // model | query | dashboard
-  let fileName = $state('');
-  let fileContent = $state('');
+  let selectedFiles = $state([]);    // [{name, size, content}] 已选文件
   let modeling = $state(false);
   let modelResult = $state(null);   // {table, attrs}
+  // 数据库接入
+  let dbOpen = $state(false);
+  let dbBusy = $state(false);
+  let dbResult = $state(null);      // {ok, table?, output?, error?}
+  let dbForm = $state({ db_type: 'mysql', host: '127.0.0.1', port: '3306', user: '', password: '', database: '', tables: '' });
   let question = $state('');
   let asking = $state(false);
   let answer = $state('');
@@ -22,8 +26,6 @@
   let modelList = $state([]);        // 可用模型
   let activeModel = $state('');      // 当前生效模型 key
   let appVersion = $state('');       // 代码版本(读后端)
-  let examples = $state([]);         // 示例文件列表 [{name, path, size}]
-  let examplePath = $state('');      // 当前选中的示例路径
   let status = $state('idle');       // idle | modeling | ready | asking
   let statusMsg = $state('等待数据导入');
   let statusType = $state('info');   // info | ok | err
@@ -58,32 +60,7 @@
       const v = await fetchVersion();
       if (v.ok && v.version) appVersion = v.version;
     } catch (e) { /* 忽略 */ }
-    // 加载示例数据，默认选中第一个并自动建模
-    try {
-      const ex = await fetchExamples();
-      if (ex.ok && Array.isArray(ex.examples) && ex.examples.length) {
-        examples = ex.examples;
-        applyExample(ex.examples[0].path);
-      }
-    } catch (e) { /* 忽略 */ }
   });
-
-  // 加载示例文件内容并建模（复用现有 fileName/fileContent/doSetup 流程）
-  async function applyExample(path) {
-    if (!path || modeling) return;
-    try {
-      const res = await fetchExample(path);
-      if (!res.ok) {
-        setStatus('err', res.error || '示例加载失败'); return;
-      }
-      fileName = res.name || (examples.find(x => x.path === path)?.name) || path;
-      fileContent = res.content;
-      examplePath = path;
-      await doSetup();
-    } catch (err) {
-      setStatus('err', '网络错误，请确认服务已启动');
-    }
-  }
 
   async function switchModel(e) {
     const key = e.target.value;
@@ -100,36 +77,90 @@
     }
   }
 
-  // ─── 文件选择 ───
-  function onFileChange(e) {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    if (!/\.(csv|json)$/i.test(file.name)) {
-      setStatus('err', '仅支持 .csv / .json 文本文件'); return;
-    }
-    fileName = file.name;
-    const reader = new FileReader();
-    reader.onload = () => { fileContent = reader.result; };
-    reader.readAsText(file, 'utf-8');
+  // ─── 多文件选择 ───
+  function onPickFiles(e) {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    const reads = files.map(f => new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve({ name: f.name, size: f.size, content: reader.result });
+      reader.readAsText(f, 'utf-8');
+    }));
+    Promise.all(reads).then(list => {
+      selectedFiles = selectedFiles.concat(list);
+      setStatus('info', `已选择 ${selectedFiles.length} 个文件，请确认`);
+    });
+    e.target.value = ''; // 允许重复选择同一文件
   }
 
-  // ─── 上传建模 ───
-  async function doSetup() {
-    if (!fileName || !fileContent || modeling) return;
-    modeling = true; status = 'modeling';
-    setStatus('info', `正在建模 ${fileName} …`);
+  function removeFile(i) {
+    selectedFiles = selectedFiles.filter((_, idx) => idx !== i);
+    if (selectedFiles.length === 0) setStatus('info', '等待数据导入');
+  }
+
+  function fmtSize(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1024 / 1024).toFixed(1) + ' MB';
+  }
+
+  // ─── 多文件上传建模 ───
+  async function doSetupMulti() {
+    if (!selectedFiles.length || modeling) return;
+    modeling = true;
+    setStatus('info', `正在为 ${selectedFiles.length} 个文件建模…`);
     try {
-      const res = await setupOntology(fileName, fileContent);
+      const payload = selectedFiles.map(f => ({ name: f.name, content: f.content }));
+      const res = await setupOntologyMulti(payload);
       if (!res.ok) {
-        setStatus('err', res.error || '建模失败'); status = 'idle';
+        setStatus('err', res.error || '建模失败');
       } else {
         modelResult = { table: res.table, attrs: res.attrs || [], ts: Date.now() };
         status = 'ready';
-        setStatus('ok', `建模完成：${res.table}，共 ${(res.attrs||[]).length} 个字段`);
+        setStatus('ok', `建模完成：${res.table}，共 ${(res.attrs || []).length} 张表`);
       }
     } catch (err) {
-      setStatus('err', '网络错误，请确认服务已启动'); status = 'idle';
+      setStatus('err', '网络错误，请确认服务已启动');
     } finally { modeling = false; }
+  }
+
+  // ─── 数据库接入建模（本地厂区局域网）───
+  function onDbTypeChange() {
+    dbForm.port = dbForm.db_type === 'postgres' ? '5432' : '3306';
+  }
+
+  async function doDbSetup() {
+    if (dbBusy) return;
+    const f = dbForm;
+    if (!f.host.trim() || !f.user.trim() || !f.database.trim() || !f.tables.trim()) {
+      setStatus('err', '请填写主机、用户、库名和表名'); return;
+    }
+    dbBusy = true;
+    setStatus('info', '正在连接数据库并建模…');
+    try {
+      const cfg = {
+        db_type: f.db_type,
+        host: f.host.trim(),
+        port: String(f.port || ''),
+        user: f.user.trim(),
+        password: f.password,
+        database: f.database.trim(),
+        tables: f.tables.split(/[,，]/).map(s => s.trim()).filter(Boolean),
+      };
+      const res = await dbSetup(cfg);
+      if (!res.ok) {
+        setStatus('err', res.error || '数据库建模失败');
+        dbResult = { ok: false, error: res.error || '数据库建模失败' };
+      } else {
+        dbResult = { ok: true, table: res.table, output: res.output || '' };
+        modelResult = { table: res.table, attrs: [], ts: Date.now() };
+        status = 'ready';
+        setStatus('ok', `数据库建模完成：${res.table}`);
+      }
+    } catch (err) {
+      setStatus('err', '网络错误，请确认服务已启动');
+      dbResult = { ok: false, error: '网络错误，请确认服务已启动' };
+    } finally { dbBusy = false; }
   }
 
   // ─── 提问（普通问答 + 智能分析路由）───
@@ -301,56 +332,115 @@
     <section class="pane pane-left">
       <div class="pane-title">数据建模</div>
 
+      <!-- ─── 统一多文件入口 ─── -->
       <div class="form-group">
-        <label class="form-label" for="example-select">示例数据（一键体验）</label>
-        <select
-          id="example-select"
-          class="example-select"
-          value={examplePath}
-          onchange={(e) => applyExample(e.target.value)}
-          disabled={examples.length === 0}
-        >
-          <option value="">选择示例文件…</option>
-          {#each examples as ex}
-            <option value={ex.path}>{ex.name}</option>
-          {/each}
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">数据文件（CSV/JSON）</label>
+        <span class="form-label">数据文件（可多选 CSV / JSON）</span>
         <label class="file-input">
-          <input type="file" accept=".csv,.json" onchange={onFileChange} />
-          <span class="file-icon">📄</span>
-          <span class="file-name">{fileName || '选择 CSV/JSON 文件…'}</span>
+          <input type="file" multiple accept=".csv,.json" onchange={onPickFiles} />
+          <span class="file-icon">📁</span>
+          <span class="file-name">{selectedFiles.length ? `已选择 ${selectedFiles.length} 个文件` : '点击浏览，选择多个文件…'}</span>
         </label>
       </div>
 
-      <div class="form-group">
-        <button class="btn-action" onclick={doSetup} disabled={modeling || !fileName || !fileContent}>
+      {#if selectedFiles.length > 0}
+        <div class="file-list">
+          {#each selectedFiles as f, i (f.name + '-' + i)}
+            <div class="file-item">
+              <span class="file-item-name" title={f.name}>📄 {f.name}</span>
+              <span class="file-item-size">{fmtSize(f.size)}</span>
+              <button class="file-remove" onclick={() => removeFile(i)} aria-label="移除">✕</button>
+            </div>
+          {/each}
+        </div>
+        <button class="btn-action" onclick={doSetupMulti} disabled={modeling}>
           <span class="btn-icon">{modeling ? '⏳' : '⚙'}</span>
-          {modeling ? '建模进行中…' : '上传并建模'}
+          {modeling ? '建模进行中…' : `确认并建模（${selectedFiles.length} 个文件）`}
         </button>
-      </div>
+      {/if}
 
       {#if modelResult}
         <div class="model-panel">
           <div class="model-head">
             <span class="model-table">数据表：{modelResult.table}</span>
-            <span class="model-count">{modelResult.attrs.length} 字段</span>
+            <span class="model-count">{modelResult.attrs.length} 张表</span>
           </div>
-          <table class="data-table">
-            <thead>
-              <tr><th>字段</th><th>中文名</th></tr>
-            </thead>
-            <tbody>
-              {#each modelResult.attrs as a}
-                <tr><td>{a.field}</td><td>{a.cn}</td></tr>
-              {/each}
-            </tbody>
-          </table>
+          <div class="attr-chips">
+            {#each modelResult.attrs as a}
+              <span class="attr-chip">{a}</span>
+            {/each}
+          </div>
         </div>
       {/if}
+
+      <!-- ─── 数据库接入折叠区（本地厂区局域网）─── -->
+      <div class="db-collapse">
+        <button class="db-toggle" onclick={() => (dbOpen = !dbOpen)}>
+          <span class="file-icon">🗄️</span> 数据库接入
+          <span class="chevron">{dbOpen ? '▾' : '▸'}</span>
+        </button>
+        {#if dbOpen}
+          <div class="db-body">
+            <div class="db-hint">本地厂区局域网：连接 MES / ERP / 台账数据库，数据本地处理不出厂。</div>
+
+            <div class="form-group">
+              <label class="form-label" for="db-type">数据库类型</label>
+              <select id="db-type" class="db-input" bind:value={dbForm.db_type} onchange={onDbTypeChange}>
+                <option value="mysql">MySQL</option>
+                <option value="postgres">PostgreSQL</option>
+              </select>
+            </div>
+
+            <div class="db-row">
+              <div class="form-group">
+                <label class="form-label" for="db-host">主机</label>
+                <input id="db-host" class="db-input" placeholder="127.0.0.1" bind:value={dbForm.host} />
+              </div>
+              <div class="form-group db-port">
+                <label class="form-label" for="db-port">端口</label>
+                <input id="db-port" class="db-input" placeholder="3306" bind:value={dbForm.port} />
+              </div>
+            </div>
+
+            <div class="db-row">
+              <div class="form-group">
+                <label class="form-label" for="db-user">用户</label>
+                <input id="db-user" class="db-input" placeholder="root" bind:value={dbForm.user} />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="db-pass">密码</label>
+                <input id="db-pass" class="db-input" type="password" placeholder="••••••" bind:value={dbForm.password} />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="db-database">库名</label>
+              <input id="db-database" class="db-input" placeholder="factory" bind:value={dbForm.database} />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="db-tables">表名（多个用逗号分隔）</label>
+              <input id="db-tables" class="db-input" placeholder="equipment, devices" bind:value={dbForm.tables} />
+            </div>
+
+            <button class="btn-action" onclick={doDbSetup} disabled={dbBusy}>
+              <span class="btn-icon">{dbBusy ? '⏳' : '🔗'}</span>
+              {dbBusy ? '连接并建模中…' : '连接并建模'}
+            </button>
+
+            {#if dbResult}
+              <div class="db-result" class:db-err={!dbResult.ok}>
+                {#if dbResult.ok}
+                  <div class="model-head">
+                    <span class="model-table">数据表：{dbResult.table}</span>
+                    <span class="model-count">✓ 建模完成</span>
+                  </div>
+                {:else}
+                  <div class="db-err-text">✗ {dbResult.error}</div>
+                {/if}
+              </div>
+            {/if}
+          </div>
+        {/if}
+      </div>
     </section>
 
     <!-- ─── 右栏：模型结构图 ─── -->
@@ -554,13 +644,61 @@
   .form-group { display: flex; flex-direction: column; gap: 6px; }
   .form-label { font-size: 12px; color: #64748b; font-weight: 600; }
 
-  .example-select {
-    width: 100%; background: #fff; border: 1px solid #cbd5e1;
-    border-radius: 4px; padding: 9px 12px; font-size: 13px; color: #1e293b;
-    cursor: pointer; outline: none; transition: border-color 0.15s;
+  /* ─── 多文件列表 ─── */
+  .file-list {
+    display: flex; flex-direction: column; gap: 6px;
+    border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px;
+    background: #f8fafc; max-height: 180px; overflow-y: auto;
   }
-  .example-select:focus { border-color: #3b82f6; }
-  .example-select:disabled { background: #f8fafc; cursor: not-allowed; }
+  .file-item {
+    display: flex; align-items: center; gap: 8px;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 4px;
+    padding: 6px 10px; font-size: 12px;
+  }
+  .file-item-name {
+    flex: 1; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .file-item-size { color: #94a3b8; font-size: 11px; flex-shrink: 0; }
+  .file-remove {
+    flex-shrink: 0; width: 18px; height: 18px; border: none; border-radius: 3px;
+    background: #fef2f2; color: #dc2626; cursor: pointer; font-size: 11px; line-height: 1;
+    transition: background 0.15s;
+  }
+  .file-remove:hover { background: #fee2e2; }
+
+  .attr-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 12px; }
+  .attr-chip {
+    background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe;
+    border-radius: 3px; padding: 3px 8px; font-size: 11px;
+    font-family: 'Consolas', monospace;
+  }
+
+  /* ─── 数据库接入折叠区 ─── */
+  .db-collapse {
+    border: 1px solid #e2e8f0; border-radius: 4px; overflow: hidden;
+  }
+  .db-toggle {
+    width: 100%; display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px; background: #f8fafc; border: none;
+    font-size: 12px; font-weight: 700; color: #1e293b; cursor: pointer;
+    text-align: left; transition: background 0.15s;
+  }
+  .db-toggle:hover { background: #f1f5f9; color: #2563eb; }
+  .db-body { padding: 12px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #e2e8f0; }
+  .db-hint { font-size: 11px; color: #64748b; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px; padding: 6px 10px; }
+  .db-row { display: flex; gap: 10px; }
+  .db-row .form-group { flex: 1; }
+  .db-port { flex: 0 0 90px; }
+  .db-input {
+    width: 100%; background: #fff; border: 1px solid #cbd5e1;
+    border-radius: 4px; padding: 7px 10px; font-size: 12px; color: #1e293b;
+    outline: none; transition: border-color 0.15s;
+  }
+  .db-input:focus { border-color: #3b82f6; }
+  .db-result { border: 1px solid #e2e8f0; border-radius: 4px; }
+  .db-result .model-head { border-bottom: none; }
+  .db-result.db-err { border-color: #fecaca; background: #fef2f2; }
+  .db-err-text { padding: 8px 12px; font-size: 12px; color: #b91c1c; line-height: 1.5; }
 
   .file-input {
     display: flex; align-items: center; gap: 10px;
@@ -593,14 +731,6 @@
   }
   .model-table { font-size: 12px; font-weight: 700; color: #1e293b; }
   .model-count { font-size: 11px; color: #64748b; }
-  .data-table { width: 100%; border-collapse: collapse; }
-  .data-table th, .data-table td {
-    padding: 6px 12px; font-size: 12px; text-align: left;
-    border-bottom: 1px solid #f1f5f9;
-  }
-  .data-table th { background: #f8fafc; color: #64748b; font-weight: 600; }
-  .data-table td { color: #334155; }
-  .data-table td:nth-child(1) { font-family: 'Consolas', monospace; color: #2563eb; }
 
   /* ─── 右栏 ─── */
   .pane-right { padding: 14px; gap: 12px; }

@@ -1,7 +1,7 @@
 // ontology.js — 桥接 Python 本体问答套件
 // 通过 child_process 调用仓库 codes/ 下的 Python 脚本
 import { execFile } from 'child_process';
-import { writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync, statSync } from 'fs';
+import { writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync, statSync, rmSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -26,6 +26,19 @@ function saveWebState(state) {
 function run(cmd, args, cwd) {
   return new Promise((resolve) => {
     execFile(cmd, args, { cwd, timeout: 180000, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
+      if (err) {
+        resolve({ ok: false, error: (stderr || err.message || '').trim().split('\n').pop() });
+      } else {
+        resolve({ ok: true, output: stdout });
+      }
+    });
+  });
+}
+
+// 带额外环境变量的运行（DB 密码经环境变量传 Python，不入库/不落盘）
+function runWithEnv(cmd, args, cwd, env) {
+  return new Promise((resolve) => {
+    execFile(cmd, args, { cwd, env: { ...process.env, ...env }, timeout: 180000, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) {
         resolve({ ok: false, error: (stderr || err.message || '').trim().split('\n').pop() });
       } else {
@@ -121,6 +134,95 @@ export async function setupOntology(fileName, fileContent) {
     return { ok: true, table, attrs, output: r.output.slice(-2000) };
   } catch (e) {
     return { ok: false, error: String(e.message || e) };
+  }
+}
+
+/** 安全文件名校验：仅保留文件名，去路径分隔符，防目录穿越 */
+function safeFileName(name) {
+  return String(name || '').split(/[\\/]/).pop().replace(/[^\w.\-\u4e00-\u9fff]/g, '_');
+}
+
+/**
+ * 多文件统一建模：把多个文本文件写入 data/ 下临时目录 → 复用 multi_model.py
+ * （schema_ontology: load_all + suggest_schema 自动推断 + to_nt）统一建多表本体
+ * @param {{name:string, content:string}[]} files 文件数组
+ * @returns {Promise<{ok, table?, attrs?, error?}>}
+ */
+export async function setupOntologyMulti(files) {
+  let tmp = null;
+  try {
+    if (!Array.isArray(files) || files.length === 0) {
+      return { ok: false, error: '未选择任何文件' };
+    }
+    // 校验：全部为文本格式(.csv/.json)，并做文件名校验防路径穿越
+    const cleaned = [];
+    for (const f of files) {
+      const safeName = safeFileName(f && f.name);
+      const ext = safeName.slice(safeName.lastIndexOf('.')).toLowerCase();
+      if (!TEXT_EXT.includes(ext)) {
+        return { ok: false, error: `仅支持 ${TEXT_EXT.join('/')} 文本格式；文件 "${f && f.name}" 不支持` };
+      }
+      cleaned.push({ name: safeName, content: String(f.content || '') });
+    }
+    // 唯一临时目录（时间戳），写入全部文件
+    const dataDir = join(KIT, 'data');
+    if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
+    tmp = join(dataDir, `.multi_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+    mkdirSync(tmp, { recursive: true });
+    for (const f of cleaned) writeFileSync(join(tmp, f.name), f.content, 'utf-8');
+
+    const table = `factory_multi_${Date.now()}`;
+    const r = await run(PY, ['multi_model.py', tmp, table], KIT);
+    if (!r.ok) return { ok: false, error: r.error || '多文件建模失败' };
+    // 解析输出里的表清单，作为 attrs 供前端展示
+    const m = r.output.match(/表:\s*\[([^\]]*)\]/);
+    const attrs = m ? m[1].split(',').map(s => s.trim().replace(/'/g, '').replace(/"/g, '')).filter(Boolean)
+                    : cleaned.map(f => f.name);
+    saveWebState({ table, nt: `output/${table}.nt` });
+    return { ok: true, table, attrs, output: r.output.slice(-2000) };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  } finally {
+    if (tmp && existsSync(tmp)) { try { rmSync(tmp, { recursive: true, force: true }); } catch { /* 忽略 */ } }
+  }
+}
+
+/**
+ * 数据库接入建模：复用 db_loader.load_db 读指定表 → 写 CSV 到 data/ 临时目录 →
+ * 复用 multi_model.build 多表建模（本地局域网场景，密码只在内存经环境变量传入，不入库）
+ * @param {{db_type,host,port,user,password,database,tables: string[]}} cfg
+ * @returns {Promise<{ok, table?, error?}>}
+ */
+export async function dbSetup(cfg) {
+  let tmp = null;
+  try {
+    cfg = cfg || {};
+    const dbType = String(cfg.db_type || '').toLowerCase();
+    if (!['mysql', 'postgres', 'postgresql', 'pg'].includes(dbType)) {
+      return { ok: false, error: 'db_type 必须为 mysql 或 postgres' };
+    }
+    const tables = (Array.isArray(cfg.tables) ? cfg.tables : String(cfg.tables || '').split(/[,，]/).map(s => s.trim()).filter(Boolean));
+    if (tables.length === 0) return { ok: false, error: 'tables 必填（表名，可多个，逗号分隔）' };
+    // 表名白名单校验（防 SQL 注入，与 db_loader 一致）
+    for (const t of tables) {
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(t)) return { ok: false, error: `非法表名: ${t}` };
+    }
+    const dataDir = join(KIT, 'data');
+    if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
+    tmp = join(dataDir, `.db_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+    mkdirSync(tmp, { recursive: true });
+
+    const table = `factory_db_${Date.now()}`;
+    // 密码经环境变量传 Python（内存用），不写入文件/不入库
+    const env = { DB_CFG: JSON.stringify({ ...cfg, db_type: dbType, tables }) };
+    const r = await runWithEnv(PY, ['db_setup.py', tmp, table], KIT, env);
+    if (!r.ok) return { ok: false, error: r.error || '数据库建模失败' };
+    saveWebState({ table, nt: `output/${table}.nt` });
+    return { ok: true, table, output: r.output.slice(-2000) };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  } finally {
+    if (tmp && existsSync(tmp)) { try { rmSync(tmp, { recursive: true, force: true }); } catch { /* 忽略 */ } }
   }
 }
 

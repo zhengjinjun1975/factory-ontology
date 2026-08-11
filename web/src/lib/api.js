@@ -8,6 +8,24 @@ export async function setupOntology(csvName, csvContent) {
   return resp.json();
 }
 
+export async function setupOntologyMulti(files) {
+  const resp = await fetch('/api/ontology/setup-multi', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ files }),
+  });
+  return resp.json();
+}
+
+export async function dbSetup(cfg) {
+  const resp = await fetch('/api/ontology/db-setup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cfg),
+  });
+  return resp.json();
+}
+
 export async function askOntology(question) {
   const resp = await fetch('/api/ontology/ask', {
     method: 'POST',
