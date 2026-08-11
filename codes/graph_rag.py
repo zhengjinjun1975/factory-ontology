@@ -71,6 +71,23 @@ def _expand_synonyms(text: str) -> str:
     return text
 
 
+def _cn_segments(text: str) -> list:
+    """提取文本里的连续中文片段(≥2字)，用于 value_index 部分匹配。
+    如 '球阀的信息' → ['球阀']。纯中文连续序列切割，忽略标点/英文/数字。"""
+    segs = []
+    cur = ""
+    for ch in text:
+        if '\u4e00' <= ch <= '\u9fff':
+            cur += ch
+        else:
+            if len(cur) >= 2:
+                segs.append(cur)
+            cur = ""
+    if len(cur) >= 2:
+        segs.append(cur)
+    return segs
+
+
 def build_graph(nt_file):
     """建内存图。
     返回:
@@ -136,12 +153,19 @@ def find_seeds(question, graph, labels, value_index, top=8, lexicon=None, ontolo
             continue
         # 容错匹配：value_index 键 == 查询词 或 同义词组任一成员
         matched = any(k in q for k in (key,)) or key in syn_variants
+        # 部分匹配增强：value_index 键的中文片段(≥2字, 如"球阀 q41f-16p"→"球阀")
+        # 若该片段出现在问题里也命中。修复"球阀的信息"→键"球阀 q41f-16p"
+        if not matched:
+            for kseg in _cn_segments(key):
+                if len(kseg) >= 2 and kseg in q:
+                    matched = True
+                    break
         if not matched:
             continue
         if len(key) < 2 and not (len(key) == 1 and '\u4e00' <= key <= '\u9fff'):
             continue
         for e in ents:
-            scored[e] += 1.0
+            scored[e] += (1.0 if any(k in q for k in (key,)) else 0.6)
     # 容错补充：同义词组内任一成员出现在 value_index 键里也命中（子串匹配，
     # 兼容 CF8(304)/CF8M(316) 这类带括号格式）
     for cn, group in _SYNONYM_GROUPS.items():
