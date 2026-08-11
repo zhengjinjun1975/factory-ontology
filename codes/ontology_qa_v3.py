@@ -233,6 +233,21 @@ def answer(q, data, D):
         # 数量: 多少[属性] (有多少台空压机 -> 类型词先; 这里处理属性值)
         pass
 
+    # ---- 过滤计数: 属性=N 的数量 (机器故障标签=1 的数量) ----
+    # 必须排在状态/类型词模板之前: 属性中文名可能含状态词(如"故障"),
+    # 若被状态模板先命中会返回"有 N 故障的", 过滤计数永远不达。
+    m_eq = re.search(r'[=＝]\s*(-?\d+(?:\.\d+)?)\s*的?\s*(数量|多少|共)', q)
+    if attr_en and m_eq:
+        target = m_eq.group(1)
+        tv = float(target)
+        n = sum(1 for d in data.values()
+                if _num(_field(d, attr_en, aliases)) is not None
+                and float(_num(_field(d, attr_en, aliases))) == tv)
+        if n == 0:  # 可能以字符串存储
+            n = sum(1 for d in data.values() if str(_field(d, attr_en, aliases)).strip() == target)
+        cname = cn2cn.get(attr_en, attr_en)
+        return "%s=%s 的数量是 %d" % (cname, target, n)
+
     # ---- 数量: 状态/类型/区域 ----
     st_en, st_cn = _find_enum(D, q, "status")
     if st_en and ("多少" in q or "数量" in q):
@@ -273,7 +288,7 @@ def answer(q, data, D):
             is_max = _is_max(q)
             best = max(items, key=lambda x: x[1]) if is_max else min(items, key=lambda x: x[1])
             cname = cn2cn.get(attr_en, attr_en)
-            return "%s%s的记录: %s (%s=%s)" % ("最" if is_max else "最", cname, _display_name(best[0], aliases, default=""), cname, best[1])
+            return "%s的记录: %s (%s=%s)" % (("最大" if is_max else "最小") + cname, _display_name(best[0], aliases, default=""), cname, best[1])
 
     # ---- 平均 ----
     if attr_en and ("平均" in q or "均值" in q):
@@ -348,19 +363,6 @@ def answer(q, data, D):
     # ---- 总数: 一共有多少条记录 ----
     if ("一共" in q or "总共有" in q or "总共" in q) and ("记录" in q or "多少" in q):
         return "一共有 %d 条记录" % len(data)
-
-    # ---- 过滤计数: 属性=N 的数量 (机器故障标签=1 的数量) ----
-    m_eq = re.search(r'[=＝]\s*(-?\d+(?:\.\d+)?)\s*的?\s*(数量|多少|共)', q)
-    if attr_en and m_eq:
-        target = m_eq.group(1)
-        tv = float(target)
-        n = sum(1 for d in data.values()
-                if _num(_field(d, attr_en, aliases)) is not None
-                and float(_num(_field(d, attr_en, aliases))) == tv)
-        if n == 0:  # 可能以字符串存储
-            n = sum(1 for d in data.values() if str(_field(d, attr_en, aliases)).strip() == target)
-        cname = cn2cn.get(attr_en, attr_en)
-        return "%s=%s 的数量是 %d" % (cname, target, n)
 
     return "暂不支持该问题"
 

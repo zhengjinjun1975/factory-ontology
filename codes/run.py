@@ -133,24 +133,6 @@ def setup(source_path, table=None, use_llm=True):
     for k, v in list(D.get("attr_cn2en", {}).items())[:10]:
         print(f"  {v} = {k}")
 
-    # 本体深度增强：区域层级 + 设备类型父子类（若存在 line.csv）
-    try:
-        line_csv = os.path.join(ROOT, "data", "line.csv")
-        if os.path.exists(line_csv):
-            import subprocess
-            deep_nt = os.path.join(OUT, f"{table}_deep.nt")
-            r = subprocess.run([sys.executable, os.path.join(ROOT, "ontology_depth.py"),
-                                source_path, line_csv, nt, deep_nt],
-                               capture_output=True, text=True, timeout=120)
-            if os.path.exists(deep_nt):
-                nt = deep_nt
-                json.dump({"nt": os.path.relpath(deep_nt, ROOT), "lexicon": os.path.relpath(lex, ROOT),
-                           "table": table}, open(STATE, "w", encoding="utf-8"))
-                print(f"🧬 深度增强已应用: {table}_deep.nt")
-            else:
-                print(f"⚠️ 深度增强失败: {r.stderr[:200]}")
-    except Exception as e:
-        print(f"⚠️ 深度增强跳过: {e}")
     return nt, lex
 
 

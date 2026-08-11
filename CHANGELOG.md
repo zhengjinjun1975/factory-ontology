@@ -10,6 +10,7 @@
 - **schema 更新**（`ontology_schema.json`）：匹配真实 BOM 字段（model_code/pressure_grade/connection/seal_material/body_material/standard_no/temp_range）+ 设备传感器 + 质检试压字段
 - **检索容错**（`graph_rag.py`）：材质/单位/类型同义词扩展——`_expand_synonyms` + `_SYNONYM_GROUPS`，查询"不锈钢"能命中 CF8/CF8M/304/1Cr18Ni9Ti（子串匹配兼容 CF8(304) 带括号格式）；缺失值/异常值检索不崩
 - **验证**：真实化数据建模 1066 行 NT（142 节点/173 边）；检索容错 8/8（"不锈钢"命中 CF8 产品 P004）；pytest 29 passed；hermes verify ok:True
+- **修复（同日）**：过滤计数模板优先级：属性名含"故障"时被状态模板劫持（"机器故障标签=0 的数量"答成"有 339 故障的"），模板前置后 ai4i benchmark 82% → **61/61 = 100%**（四领域全 100% 复现）；极值回答显示修正（"最扭矩的记录" → "扭矩最大的记录"）；移除 run.py 对已删除 ontology_depth.py 的失效调用
 
 ## [0.1.3] — 2026-08-11
 

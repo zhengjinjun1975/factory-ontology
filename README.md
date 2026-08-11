@@ -52,9 +52,10 @@ python run.py setup data/ai4i.csv ai4i
 # 2. 自检全流程
 python run.py test
 
-# 3. 自然语言问答
-python run.py ask "有多少台设备在运行"
-python run.py ask "哪台设备要优先维护"
+# 3. 自然语言问答（以下为 ai4i 实测输出）
+python run.py ask "一共有多少条记录"      # 一共有 10000 条记录
+python run.py ask "机器故障标签=1 的数量"  # 机器故障=1 的数量是 339
+python run.py ask "扭矩的最大值"          # 最大扭矩的记录: 7764 (扭矩=76.6)
 ```
 
 ### 换你自己的数据
@@ -142,20 +143,19 @@ data_loader → schema_ontology（schema 驱动统一建模 + suggest_schema 自
 
 ### 阀门厂（合成示例数据）
 
-`data_valve/` 为虚构数据，但字段特征取自真实行业标准：GB/T 32808 阀门型号编码（Z41H-16C、Q641F-40P）、材料牌号（WCB/CF8/CF8M/304）、API 598 试压矩阵（壳体/密封压力、保压、泄漏率气泡/min）、设备传感器（振动/温度/电流）。用于演示"换领域即用"和检索容错。
+`data_valve/` 为虚构数据，但字段特征取自真实行业标准：GB/T 32808 阀门型号编码（Z41H-16C、Q641F-40P）、材料牌号（WCB/CF8/CF8M/304）、API 598 试压矩阵（壳体/密封压力、保压、泄漏率气泡/min）、设备传感器（振动/温度/电流）。用于演示"换领域即用"和检索容错。多表 schema 建模实测：8 张表 → 1066 行 N-Triples（142 节点 / 173 边）。
 
 ```bash
 cd codes
 python valve_demo.py
 ```
 
-实测输出（v0.1.4）：
+实测输出（v0.1.4，规则部分确定性可复现）：
 
 ```
 规则问答:  一共有多少个阀门 → 一共有 8 条记录
-          价格最贵的阀门 → 对夹蝶阀 D371X-10（价格=2560.0）
+          价格最贵的阀门 → 最大价格的记录: 对夹蝶阀 D371X-10（价格=2560.0）
 逻辑桥:    有多少种球阀 → 符合条件的有 2 条
-          价格超过2500的阀门 → 截止阀 J41H-25C、气动球阀 Q641F-40P ...
 反向溯源:  不合格原料 R007螺栓 → 受影响批次 → 产品（召回场景成立）
 benchmark: 9/9 = 100%
 ```
@@ -207,7 +207,7 @@ npm start            # http://localhost:3001
 | 图书库存 | library_inventory（合成） | 10 行 | 13 | **13/13 = 100%** |
 | 能源电站设备 | energy_station（合成） | 10 行 | 13 | **13/13 = 100%** |
 | 食品企业 | food_products（合成） | 8 产品 | 9 | **9/9 = 100%** |
-| 阀门厂 | valve_products（合成） | 8 表 → 1066 行 NT | 9 | **9/9 = 100%** |
+| 阀门厂 | valve_products（合成） | 8 产品 | 9 | **9/9 = 100%** |
 
 对照：裸 LLM（不加本体、直接把数据喂给模型）同批问题命中 7/9 = 78%，差的恰好是计算类（平均值、总和），详见 [方法论文-本体vs裸LLM](docs/方法论文-本体vs裸LLM.md)。
 
@@ -219,8 +219,13 @@ npm start            # http://localhost:3001
 cd codes
 python csv_to_owl.py data/ai4i.csv output/ai4i.nt
 python benchmark.py data/ai4i.csv
+python csv_to_owl.py data/library_inventory.csv output/library_inventory.nt
 python benchmark.py data/library_inventory.csv
+python csv_to_owl.py data/energy_station.csv output/energy_station.nt
 python benchmark.py data/energy_station.csv
+python csv_to_owl.py data/food_products.csv output/food_products.nt
+python benchmark.py data/food_products.csv
+python valve_demo.py
 ```
 
 ## 模型配置
