@@ -73,6 +73,20 @@ export async function setModel(key) {
   return resp.json();
 }
 
+export async function getModels() {
+  const resp = await fetch('/api/ontology/models');
+  return resp.json();
+}
+
+export async function saveModels(cfg) {
+  const resp = await fetch('/api/ontology/models', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cfg),
+  });
+  return resp.json();
+}
+
 export async function fetchVersion() {
   const resp = await fetch('/api/ontology/version');
   return resp.json();

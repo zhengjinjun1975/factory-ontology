@@ -1,7 +1,8 @@
 // ontology.js — 桥接 Python 本体问答套件
 // 通过 child_process 调用仓库 codes/ 下的 Python 脚本
 import { execFile } from 'child_process';
-import { writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync, statSync, rmSync } from 'fs';
+import os from 'os';
+import { writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync, statSync, rmSync, renameSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -365,8 +366,95 @@ export async function setModel(key) {
       return { ok: false, error: `未知模型 key: ${key}（可用: ${Object.keys(cfg.models||{}).join(', ')}）` };
     }
     cfg.active = key;
-    writeFileSync(cfgPath, JSON.stringify(cfg, null, 2), 'utf-8');
+    atomicWriteJson(cfgPath, cfg);
     return { ok: true, active: key };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+/** 原子写 JSON（先写临时文件再替换，防写坏） */
+function atomicWriteJson(path, obj) {
+  const tmp = path + '.tmp';
+  writeFileSync(tmp, JSON.stringify(obj, null, 2), 'utf-8');
+  renameSync(tmp, path);
+}
+
+/** 判断 api_key 是否为脱敏占位（含 *），是则保留原值不覆盖 */
+function isMaskedKey(k) {
+  return String(k || '').includes('*');
+}
+
+/**
+ * 读取完整模型配置（供前端管理界面），api_key 脱敏不回传明文
+ * @returns {Promise<{ok, active?, models?, error?}>}
+ * models: [{key,name,type,base_url,model,has_key,api_key_status,active}]
+ */
+export async function getModels() {
+  try {
+    const cfg = JSON.parse(readFileSync(join(KIT, 'config', 'model_config.json'), 'utf-8'));
+    // 检查 Hermes .env 是否有云端 key（cloud 运行时从 .env 读）
+    let envCloudKey = '';
+    try {
+      const envFile = join(os.homedir(), 'AppData', 'Local', 'hermes', '.env');
+      if (existsSync(envFile)) {
+        const envTxt = readFileSync(envFile, 'utf-8');
+        const m = envTxt.match(/^\s*(?:export\s+)?DEEPSEEK_API_KEY\s*=\s*['"]?([^'"\s]+)/m);
+        if (m && m[1]) envCloudKey = m[1];
+      }
+    } catch (e) { /* 忽略 */ }
+    const models = Object.entries(cfg.models || {}).map(([k, v]) => {
+      let ak = String(v.api_key || '').trim();
+      // cloud 型且未在配置里配 key → 检查 .env（运行时从 .env 读）
+      let fromEnv = false;
+      if (!ak && v.type === 'openai' && envCloudKey) { ak = envCloudKey; fromEnv = true; }
+      const hasKey = !!ak;
+      // 脱敏：长 key 显示前4+***+后2；短 key(如 ollama)仅标"已配置"
+      let status = hasKey ? (ak.length > 6 ? ak.slice(0, 4) + '***' + ak.slice(-2) : '已配置') : '未配置';
+      if (fromEnv && hasKey) status = status + '（.env）';
+      return { key: k, name: v.name, type: v.type, base_url: v.base_url, model: v.model, has_key: hasKey, api_key_status: status, active: cfg.active === k };
+    });
+    return { ok: true, active: cfg.active, models };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+/**
+ * 保存完整模型配置（增删改模型 + 设 active + 更新 api_key），原子写回
+ * @param {{models:{key,name,type,base_url,model,api_key}[], active:string}} cfg
+ * @returns {Promise<{ok, active?, error?}>}
+ */
+export async function saveModels(cfg) {
+  try {
+    const cfgPath = join(KIT, 'config', 'model_config.json');
+    const existing = JSON.parse(readFileSync(cfgPath, 'utf-8'));
+    const oldModels = existing.models || {};
+    const list = Array.isArray(cfg.models) ? cfg.models : [];
+    if (list.length === 0) return { ok: false, error: '至少保留一个模型' };
+
+    const newModels = {};
+    let active = String(cfg.active || '');
+    let seenActive = false;
+    for (const m of list) {
+      let key = String(m.key || '').trim();
+      if (!key) key = 'model_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+      const old = oldModels[key] || {};
+      // api_key：空/未传/脱敏占位 → 保留原值；否则为新值
+      const apiKey = (m.api_key === undefined || m.api_key === '' || isMaskedKey(m.api_key)) ? (old.api_key || '') : String(m.api_key);
+      newModels[key] = {
+        name: String(m.name || key),
+        type: String(m.type || 'ollama'),
+        base_url: String(m.base_url || ''),
+        model: String(m.model || ''),
+        api_key: apiKey,
+      };
+      if (active === key) seenActive = true;
+    }
+    if (!seenActive || !active) active = Object.keys(newModels)[0];
+
+    atomicWriteJson(cfgPath, { ...existing, active, models: newModels });
+    return { ok: true, active };
   } catch (e) {
     return { ok: false, error: String(e.message || e) };
   }

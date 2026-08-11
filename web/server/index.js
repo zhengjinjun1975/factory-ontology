@@ -4,7 +4,7 @@ import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, analyzeOntology, getModel, setModel, listExamples, readExample, setupOntologyMulti, dbSetup } from './ontology.js';
+import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup } from './ontology.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
@@ -150,6 +150,31 @@ const server = createServer(async (req, res) => {
     try {
       const body = JSON.parse((await readBody(req)) || '{}');
       const result = await setModel(body.key);
+      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 模型配置（完整读/写，api_key 脱敏）──
+  if (url === '/api/ontology/models' && req.method === 'GET') {
+    try {
+      const result = await getModels();
+      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+  if (url === '/api/ontology/models' && req.method === 'POST') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const result = await saveModels(body);
       res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8' });
       res.end(JSON.stringify(result));
     } catch (err) {

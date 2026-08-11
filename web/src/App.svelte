@@ -1,7 +1,7 @@
 <script>
   // 工厂智能体 · 本体问答 — 独立 Web 应用（工业软件浅色风格）
   import { onMount } from 'svelte';
-  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, getModel, setModel, fetchVersion, fetchExample } from './lib/api.js';
+  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, setModel, getModels, saveModels, fetchVersion, fetchExample } from './lib/api.js';
   import DashboardPanel from './components/DashboardPanel.svelte';
   import ModelGraph from './components/ModelGraph.svelte';
   import AnalysisResult from './components/AnalysisResult.svelte';
@@ -26,6 +26,10 @@
   let analysis = $state(null);       // {report, stats} 智能分析结果
   let modelList = $state([]);        // 可用模型
   let activeModel = $state('');      // 当前生效模型 key
+  let modelOpen = $state(false);     // 模型管理折叠区
+  let modelEditBusy = $state(false);
+  let editModels = $state([]);       // 可编辑模型配置 [{key,name,type,base_url,model,api_key}]
+  let editActive = $state('');       // 编辑态 active
   let appVersion = $state('');       // 代码版本(读后端)
   let status = $state('idle');       // idle | modeling | ready | asking
   let statusMsg = $state('等待数据导入');
@@ -51,10 +55,11 @@
   // ─── 模型配置加载与切换 ───
   onMount(async () => {
     try {
-      const res = await getModel();
+      const res = await getModels();
       if (res.ok) {
-        modelList = res.models || [];
+        modelList = res.models.map(m => ({ key: m.key, name: m.name }));
         activeModel = res.active || '';
+        loadEditModels(res);
       }
     } catch (e) { /* 忽略 */ }
     try {
@@ -62,6 +67,60 @@
       if (v.ok && v.version) appVersion = v.version;
     } catch (e) { /* 忽略 */ }
   });
+
+  // 从完整配置装载可编辑列表（api_key 用脱敏占位，保存时后端保留原值）
+  function loadEditModels(res) {
+    editActive = res.active || '';
+    editModels = (res.models || []).map(m => ({
+      key: m.key, name: m.name, type: m.type, base_url: m.base_url || '',
+      model: m.model || '', api_key: m.has_key ? (m.api_key_status || '已配置') : '',
+    }));
+  }
+
+  async function refreshModels() {
+    const res = await getModels();
+    if (res.ok) {
+      modelList = res.models.map(m => ({ key: m.key, name: m.name }));
+      activeModel = res.active || '';
+      loadEditModels(res);
+      return true;
+    }
+    return false;
+  }
+
+  function addModel() {
+    const key = 'model_' + Date.now();
+    editModels = [...editModels, { key, name: '新模型', type: 'ollama', base_url: 'http://127.0.0.1:11434', model: '', api_key: '' }];
+  }
+
+  function removeModel(i) {
+    if (editModels.length <= 1) { setStatus('err', '至少保留一个模型'); return; }
+    editModels = editModels.filter((_, idx) => idx !== i);
+  }
+
+  function setEditActive(key) {
+    editActive = key;
+  }
+
+  async function saveModelConfig() {
+    if (modelEditBusy) return;
+    const list = editModels.map(m => ({
+      key: m.key, name: m.name, type: m.type, base_url: m.base_url, model: m.model, api_key: m.api_key,
+    }));
+    if (list.length === 0) { setStatus('err', '至少保留一个模型'); return; }
+    modelEditBusy = true;
+    try {
+      const res = await saveModels({ models: list, active: editActive });
+      if (res.ok) {
+        setStatus('ok', `模型配置已保存，当前：${res.active}`);
+        await refreshModels();
+      } else {
+        setStatus('err', res.error || '保存失败');
+      }
+    } catch (err) {
+      setStatus('err', '网络错误');
+    } finally { modelEditBusy = false; }
+  }
 
   async function switchModel(e) {
     const key = e.target.value;
@@ -485,6 +544,64 @@
           </div>
         {/if}
       </div>
+
+      <!-- ─── 模型管理折叠区（查看/编辑/增删/设 active，api_key 脱敏）─── -->
+      <div class="db-collapse">
+        <button class="db-toggle" onclick={() => (modelOpen = !modelOpen)}>
+          <span class="file-icon">🤖</span> 模型配置管理
+          <span class="chevron">{modelOpen ? '▾' : '▸'}</span>
+        </button>
+        {#if modelOpen}
+          <div class="db-body">
+            <div class="db-hint">模型配置持久化到 model_config.json。api_key 仅在输入新值时更新，留空/不改则保留原值。本地优先：默认 ornith/qwen 可直连 Ollama。</div>
+            {#each editModels as m, i}
+              <div class="m-edit">
+                <div class="m-edit-head">
+                  <label class="m-radio">
+                    <input type="radio" checked={editActive === m.key} onclick={() => setEditActive(m.key)} />
+                    <span class="m-active-tag">{editActive === m.key ? '✓ 生效' : '设为生效'}</span>
+                  </label>
+                  <span class="m-key">key: {m.key}</span>
+                  <button class="file-remove" onclick={() => removeModel(i)} aria-label="删除">✕</button>
+                </div>
+                <div class="db-row">
+                  <div class="form-group">
+                    <label class="form-label">名称</label>
+                    <input class="db-input" placeholder="模型名称" bind:value={m.name} />
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">类型</label>
+                    <select class="db-input" bind:value={m.type}>
+                      <option value="ollama">ollama</option>
+                      <option value="openai">openai</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="db-row">
+                  <div class="form-group">
+                    <label class="form-label">Base URL</label>
+                    <input class="db-input" placeholder="http://127.0.0.1:11434" bind:value={m.base_url} />
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Model</label>
+                    <input class="db-input" placeholder="ornith:latest" bind:value={m.model} />
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">API Key（{m.api_key ? '已配置，输入新值可更新' : '未配置'}{m.api_key ? '：' + m.api_key : ''}）</label>
+                  <input class="db-input" type="password" placeholder="留空 = 保留原值" bind:value={m.api_key} />
+                </div>
+              </div>
+            {/each}
+            <div class="m-actions">
+              <button class="btn-action btn-default" onclick={addModel}>＋ 新增模型</button>
+              <button class="btn-action" onclick={saveModelConfig} disabled={modelEditBusy}>
+                {modelEditBusy ? '保存中…' : '💾 保存配置'}
+              </button>
+            </div>
+          </div>
+        {/if}
+      </div>
     </section>
 
     <!-- ─── 右栏：模型结构图 ─── -->
@@ -753,6 +870,20 @@
   .db-result .model-head { border-bottom: none; }
   .db-result.db-err { border-color: #fecaca; background: #fef2f2; }
   .db-err-text { padding: 8px 12px; font-size: 12px; color: #b91c1c; line-height: 1.5; }
+
+  /* ─── 模型配置管理 ─── */
+  .m-edit {
+    border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px;
+    display: flex; flex-direction: column; gap: 8px; background: #fbfcfe;
+  }
+  .m-edit-head { display: flex; align-items: center; gap: 10px; }
+  .m-radio { display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 12px; }
+  .m-active-tag {
+    font-size: 11px; font-weight: 700; color: #16a34a;
+    background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 3px; padding: 2px 8px;
+  }
+  .m-key { flex: 1; font-size: 11px; color: #94a3b8; font-family: 'Consolas', monospace; }
+  .m-actions { display: flex; gap: 8px; }
 
   .file-input {
     display: flex; align-items: center; gap: 10px;
