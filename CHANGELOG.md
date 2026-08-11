@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.2] — 2026-08-11
+
+### 本体驱动增强（基于 2025-2026 最新技术研究）
+
+> 检索全网企业本体建模/知识图谱最新技术讨论（OntoRAG、OG-RAG、本体约束减幻觉、LLM驱动本体构建），方法论升级为「schema 驱动建模 + 本体驱动混合检索 + 本体约束减幻觉」。
+
+- **本体引导 GraphRAG 种子**（`graph_rag.find_seeds(ontology=...)`）：问题匹配本体关系 label 时，沿关系路径扩展种子，提升多跳/关系查询召回（依据 OG-RAG EMNLP2025 / ORT ACL2025）
+- **本体约束减幻觉**（`graph_rag`/`logical_qa` LLM prompt 注入）：只依据子图事实回答，不编造图中不存在的关系/实体（依据临床 QA 98% vs GPT-4 37%）
+- **schema 自动推断**（`schema_ontology.suggest_schema(data)`）：从多表数据自动推断实体/关系/约束，无手写 schema 也能 schema 驱动建模（schema-free 范式，依据 LLM/规则驱动本体构建）
+- **方法论升级**：`docs/泛化方法论.md` 加入 2026 本体驱动增强表，引用三篇研究笔记
+- **研究笔记**：`knowledge/AI/articles/` 新增《企业本体建模最新技术讨论-2025》《知识图谱最新技术演进-2025》《本体建模输入输出与作用-2025》
+- **验证**：本体增强 9/9（suggest_schema 推断 8 实体 8 关系建 403 行 NT + find_seeds 本体引导 + prompt 本体约束）；pytest 29 passed；valve_demo 溯源命中 + benchmark 13/13
+
 ## [0.1.1] — 2026-08-11
 
 ### 激进重构：schema 驱动统一建模 + 融入 sme 本体重构精髓

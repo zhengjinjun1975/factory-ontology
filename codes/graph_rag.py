@@ -80,9 +80,11 @@ def build_graph(nt_file):
     return graph, labels, value_index, reverse
 
 
-def find_seeds(question, graph, labels, value_index, top=8, lexicon=None):
-    """从问题关键词定位种子实体(子串匹配 + 词典引导)。
-    lexicon 提供 attr_cn2en/type_cn2en, 问题提到属性/类型时加权有该属性/类型的实体。"""
+def find_seeds(question, graph, labels, value_index, top=8, lexicon=None, ontology=None):
+    """从问题关键词定位种子实体(子串匹配 + 词典引导 + 本体关系路径引导)。
+    lexicon 提供 attr_cn2en/type_cn2en, 问题提到属性/类型时加权有该属性/类型的实体。
+    ontology 提供关系列表 [{'id':'locatedIn','label':'位于','from':'Equipment','to':'Location'},...],
+    问题含关系 label/id 时, 沿该关系在图中找到连接的目标实体并入种子(基于2025 OG-RAG 本体引导检索)。"""
     q = question.lower()
     scored = defaultdict(float)
     # 1. 值/标签/ID 子串匹配: value_index 的键若出现在问题里 (单字中文也允许, 如"盐")
@@ -116,6 +118,24 @@ def find_seeds(question, graph, labels, value_index, top=8, lexicon=None):
                         if any(_norm(en) in _norm(str(v)) for v in props.get("deviceType", [])) or \
                            any(_norm(en) in _norm(str(v)) for v in props.get("category", [])):
                             scored[ent] += 0.5
+        except Exception:
+            pass
+    # 4. 本体关系路径引导(OG-RAG): 问题含某关系 label/id 时, 沿该关系把连接的目标实体并入种子
+    if ontology:
+        try:
+            for rel in ontology:
+                rid = str(rel.get("id", "")).lower()
+                rlabel = str(rel.get("label", "")).lower()
+                if not ((rid and rid in q) or (rlabel and len(rlabel) >= 2 and rlabel in q)):
+                    continue
+                for ent, props in graph.items():
+                    for relname, targets in props.items():
+                        rn = relname.lower()
+                        if rn == rid or (rid and rid in rn) or (rlabel and rlabel in rn):
+                            scored[ent] += 1.0
+                            for t in targets:
+                                if _is_entity(t):
+                                    scored[t] += 1.0
         except Exception:
             pass
     ranked = sorted(scored.items(), key=lambda x: -x[1])
@@ -174,6 +194,7 @@ def answer_graph(question, nt_file, depth=1, max_nodes=40, model_key=None, lexic
         "你是数据问答助手。下面是从知识图谱中检索到的相关子图(实体+关系+属性值):\n"
         f"{context}\n\n"
         f"请只依据上图信息回答问题: {question}\n"
+        "只依据提供的子图事实回答，不编造不在图中的关系、实体或属性值。"
         "如果图中信息不足，如实说明。不要编造。"
     )
     ans = llm_generate(prompt, temperature=0.2, max_tokens=300, model_key=model_key)

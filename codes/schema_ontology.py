@@ -159,6 +159,70 @@ def _cap(name: str) -> str:
     return name[0].upper() + name[1:] if name else name
 
 
+# ═══════════ schema 自动推断（schema-free 范式，无手写 ontology_schema.json）═══════════
+def _guess_col_type(values) -> str:
+    """从样本值推断属性类型：number / date / string（极简启发式）。"""
+    seen_num = seen_date = 0
+    for v in values:
+        if v is None or str(v).strip() == "":
+            continue
+        s = str(v).strip()
+        try:
+            float(s)
+            seen_num += 1
+            continue
+        except (TypeError, ValueError):
+            pass
+        # 松散日期启发（YYYY-MM-DD / YYYY/MM/DD）
+        if len(s) >= 8 and (s[4] in "-/" and s[7] in "-/"):
+            seen_date += 1
+            continue
+    if seen_date > seen_num:
+        return "date"
+    if seen_num:
+        return "number"
+    return "string"
+
+
+def suggest_schema(data: dict) -> dict:
+    """从多表数据自动推断 schema（schema-free，无需手写 ontology_schema.json）。
+
+    遍历 {表名: [行...]}，每表建一个实体（id=表名首字母大写，key=id 或 *_id 或首列，
+    attributes=行字段名 + 自动推断类型，复用 _infer_prop_role 标注语义角色）；
+    复用 _infer_relations 推断跨表关系；每表主键生成 unique 约束。
+    返回可直接喂给 build_graph / validate / to_nt 的 schema dict。
+    """
+    entities = []
+    constraints = []
+    for table, rows in data.items():
+        if not rows:
+            continue
+        sample = rows[0]
+        # key 选择：优先 'id'，其次任意 '*_id/*_code/*_key' 列，最后首列
+        key = "id" if "id" in sample else next(
+            (c for c in sample if c.endswith(("_id", "_code", "_key"))), list(sample)[0])
+        attributes = []
+        for col in sample:
+            ptype = _guess_col_type([r.get(col) for r in rows])
+            attr = {"name": col, "type": ptype, "role": _infer_prop_role(col, ptype)}
+            if col == key:
+                attr["required"] = True
+            attributes.append(attr)
+        eid = _cap(table)
+        entities.append({"id": eid, "label": eid, "table": table, "key": key, "attributes": attributes})
+        constraints.append({"type": "unique", "on": f"{eid}.{key}", "msg": f"{eid} 主键 {key} 唯一"})
+    schema = {
+        "version": "1.0",
+        "name": "auto-inferred-ontology",
+        "entities": entities,
+        "relations": _infer_relations(data),
+        "constraints": constraints,
+    }
+    # 与 load_schema 对齐：注入 {id: entity} 索引，供 build_graph/validate/to_nt 直接消费
+    schema["_entities"] = {e["id"]: e for e in entities}
+    return schema
+
+
 def build_graph(data: dict, schema: dict) -> dict:
     """跨表跨域建统一实例图：实体实例 + 关系边（FK join）。"""
     graph = {"nodes": {}, "edges": []}
