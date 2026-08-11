@@ -1,7 +1,7 @@
 <script>
   // 工厂智能体 · 本体问答 — 独立 Web 应用（工业软件浅色风格）
   import { onMount } from 'svelte';
-  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, setModel, getModels, saveModels, fetchVersion, fetchExample } from './lib/api.js';
+  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, setModel, getModels, saveModels, fetchVersion, fetchExamples, fetchExample } from './lib/api.js';
   import DashboardPanel from './components/DashboardPanel.svelte';
   import ModelGraph from './components/ModelGraph.svelte';
   import AnalysisResult from './components/AnalysisResult.svelte';
@@ -10,6 +10,11 @@
   let activeTab = $state('model');   // model | query | dashboard
   let selectedFiles = $state([]);    // [{name, size, content}] 已选文件
   let defaultBusy = $state(false);   // 默认示例建模中
+  // ─── 示例数据目录浏览区 ───
+  let examples = $state([]);         // [{dir, files:[{name,path,size}]}]
+  let examplesLoading = $state(false);
+  let checkedExamples = $state([]);  // [{name,path}] 勾选的示例
+  let exampleBusy = $state(false);
   let modeling = $state(false);
   let modelResult = $state(null);   // {table, attrs}
   // 数据库接入
@@ -66,7 +71,62 @@
       const v = await fetchVersion();
       if (v.ok && v.version) appVersion = v.version;
     } catch (e) { /* 忽略 */ }
+    loadExamples(); // 进入即展示示例数据目录
   });
+
+  // ─── 示例数据目录浏览区 ───
+  async function loadExamples() {
+    examplesLoading = true;
+    try {
+      const res = await fetchExamples();
+      if (res.ok && Array.isArray(res.examples)) {
+        const byDir = {};
+        for (const ex of res.examples) {
+          const dir = (ex.path || '').split('/')[0] || 'data';
+          (byDir[dir] = byDir[dir] || []).push(ex);
+        }
+        examples = Object.keys(byDir).map(dir => ({ dir, files: byDir[dir] }));
+      } else {
+        setStatus('err', res.error || '加载示例目录失败');
+      }
+    } catch (e) {
+      setStatus('err', '加载示例目录失败');
+    } finally { examplesLoading = false; }
+  }
+
+  function toggleExample(ex) {
+    const i = checkedExamples.findIndex(c => c.path === ex.path);
+    checkedExamples = i >= 0
+      ? checkedExamples.filter((_, idx) => idx !== i)
+      : [...checkedExamples, { name: ex.name, path: ex.path }];
+  }
+
+  async function doSelectedExamples() {
+    if (!checkedExamples.length || exampleBusy) return;
+    exampleBusy = true;
+    setStatus('info', `正在读取 ${checkedExamples.length} 个示例文件…`);
+    try {
+      const files = [];
+      for (const c of checkedExamples) {
+        const r = await fetchExample(c.path);
+        if (!r.ok || r.content == null) {
+          setStatus('err', r.error || `读取示例失败：${c.path}`);
+          exampleBusy = false; return;
+        }
+        files.push({ name: c.name, content: r.content });
+      }
+      const res = await setupOntologyMulti(files);
+      if (!res.ok) {
+        setStatus('err', res.error || '建模失败');
+      } else {
+        modelResult = { table: res.table, attrs: res.attrs || [], ts: Date.now() };
+        status = 'ready';
+        setStatus('ok', `示例建模完成：${res.table}，共 ${(res.attrs || []).length} 张表`);
+      }
+    } catch (err) {
+      setStatus('err', '网络错误，请确认服务已启动');
+    } finally { exampleBusy = false; }
+  }
 
   // 从完整配置装载可编辑列表（api_key 用脱敏占位，保存时后端保留原值）
   function loadEditModels(res) {
@@ -461,6 +521,38 @@
         {/if}
       </div>
 
+      <!-- ─── 示例数据目录浏览区（默认浏览入口）─── -->
+      <div class="example-dir">
+        <div class="example-dir-head">
+          <span class="form-label">📂 示例数据目录（勾选多个 → 建模）</span>
+          <button class="example-refresh" onclick={loadExamples} title="刷新示例目录" disabled={examplesLoading}>{examplesLoading ? '…' : '↻'}</button>
+        </div>
+        {#if examplesLoading && examples.length === 0}
+          <div class="example-empty">正在加载示例目录…</div>
+        {:else if examples.length === 0}
+          <div class="example-empty">未加载到示例文件（请确认服务已启动）</div>
+        {:else}
+          {#each examples as g}
+            <div class="example-dir-group">
+              <div class="example-dir-name">📁 {g.dir}</div>
+              <div class="file-list">
+                {#each g.files as ex}
+                  <label class="example-item" title={ex.path}>
+                    <input type="checkbox" checked={checkedExamples.some(c => c.path === ex.path)} onchange={() => toggleExample(ex)} />
+                    <span class="example-item-name">📄 {ex.name}</span>
+                    <span class="file-item-size">{fmtSize(ex.size)}</span>
+                  </label>
+                {/each}
+              </div>
+            </div>
+          {/each}
+          <button class="btn-action btn-default" onclick={doSelectedExamples} disabled={!checkedExamples.length || exampleBusy}>
+            <span class="btn-icon">{exampleBusy ? '⏳' : '⚙'}</span>
+            {exampleBusy ? '建模进行中…' : (checkedExamples.length ? `用所选示例建模（${checkedExamples.length}）` : '用所选示例建模')}
+          </button>
+        {/if}
+      </div>
+
       {#if modelResult}
         <div class="model-panel">
           <div class="model-head">
@@ -836,6 +928,41 @@
   .default-example-text { font-size: 12px; color: #64748b; }
   .btn-default { background: #1e293b; }
   .btn-default:hover:not(:disabled) { background: #0f172a; }
+
+  /* ─── 示例数据目录浏览区 ─── */
+  .example-dir {
+    display: flex; flex-direction: column; gap: 8px;
+    border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px;
+    background: #fbfcfe;
+  }
+  .example-dir-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .example-refresh {
+    flex-shrink: 0; width: 22px; height: 22px; border: 1px solid #cbd5e1;
+    border-radius: 3px; background: #fff; color: #475569; cursor: pointer;
+    font-size: 13px; line-height: 1; transition: background 0.15s;
+  }
+  .example-refresh:hover:not(:disabled) { background: #f1f5f9; color: #2563eb; }
+  .example-refresh:disabled { opacity: 0.5; cursor: default; }
+  .example-empty { font-size: 12px; color: #94a3b8; padding: 8px 2px; }
+  .example-dir-group { display: flex; flex-direction: column; gap: 4px; }
+  .example-dir-name {
+    font-size: 11px; font-weight: 700; color: #2563eb;
+    background: #eff6ff; border: 1px solid #bfdbfe;
+    border-radius: 3px; padding: 4px 8px;
+  }
+  .example-item {
+    display: flex; align-items: center; gap: 6px; padding: 4px 6px;
+    border-radius: 3px; cursor: pointer; transition: background 0.15s;
+  }
+  .example-item:hover { background: #f1f5f9; }
+  .example-item input[type="checkbox"] { flex-shrink: 0; accent-color: #2563eb; cursor: pointer; }
+  .example-item-name {
+    flex: 1; color: #1e293b; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; font-size: 12px;
+  }
+  .example-dir .btn-action { margin-top: 2px; }
 
   .attr-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 12px; }
   .attr-chip {

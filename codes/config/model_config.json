@@ -1,5 +1,5 @@
 {
-  "_comment": "模型配置：查询/分析/建模统一从这里读取模型。local=本地Ollama，cloud=云端DeepSeek(OpenAI兼容)。api_key 留空时自动从 Hermes .env 读取 DEEPSEEK_API_KEY/ZHIPU_API_KEY。修改 active 即可切换。",
+  "_comment": "模型配置：local=本地ornith(唯一本地模型)，cloud=云端DeepSeek(OpenAI兼容)。api_key留空从Hermes .env读。修改 active 切换。",
   "active": "cloud",
   "models": {
     "local": {
@@ -15,13 +15,6 @@
       "base_url": "https://api.deepseek.com/v1/chat/completions",
       "model": "deepseek-chat",
       "api_key": ""
-    },
-    "local_ollama": {
-      "name": "本地 Ollama (离线)",
-      "type": "openai",
-      "base_url": "http://localhost:11434/v1",
-      "model": "qwen2.5:7b",
-      "api_key": "ollama"
     }
   }
 }
