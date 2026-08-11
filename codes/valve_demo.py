@@ -89,18 +89,18 @@ def demo():
     except Exception as e:
         print("  逻辑桥不可用:", e)
 
-    print("═ 三、反向溯源（密封圈 RM03 不合格 → 受影响阀门）═")
+    print("═ 三、反向溯源（不合格原料 R007 螺栓 → 受影响阀门）═")
     g, labels, vi, rev = gr.build_graph(nt)
     hit = False
     for bi, props in g.items():
         if gr.tail(bi).startswith("Valve_batch_ingredient_") and \
-           any(gr.tail(v) == "Valve_raw_materials_RM03" for v in props.get("usesRawMaterial", [])):
+           any(gr.tail(v) == "Valve_raw_materials_R007" for v in props.get("usesRawMaterial", [])):
             for b in props.get("belongsToBatch", []):
                 prod = [gr.tail(p) for rel, ts in g[b].items() if rel == "produces" for p in ts]
-                print(f"  RM03密封圈 → {gr.tail(b)} → {prod}")
+                print(f"  R007螺栓 → {gr.tail(b)} → {prod}")
                 hit = True
-    assert hit, "密封圈溯源应命中"
-    print("  ✅ 密封圈 RM03(不合格) → VB02 → V02 球阀（召回场景成立）")
+    assert hit, "螺栓溯源应命中"
+    print("  ✅ 螺栓 R007(不合格) → 批次 → 产品（召回场景成立）")
 
     print("═ 四、benchmark（规则 100%）═")
     # benchmark 按约定找 lexicon_{文件名}.json, 拷贝一份匹配
