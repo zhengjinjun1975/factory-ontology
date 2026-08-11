@@ -16,9 +16,11 @@
   let browseLoading = $state(false);
   let browseChecked = $state([]);          // [{path,name}] 已选文件
   let browseBusy = $state(false);
-  let browseOpen = $state(false);    // 文件选择器展开态（点「选择数据文件」才弹出，不摊开）
-  let browseAnchor = $state(null);   // 上次选择索引（Shift 区间基准）
   let modelResult = $state(null);   // {table, attrs}
+  // 本地文件多选建模
+  let localFiles = $state([]);       // [{name, content}] 本地选择文件
+  let localBusy = $state(false);
+  let defaultBusy = $state(false);   // 默认示例建模中
   // 数据库接入
   let dbOpen = $state(false);
   let dbBusy = $state(false);
@@ -75,68 +77,22 @@
     } catch (e) { /* 忽略 */ }
   });
 
-  // ─── 文件浏览框（默认 data_valve 示例目录，目录导航 + 多选建模）───
-  // 点「选择数据文件」按钮 → 弹出选择器（默认 data_valve 示例目录）；再点 → 收起
-  function toggleBrowse() {
-    browseOpen = !browseOpen;
-    if (browseOpen) loadBrowse('data_valve');
-  }
-
-  async function loadBrowse(dir) {
-    browseLoading = true;
+  // ─── 用默认示例数据建模（data_valve 一键）───
+  async function doDefaultExample() {
+    if (defaultBusy) return;
+    defaultBusy = true;
+    setStatus('info', '正在读取默认示例（data_valve）…');
     try {
-      const res = await browseFiles(dir);
-      if (res.ok) {
-        browseDir = res.dir || 'data_valve';
-        browseParent = res.parent || '';
-        browseDirs = res.dirs || [];
-        browseFileList = res.files || [];
-        // 目录切换时清空已选，避免残留旧目录勾选
-        browseChecked = [];
-      } else {
-        setStatus('err', res.error || '浏览数据文件失败');
-      }
-    } catch (e) {
-      setStatus('err', '浏览数据文件失败（网络错误）');
-    } finally { browseLoading = false; }
-  }
-
-  // Ctrl/Shift 多选（对齐 solo-agent-kit dsSelectFile）：单击=单选，Ctrl/Meta=逐个切换，Shift=区间选择
-  function dsSelectFile(f, e) {
-    const idx = browseFileList.findIndex(x => x.path === f.path);
-    if (idx < 0) return;
-    const isSel = browseChecked.some(c => c.path === f.path);
-    if (e.shiftKey && browseAnchor != null) {
-      const [a, b] = [Math.min(browseAnchor, idx), Math.max(browseAnchor, idx)];
-      const range = browseFileList.slice(a, b + 1).map(x => ({ path: x.path, name: x.name }));
-      browseChecked = [
-        ...browseChecked,
-        ...range.filter(r => !browseChecked.some(c => c.path === r.path)),
-      ];
-    } else if (e.ctrlKey || e.metaKey) {
-      browseChecked = isSel
-        ? browseChecked.filter(c => c.path !== f.path)
-        : [...browseChecked, { path: f.path, name: f.name }];
-    } else {
-      browseChecked = [{ path: f.path, name: f.name }];
-    }
-    browseAnchor = idx;
-  }
-
-  // 从浏览框已选文件 → 读取内容 → 多文件建模
-  async function doBrowseModel() {
-    if (!browseChecked.length || browseBusy) return;
-    browseBusy = true;
-    setStatus('info', `正在读取 ${browseChecked.length} 个数据文件…`);
-    try {
+      const tables = ['valve_products', 'valve_equipment', 'valve_customers',
+                      'valve_batches', 'valve_raw_materials', 'valve_sales'];
       const files = [];
-      for (const c of browseChecked) {
-        const r = await readDataFile(c.path);
+      for (const t of tables) {
+        const r = await fetchExample(`data_valve/${t}.csv`);
         if (!r.ok || r.content == null) {
-          setStatus('err', r.error || `读取失败：${c.path}`);
-          browseBusy = false; return;
+          setStatus('err', r.error || `读取示例失败：${t}`);
+          defaultBusy = false; return;
         }
-        files.push({ name: r.name, content: r.content });
+        files.push({ name: `${t}.csv`, content: r.content });
       }
       const res = await setupOntologyMulti(files);
       if (!res.ok) {
@@ -144,12 +100,57 @@
       } else {
         modelResult = { table: res.table, attrs: res.attrs || [], ts: Date.now() };
         status = 'ready';
-        browseOpen = false; // 建模完成 → 收起选择器（不一直摊开）
+        setStatus('ok', `默认示例建模完成：${res.table}，共 ${(res.attrs || []).length} 张表`);
+      }
+    } catch (err) {
+      setStatus('err', '网络错误，请确认服务已启动');
+    } finally { defaultBusy = false; }
+  }
+
+  // ─── 本地文件多选（系统浏览框）───
+  function onPickFiles(e) {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    const invalid = files.find(f => !/\.(csv|json)$/i.test(f.name));
+    if (invalid) {
+      setStatus('err', '仅支持 .csv / .json 文本文件');
+      e.target.value = ''; return;
+    }
+    localFiles = files.map(f => ({ name: f.name, content: null, size: f.size, file: f }));
+    setStatus('info', `已选 ${localFiles.length} 个本地文件`);
+  }
+
+  // 本地文件 → 读取内容 → 多文件建模
+  async function doLocalModel() {
+    if (!localFiles.length || localBusy) return;
+    localBusy = true;
+    setStatus('info', `正在读取 ${localFiles.length} 个本地文件…`);
+    try {
+      const files = [];
+      for (const lf of localFiles) {
+        const content = await readFileAsText(lf.file);
+        files.push({ name: lf.name, content });
+      }
+      const res = await setupOntologyMulti(files);
+      if (!res.ok) {
+        setStatus('err', res.error || '建模失败');
+      } else {
+        modelResult = { table: res.table, attrs: res.attrs || [], ts: Date.now() };
+        status = 'ready';
         setStatus('ok', `建模完成：${res.table}，共 ${(res.attrs || []).length} 张表`);
       }
     } catch (err) {
       setStatus('err', '网络错误，请确认服务已启动');
-    } finally { browseBusy = false; }
+    } finally { localBusy = false; }
+  }
+
+  function readFileAsText(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(file, 'utf-8');
+    });
   }
 
   // 从完整配置装载可编辑列表（api_key 用脱敏占位，保存时后端保留原值）
@@ -429,60 +430,23 @@
     <section class="pane pane-left">
       <div class="pane-title">数据建模</div>
 
-      <!-- ─── 数据源：单一「选择数据文件」入口（对齐 solo-agent-kit，去冗余）─── -->
+      <!-- ─── 数据源输入（朴素两入口：默认示例 + 本地文件浏览）─── -->
       <div class="form-group">
-        <span class="form-label">数据源（CSV / JSON，可多选）</span>
-        <button class="btn-action browse-toggle" onclick={toggleBrowse} disabled={browseLoading}>
-          <span class="btn-icon">{browseLoading ? '⏳' : '📂'}</span>
-          {browseLoading ? '加载中…' : '选择数据文件'}
+        <span class="form-label">数据源（CSV / JSON）</span>
+        <button class="btn-action" onclick={doDefaultExample} disabled={defaultBusy}>
+          <span class="btn-icon">{defaultBusy ? '⏳' : '⭐'}</span>
+          {defaultBusy ? '示例建模中…' : '用默认示例数据建模（data_valve）'}
         </button>
-        {#if browseChecked.length}
-          <span class="browse-count">已选 {browseChecked.length} 个文件</span>
-        {/if}
-
-        {#if browseOpen}
-          <div class="browse-panel">
-            <div class="browse-hint">默认目录 data_valve 示例数据 · Ctrl/Shift 多选文件</div>
-            <div class="browse-current" title={browseDir}>📁 当前目录：{browseDir || 'data_valve'}</div>
-            <div class="browse-nav">
-              {#if browseParent}
-                <button class="browse-up" onclick={() => loadBrowse(browseParent)}>⬆ 上级目录</button>
-              {/if}
-              {#if browseDirs.length}
-                <div class="browse-dirs">
-                  {#each browseDirs as d}
-                    <button class="browse-dir" onclick={() => loadBrowse(d.path)} title={d.path}>📁 {d.name}</button>
-                  {/each}
-                </div>
-              {/if}
-            </div>
-            {#if browseFileList.length}
-              <div class="file-list browse-files">
-                {#each browseFileList as f}
-                  <div
-                    class="example-item"
-                    class:selected={browseChecked.some(c => c.path === f.path)}
-                    role="button"
-                    tabindex="-1"
-                    onclick={(e) => dsSelectFile(f, e)}
-                    title={f.path}
-                  >
-                    <span class="example-item-name">📄 {f.name}</span>
-                    <span class="browse-file-path" title={f.path}>{f.path}</span>
-                  </div>
-                {/each}
-              </div>
-              <div class="browse-actions">
-                <span class="browse-count">已选 {browseChecked.length} 个文件</span>
-                <button class="btn-action" onclick={doBrowseModel} disabled={!browseChecked.length || browseBusy}>
-                  <span class="btn-icon">{browseBusy ? '⏳' : '⚙'}</span>
-                  {browseBusy ? '建模进行中…' : `确认并建模（${browseChecked.length} 个文件）`}
-                </button>
-              </div>
-            {:else if !browseDirs.length}
-              <div class="example-empty">当前目录无数据文件</div>
-            {/if}
-          </div>
+        <label class="file-input" style="margin-top:8px">
+          <input type="file" multiple accept=".csv,.json" onchange={onPickFiles} />
+          <span class="file-icon">📁</span>
+          <span class="file-name">{localFiles.length ? `已选 ${localFiles.length} 个本地文件` : '选择本地文件（可多选）'}</span>
+        </label>
+        {#if localFiles.length}
+          <button class="btn-action" onclick={doLocalModel} disabled={localBusy} style="margin-top:8px">
+            <span class="btn-icon">{localBusy ? '⏳' : '⚙'}</span>
+            {localBusy ? '建模进行中…' : `确认并建模（${localFiles.length} 个本地文件）`}
+          </button>
         {/if}
       </div>
 
