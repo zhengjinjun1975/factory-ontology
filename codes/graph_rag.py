@@ -271,10 +271,55 @@ def serialize_subgraph(sub, labels):
     return "\n".join(lines)
 
 
+_REWRITE_PROMPT = (
+    "你是工厂知识图谱检索助手。请把用户的中文问题改写成适合图谱检索的关键词串："
+    "提取关键实体词、属性词、查询意图（极值/比较/列举/计数等），用空格分隔。"
+    "只输出改写后的关键词，不要解释、不要加引号。\n"
+    "示例：\n"
+    "问题：保质期最长的产品\n"
+    "改写：产品 保质期 最长\n"
+    "问题：振动最大的设备\n"
+    "改写：设备 振动 最大\n"
+    "问题：哪些客户买了价格最高的阀门\n"
+    "改写：客户 价格 最高\n\n"
+    "问题：{q}\n"
+    "改写："
+)
+
+
+def _rewrite_query(question, model_key=None):
+    """CoTKR 查询改写：用 LLM 把复杂/口语化问题改写为适合 find_seeds 检索的关键词串。
+
+    返回改写后的查询串；改写失败 / LLM 不可用 / 输出非法时返回 None（调用方回落原问题，不阻塞）。
+    """
+    try:
+        from model_llm import llm_generate
+        out = llm_generate(_REWRITE_PROMPT.format(q=question),
+                           temperature=0.2, max_tokens=60, model_key=model_key)
+        if not out or out.startswith("[模型"):
+            return None
+        rq = out.strip().strip("\"'").strip("改写：").strip("改写:").strip()
+        if not rq or len(rq) > 80:
+            return None
+        return rq
+    except Exception:
+        return None
+
+
 def answer_graph(question, nt_file, depth=1, max_nodes=40, model_key=None, lexicon=None):
-    """GraphRAG 主入口：种子(词典引导)->子图->LLM生成。返回 (答案, 子图文本)。"""
+    """GraphRAG 主入口：查询改写(CoTKR)->种子(词典引导)->子图->LLM生成。返回 (答案, 子图文本)。"""
     graph, labels, value_index, reverse = build_graph(nt_file)
     seeds = find_seeds(question, graph, labels, value_index, lexicon=lexicon)
+    # CoTKR 查询改写：复杂/口语化问题先用 LLM 改写为检索关键词，提高种子/子图命中。
+    # 改写后种子命中比原问题更多则用改写，否则回落原问题；LLM 失败不阻塞。
+    rq = _rewrite_query(question, model_key=model_key)
+    if rq and rq != question:
+        try:
+            r_seeds = find_seeds(rq, graph, labels, value_index, lexicon=lexicon)
+            if len(r_seeds) > len(seeds):
+                seeds = r_seeds
+        except Exception:
+            pass
     if not seeds:
         return "[图检索] 未定位到相关实体，请换种问法", ""
     sub = extract_subgraph(graph, reverse, seeds, depth=depth, max_nodes=max_nodes)
