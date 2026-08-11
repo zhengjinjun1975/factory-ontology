@@ -51,7 +51,7 @@
   const dataPos = $derived(
     (schema?.data_properties || []).map((d, i) => ({
       ...d,
-      x: 150, y: 70 + i * 34,
+      x: 150, y: 62 + i * 40,
     }))
   );
 
@@ -88,38 +88,44 @@
     </div>
 
     <svg viewBox="0 0 {W} {H}" class="mg-svg" xmlns="http://www.w3.org/2000/svg" font-family="'Microsoft YaHei','PingFang SC',sans-serif">
+      <defs>
+        <marker id="mg-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
+        </marker>
+      </defs>
       <!-- 数据属性 → 主类 连线 -->
       {#each dataPos as d}
-        <line x1={d.x + 55} y1={d.y} x2={CX - MAIN_RX} y2={CY} stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3"/>
+        <line x1={d.x + 60} y1={d.y} x2={CX - MAIN_RX} y2={CY} stroke="#cbd5e1" stroke-width="1.2" stroke-dasharray="4,3"/>
       {/each}
 
       <!-- 对象属性连线（主类 → 目标类） -->
       {#each schema.object_properties as op}
         {@const tp = objTargetPos(op.rel)}
         {#if tp}
-          <line x1={CX + MAIN_RX} y1={CY} x2={tp.x - 60} y2={tp.y} stroke="#3b82f6" stroke-width="1.5"/>
-          <text x={(CX + MAIN_RX + tp.x - 60)/2} y={(CY + tp.y)/2 - 4} text-anchor="middle" font-size="11" fill="#2563eb">{op.label}</text>
+          <line x1={CX + MAIN_RX} y1={CY} x2={tp.x - 62} y2={tp.y} stroke="#94a3b8" stroke-width="1.3" marker-end="url(#mg-arrow)"/>
+          <text x={(CX + MAIN_RX + tp.x - 62)/2} y={(CY + tp.y)/2 - 6} text-anchor="middle" font-size="12" fill="#475569"
+                stroke="#ffffff" stroke-width="3" paint-order="stroke">{op.label}</text>
         {/if}
       {/each}
 
       <!-- 主类节点 -->
-      <rect x={CX - MAIN_RX} y={CY - MAIN_RY} width={MAIN_RX*2} height={MAIN_RY*2} rx="8"
-            fill="#2563eb" stroke="#1d4ed8" stroke-width="2"/>
-      <text x={CX} y={CY - 4} text-anchor="middle" font-size="16" font-weight="700" fill="#fff">{schema.class}</text>
-      <text x={CX} y={CY + 16} text-anchor="middle" font-size="11" fill="#dbeafe">{schema.instance_count} 实例</text>
+      <rect x={CX - MAIN_RX} y={CY - MAIN_RY} width={MAIN_RX*2} height={MAIN_RY*2} rx="10"
+            fill="#ffffff" stroke="#2563eb" stroke-width="2"/>
+      <text x={CX} y={CY - 5} text-anchor="middle" font-size="17" font-weight="700" fill="#1d4ed8">{schema.class}</text>
+      <text x={CX} y={CY + 16} text-anchor="middle" font-size="12" fill="#64748b">{schema.instance_count} 实例</text>
 
       <!-- 数据属性节点 -->
       {#each dataPos as d}
-        <rect x={d.x} y={d.y - 12} width="110" height="24" rx="4"
-              fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
-        <text x={d.x + 55} y={d.y + 4} text-anchor="middle" font-size="11" fill="#334155">{d.label}</text>
+        <rect x={d.x} y={d.y - 14} width="120" height="28" rx="6"
+              fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+        <text x={d.x + 60} y={d.y + 4} text-anchor="middle" font-size="13" fill="#334155">{d.label}</text>
       {/each}
 
       <!-- 目标类节点 -->
       {#each targetPos as t}
-        <rect x={t.x - 60} y={t.y - 14} width="120" height="28" rx="5"
-              fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
-        <text x={t.x} y={t.y + 4} text-anchor="middle" font-size="12" fill="#1d4ed8" font-weight="600">{t.name}</text>
+        <rect x={t.x - 62} y={t.y - 15} width="124" height="30" rx="7"
+              fill="#ffffff" stroke="#93c5fd" stroke-width="1.5"/>
+        <text x={t.x} y={t.y + 5} text-anchor="middle" font-size="13" fill="#1d4ed8" font-weight="600">{t.name}</text>
       {/each}
     </svg>
 
@@ -167,6 +173,7 @@
       <span class="lg-item"><span class="lg-dot lg-main"></span>主类</span>
       <span class="lg-item"><span class="lg-dot lg-target"></span>目标类（对象关系指向）</span>
       <span class="lg-item"><span class="lg-line"></span>对象关系</span>
+      <span class="lg-item"><span class="lg-dash"></span>数据属性</span>
     </div>
   {/if}
 </div>
@@ -186,15 +193,16 @@
   .mg-svg {
     width: 100%; max-width: 720px;
     border: 1px solid #e2e8f0; border-radius: 4px;
-    background: #fbfcfe;
+    background: #ffffff;
   }
 
-  .mg-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11px; color: #64748b; align-items: center; }
+  .mg-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: #64748b; align-items: center; }
   .lg-item { display: flex; align-items: center; gap: 6px; }
   .lg-dot { width: 10px; height: 10px; border-radius: 3px; }
   .lg-main { background: #2563eb; }
-  .lg-target { background: #eff6ff; border: 1px solid #93c5fd; }
-  .lg-line { width: 20px; height: 0; border-top: 2px solid #3b82f6; }
+  .lg-target { background: #fff; border: 1px solid #93c5fd; }
+  .lg-line { width: 22px; height: 0; border-top: 2px solid #94a3b8; }
+  .lg-dash { width: 22px; height: 0; border-top: 2px dashed #cbd5e1; }
 
   /* 类型层级 */
   .mg-hierarchy {
