@@ -1,7 +1,7 @@
 <script>
   // 工厂智能体 · 本体问答 — 独立 Web 应用（工业软件浅色风格）
   import { onMount } from 'svelte';
-  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, setModel, getModels, saveModels, fetchVersion, fetchExamples, fetchExample, browseFiles, readDataFile } from './lib/api.js';
+  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, setModel, getModels, saveModels, fetchVersion, fetchExample, browseFiles, readDataFile } from './lib/api.js';
   import DashboardPanel from './components/DashboardPanel.svelte';
   import ModelGraph from './components/ModelGraph.svelte';
   import AnalysisResult from './components/AnalysisResult.svelte';
@@ -10,11 +10,6 @@
   let activeTab = $state('model');   // model | query | dashboard
   let selectedFiles = $state([]);    // [{name, size, content}] 已选文件
   let defaultBusy = $state(false);   // 默认示例建模中
-  // ─── 示例数据目录浏览区 ───
-  let examples = $state([]);         // [{dir, files:[{name,path,size}]}]
-  let examplesLoading = $state(false);
-  let checkedExamples = $state([]);  // [{name,path}] 勾选的示例
-  let exampleBusy = $state(false);
   // ─── 文件浏览框（学习 solo-agent-kit /api/browse，默认 data_valve 示例目录）───
   let browseDir = $state('data_valve');    // 当前目录（相对 codes/）
   let browseParent = $state('');           // 上级目录（空=根）
@@ -23,6 +18,7 @@
   let browseLoading = $state(false);
   let browseChecked = $state([]);          // [{path,name}] 已选文件
   let browseBusy = $state(false);
+  let browseOpen = $state(false);    // 文件选择器展开态（点「浏览」才弹出，不摊开）
   let modeling = $state(false);
   let modelResult = $state(null);   // {table, attrs}
   // 数据库接入
@@ -79,65 +75,15 @@
       const v = await fetchVersion();
       if (v.ok && v.version) appVersion = v.version;
     } catch (e) { /* 忽略 */ }
-    loadExamples(); // 进入即展示示例数据目录
-    loadBrowse();   // 文件浏览框默认到 data_valve 示例目录
   });
 
-  // ─── 示例数据目录浏览区 ───
-  async function loadExamples() {
-    examplesLoading = true;
-    try {
-      const res = await fetchExamples();
-      if (res.ok && Array.isArray(res.examples)) {
-        const byDir = {};
-        for (const ex of res.examples) {
-          const dir = (ex.path || '').split('/')[0] || 'data';
-          (byDir[dir] = byDir[dir] || []).push(ex);
-        }
-        examples = Object.keys(byDir).map(dir => ({ dir, files: byDir[dir] }));
-      } else {
-        setStatus('err', res.error || '加载示例目录失败');
-      }
-    } catch (e) {
-      setStatus('err', '加载示例目录失败');
-    } finally { examplesLoading = false; }
-  }
-
-  function toggleExample(ex) {
-    const i = checkedExamples.findIndex(c => c.path === ex.path);
-    checkedExamples = i >= 0
-      ? checkedExamples.filter((_, idx) => idx !== i)
-      : [...checkedExamples, { name: ex.name, path: ex.path }];
-  }
-
-  async function doSelectedExamples() {
-    if (!checkedExamples.length || exampleBusy) return;
-    exampleBusy = true;
-    setStatus('info', `正在读取 ${checkedExamples.length} 个示例文件…`);
-    try {
-      const files = [];
-      for (const c of checkedExamples) {
-        const r = await fetchExample(c.path);
-        if (!r.ok || r.content == null) {
-          setStatus('err', r.error || `读取示例失败：${c.path}`);
-          exampleBusy = false; return;
-        }
-        files.push({ name: c.name, content: r.content });
-      }
-      const res = await setupOntologyMulti(files);
-      if (!res.ok) {
-        setStatus('err', res.error || '建模失败');
-      } else {
-        modelResult = { table: res.table, attrs: res.attrs || [], ts: Date.now() };
-        status = 'ready';
-        setStatus('ok', `示例建模完成：${res.table}，共 ${(res.attrs || []).length} 张表`);
-      }
-    } catch (err) {
-      setStatus('err', '网络错误，请确认服务已启动');
-    } finally { exampleBusy = false; }
-  }
-
   // ─── 文件浏览框（默认 data_valve 示例目录，目录导航 + 多选建模）───
+  // 点「浏览数据文件」按钮 → 弹出选择器（默认 data_valve 示例目录）；再点 → 收起
+  function toggleBrowse() {
+    browseOpen = !browseOpen;
+    if (browseOpen) loadBrowse('data_valve');
+  }
+
   async function loadBrowse(dir) {
     browseLoading = true;
     try {
@@ -185,6 +131,7 @@
       } else {
         modelResult = { table: res.table, attrs: res.attrs || [], ts: Date.now() };
         status = 'ready';
+        browseOpen = false; // 建模完成 → 收起选择器（不一直摊开）
         setStatus('ok', `建模完成：${res.table}，共 ${(res.attrs || []).length} 张表`);
       }
     } catch (err) {
@@ -585,73 +532,49 @@
         {/if}
       </div>
 
-      <!-- ─── 示例数据目录浏览区（默认浏览入口）─── -->
-      <div class="example-dir">
-        <div class="example-dir-head">
-          <span class="form-label">📂 示例数据目录（勾选多个 → 建模）</span>
-          <button class="example-refresh" onclick={loadExamples} title="刷新示例目录" disabled={examplesLoading}>{examplesLoading ? '…' : '↻'}</button>
+      <!-- ─── 浏览数据文件（点按钮弹出选择器，不摊开）─── -->
+      <div class="example-dir browse-box">
+        <div class="browse-toolbar">
+          <button class="btn-action browse-toggle" onclick={toggleBrowse} disabled={browseLoading}>
+            <span class="btn-icon">{browseLoading ? '⏳' : '📂'}</span>
+            {browseLoading ? '加载中…' : '浏览数据文件'}
+          </button>
+          {#if browseChecked.length}
+            <span class="browse-count">已选 {browseChecked.length} 个文件</span>
+          {/if}
         </div>
-        {#if examplesLoading && examples.length === 0}
-          <div class="example-empty">正在加载示例目录…</div>
-        {:else if examples.length === 0}
-          <div class="example-empty">未加载到示例文件（请确认服务已启动）</div>
-        {:else}
-          {#each examples as g}
-            <div class="example-dir-group">
-              <div class="example-dir-name">📁 {g.dir}</div>
-              <div class="file-list">
-                {#each g.files as ex}
-                  <label class="example-item" title={ex.path}>
-                    <input type="checkbox" checked={checkedExamples.some(c => c.path === ex.path)} onchange={() => toggleExample(ex)} />
-                    <span class="example-item-name">📄 {ex.name}</span>
-                    <span class="file-item-size">{fmtSize(ex.size)}</span>
-                  </label>
+
+        {#if browseOpen}
+          <div class="browse-current" title={browseDir}>📁 当前目录：{browseDir || 'data_valve'}</div>
+          <div class="browse-nav">
+            {#if browseParent}
+              <button class="browse-up" onclick={() => loadBrowse(browseParent)}>⬆ 上级目录</button>
+            {/if}
+            {#if browseDirs.length}
+              <div class="browse-dirs">
+                {#each browseDirs as d}
+                  <button class="browse-dir" onclick={() => loadBrowse(d.path)} title={d.path}>📁 {d.name}</button>
                 {/each}
               </div>
-            </div>
-          {/each}
-          <button class="btn-action btn-default" onclick={doSelectedExamples} disabled={!checkedExamples.length || exampleBusy}>
-            <span class="btn-icon">{exampleBusy ? '⏳' : '⚙'}</span>
-            {exampleBusy ? '建模进行中…' : (checkedExamples.length ? `用所选示例建模（${checkedExamples.length}）` : '用所选示例建模')}
-          </button>
-        {/if}
-      </div>
-
-      <!-- ─── 文件浏览框（学习 solo-agent-kit /api/browse，默认 data_valve 示例目录）─── -->
-      <div class="example-dir browse-box">
-        <div class="example-dir-head">
-          <span class="form-label">📂 浏览数据文件（可多选 → 建模）</span>
-          <button class="example-refresh" onclick={() => loadBrowse()} title="刷新当前目录" disabled={browseLoading}>{browseLoading ? '…' : '↻'}</button>
-        </div>
-        <div class="browse-current" title={browseDir}>📁 当前目录：{browseDir || 'data_valve'}</div>
-        <div class="browse-nav">
-          {#if browseParent}
-            <button class="browse-up" onclick={() => loadBrowse(browseParent)}>⬆ 上级目录</button>
-          {/if}
-          {#if browseDirs.length}
-            <div class="browse-dirs">
-              {#each browseDirs as d}
-                <button class="browse-dir" onclick={() => loadBrowse(d.path)} title={d.path}>📁 {d.name}</button>
+            {/if}
+          </div>
+          {#if browseFileList.length}
+            <div class="file-list browse-files">
+              {#each browseFileList as f}
+                <label class="example-item" title={f.path}>
+                  <input type="checkbox" checked={browseChecked.some(c => c.path === f.path)} onchange={() => toggleBrowseFile(f)} />
+                  <span class="example-item-name">📄 {f.name}</span>
+                  <span class="browse-file-path" title={f.path}>{f.path}</span>
+                </label>
               {/each}
             </div>
+            <button class="btn-action btn-default" onclick={doBrowseModel} disabled={!browseChecked.length || browseBusy}>
+              <span class="btn-icon">{browseBusy ? '⏳' : '⚙'}</span>
+              {browseBusy ? '建模进行中…' : (browseChecked.length ? `确认并建模（${browseChecked.length} 个文件）` : '确认并建模')}
+            </button>
+          {:else if !browseDirs.length}
+            <div class="example-empty">当前目录无数据文件</div>
           {/if}
-        </div>
-        {#if browseFileList.length}
-          <div class="file-list browse-files">
-            {#each browseFileList as f}
-              <label class="example-item" title={f.path}>
-                <input type="checkbox" checked={browseChecked.some(c => c.path === f.path)} onchange={() => toggleBrowseFile(f)} />
-                <span class="example-item-name">📄 {f.name}</span>
-                <span class="browse-file-path" title={f.path}>{f.path}</span>
-              </label>
-            {/each}
-          </div>
-          <button class="btn-action btn-default" onclick={doBrowseModel} disabled={!browseChecked.length || browseBusy}>
-            <span class="btn-icon">{browseBusy ? '⏳' : '⚙'}</span>
-            {browseBusy ? '建模进行中…' : (browseChecked.length ? `确认并建模（${browseChecked.length} 个文件）` : '确认并建模')}
-          </button>
-        {:else if !browseDirs.length}
-          <div class="example-empty">当前目录无数据文件</div>
         {/if}
       </div>
 
@@ -1037,23 +960,7 @@
     border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px;
     background: #fbfcfe;
   }
-  .example-dir-head {
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  }
-  .example-refresh {
-    flex-shrink: 0; width: 22px; height: 22px; border: 1px solid #cbd5e1;
-    border-radius: 3px; background: #fff; color: #475569; cursor: pointer;
-    font-size: 13px; line-height: 1; transition: background 0.15s;
-  }
-  .example-refresh:hover:not(:disabled) { background: #f1f5f9; color: #2563eb; }
-  .example-refresh:disabled { opacity: 0.5; cursor: default; }
   .example-empty { font-size: 12px; color: #94a3b8; padding: 8px 2px; }
-  .example-dir-group { display: flex; flex-direction: column; gap: 4px; }
-  .example-dir-name {
-    font-size: 11px; font-weight: 700; color: #2563eb;
-    background: #eff6ff; border: 1px solid #bfdbfe;
-    border-radius: 3px; padding: 4px 8px;
-  }
   .example-item {
     display: flex; align-items: center; gap: 6px; padding: 4px 6px;
     border-radius: 3px; cursor: pointer; transition: background 0.15s;
@@ -1068,6 +975,9 @@
 
   /* ─── 文件浏览框（默认示例目录，目录导航 + 多选）─── */
   .browse-box { gap: 6px; }
+  .browse-toolbar { display: flex; align-items: center; gap: 8px; }
+  .browse-toggle { justify-content: flex-start; }
+  .browse-count { font-size: 12px; color: #2563eb; font-weight: 600; }
   .browse-current {
     font-size: 11px; color: #1e293b; font-weight: 600;
     background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 3px;
