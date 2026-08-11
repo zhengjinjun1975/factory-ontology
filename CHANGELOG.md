@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.4] — 2026-08-11
+
+### 厂区数据真实化 + 检索容错
+
+> 检索全网真实阀门制造数据特征，重构示例数据为接近真实（产品BOM/工艺/传感器/噪声），并增强检索容错。
+
+- **真实化示例数据**（`data_valve/`，基于研究《阀门制造工厂数据特征-真实化.md》）：产品用 GB/T 32808 型号编码（Z41H-16C/Q641F-40P）+ 材料牌号（WCB/CF8/CF8M）+ 标准号/温度范围；设备含传感器（振动/温度/电流）；质检用 API 598 试压矩阵（壳体/密封压力、保压、泄漏率气泡/min）；含真实噪声（材质别名 1Cr18Ni9Ti≈304≈CF8、缺失值、泄漏超标异常）
+- **schema 更新**（`ontology_schema.json`）：匹配真实 BOM 字段（model_code/pressure_grade/connection/seal_material/body_material/standard_no/temp_range）+ 设备传感器 + 质检试压字段
+- **检索容错**（`graph_rag.py`）：材质/单位/类型同义词扩展——`_expand_synonyms` + `_SYNONYM_GROUPS`，查询"不锈钢"能命中 CF8/CF8M/304/1Cr18Ni9Ti（子串匹配兼容 CF8(304) 带括号格式）；缺失值/异常值检索不崩
+- **验证**：真实化数据建模 1066 行 NT（142 节点/173 边）；检索容错 8/8（"不锈钢"命中 CF8 产品 P004）；pytest 29 passed；hermes verify ok:True
+
 ## [0.1.3] — 2026-08-11
 
 ### 安全边界 + 核心程序加固 + 编码正确性

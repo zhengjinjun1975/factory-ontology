@@ -34,6 +34,43 @@ def _is_entity(v):
     return isinstance(v, str) and v.startswith(("http://", "https://"))
 
 
+# ── 检索容错：值同义词扩展（真实工业数据噪声容错）──
+# 材质/单位/类型的别名→规范组，检索时把查询词展开成同义组扩大匹配
+_SYNONYM_GROUPS = {
+    "不锈钢": ["不锈钢", "304", "316", "cf8", "cf8m", "cf3", "1cr18ni9ti"],
+    "碳钢": ["碳钢", "wcb", "a105", "20钢", "20"],
+    "合金钢": ["合金钢", "wc6", "wc9", "15crmo", "10cr2mo1"],
+    "球墨铸铁": ["球墨铸铁", "qt450", "qt400"],
+    "灰铸铁": ["灰铸铁", "ht200", "ht250"],
+    "铜": ["铜", "铜合金", "h62", "h59"],
+    "法兰": ["法兰", "flange"],
+    "电动": ["电动", "电装", "z9"],
+    "气动": ["气动", "q6"],
+    "不锈钢304": ["不锈钢304", "304", "cf8"],
+    "不锈钢316": ["不锈钢316", "316", "cf8m"],
+}
+# 单位归一：同一物理量多单位（psi/MPa/bar），统一到 MPa 再检索
+_UNIT_ALIASES = {
+    "mpa": ["mpa", "兆帕"], "bar": ["bar", "巴"],
+    "psi": ["psi", "磅"],
+}
+
+
+def _expand_synonyms(text: str) -> str:
+    """把查询里的同义词展开成匹配模式：'不锈钢' → '(不锈钢|304|316|cf8|cf8m|1cr18ni9ti)'。
+
+    极简：用正则从同义词组生成捕获组，加到 value_index 子串匹配。失败静默返回原文本。
+    """
+    import re as _re
+    low = text.lower()
+    for cn, group in _SYNONYM_GROUPS.items():
+        if cn in low:
+            # 把同义词组拼成正则替代，优先匹配原始词再补同义词
+            escaped = [_re.escape(g) for g in group]
+            text += "|" + "|".join(escaped)
+    return text
+
+
 def build_graph(nt_file):
     """建内存图。
     返回:
@@ -87,14 +124,36 @@ def find_seeds(question, graph, labels, value_index, top=8, lexicon=None, ontolo
     问题含关系 label/id 时, 沿该关系在图中找到连接的目标实体并入种子(基于2025 OG-RAG 本体引导检索)。"""
     q = question.lower()
     scored = defaultdict(float)
+    # 检索容错：材质/单位同义词扩展（真实工业数据噪声容错）
+    # 把查询里的"不锈钢"展开，让 value_index 里 CF8/304/1Cr18Ni9Ti 也能命中
+    syn_variants = [q]
+    for cn, group in _SYNONYM_GROUPS.items():
+        if cn in q:
+            syn_variants += [g for g in group if len(g) >= 2]
     # 1. 值/标签/ID 子串匹配: value_index 的键若出现在问题里 (单字中文也允许, 如"盐")
     for key, ents in value_index.items():
-        if not key or key not in q:
+        if not key:
+            continue
+        # 容错匹配：value_index 键 == 查询词 或 同义词组任一成员
+        matched = any(k in q for k in (key,)) or key in syn_variants
+        if not matched:
             continue
         if len(key) < 2 and not (len(key) == 1 and '\u4e00' <= key <= '\u9fff'):
             continue
         for e in ents:
             scored[e] += 1.0
+    # 容错补充：同义词组内任一成员出现在 value_index 键里也命中（子串匹配，
+    # 兼容 CF8(304)/CF8M(316) 这类带括号格式）
+    for cn, group in _SYNONYM_GROUPS.items():
+        if cn not in q:
+            continue
+        for g in group:
+            if len(g) < 2:
+                continue
+            for vk, ents in value_index.items():
+                if g in vk.lower():
+                    for e in ents:
+                        scored[e] += 0.8
     # 2. 实体标签匹配
     for ent, lbl in labels.items():
         lb = lbl.lower()

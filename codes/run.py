@@ -14,7 +14,7 @@ import os
 import sys
 import json
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 import importlib.util
 
 ROOT = os.path.dirname(os.path.abspath(__file__))

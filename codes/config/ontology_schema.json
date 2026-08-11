@@ -10,14 +10,67 @@
       "key": "id",
       "domain": "生产域",
       "attributes": [
-        {"name": "id", "type": "string", "label": "编号", "required": true},
-        {"name": "product_name", "type": "string", "label": "产品名"},
-        {"name": "type", "type": "enum", "label": "类型"},
-        {"name": "size_mm", "type": "number", "label": "口径(mm)"},
-        {"name": "pressure_mpa", "type": "number", "label": "压力(MPa)"},
-        {"name": "material", "type": "string", "label": "材质"},
-        {"name": "seal", "type": "string", "label": "密封"},
-        {"name": "price", "type": "number", "label": "价格"}
+        {
+          "name": "id",
+          "type": "string",
+          "label": "编号",
+          "required": true
+        },
+        {
+          "name": "model_code",
+          "type": "string",
+          "label": "型号编码"
+        },
+        {
+          "name": "product_name",
+          "type": "string",
+          "label": "产品名"
+        },
+        {
+          "name": "type",
+          "type": "enum",
+          "label": "阀门类型"
+        },
+        {
+          "name": "size_mm",
+          "type": "number",
+          "label": "口径(mm)"
+        },
+        {
+          "name": "pressure_grade",
+          "type": "string",
+          "label": "压力等级"
+        },
+        {
+          "name": "connection",
+          "type": "string",
+          "label": "连接形式"
+        },
+        {
+          "name": "seal_material",
+          "type": "string",
+          "label": "密封面材质"
+        },
+        {
+          "name": "body_material",
+          "type": "string",
+          "label": "阀体材质"
+        },
+        {
+          "name": "standard_no",
+          "type": "string",
+          "label": "标准号"
+        },
+        {
+          "name": "temp_range",
+          "type": "string",
+          "label": "温度范围"
+        },
+        {
+          "name": "price",
+          "type": "number",
+          "label": "价格"
+        }
       ]
     },
     {
@@ -27,11 +80,32 @@
       "key": "id",
       "domain": "销售域",
       "attributes": [
-        {"name": "id", "type": "string", "label": "编号", "required": true},
-        {"name": "customer_name", "type": "string", "label": "客户名"},
-        {"name": "region", "type": "string", "label": "区域"},
-        {"name": "industry", "type": "string", "label": "行业"},
-        {"name": "credit_level", "type": "enum", "label": "信用等级"}
+        {
+          "name": "id",
+          "type": "string",
+          "label": "编号",
+          "required": true
+        },
+        {
+          "name": "customer_name",
+          "type": "string",
+          "label": "客户名"
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "label": "区域"
+        },
+        {
+          "name": "industry",
+          "type": "string",
+          "label": "行业"
+        },
+        {
+          "name": "credit_level",
+          "type": "enum",
+          "label": "信用等级"
+        }
       ]
     },
     {
@@ -42,12 +116,38 @@
       "domain": "销售域",
       "detail": true,
       "attributes": [
-        {"name": "id", "type": "string", "label": "编号"},
-        {"name": "product_id", "type": "string", "label": "产品", "role": "reference"},
-        {"name": "customer_id", "type": "string", "label": "客户", "role": "reference"},
-        {"name": "quantity", "type": "number", "label": "数量"},
-        {"name": "sale_date", "type": "date", "label": "销售日期"},
-        {"name": "amount", "type": "number", "label": "金额"}
+        {
+          "name": "id",
+          "type": "string",
+          "label": "编号"
+        },
+        {
+          "name": "product_id",
+          "type": "string",
+          "label": "产品",
+          "role": "reference"
+        },
+        {
+          "name": "customer_id",
+          "type": "string",
+          "label": "客户",
+          "role": "reference"
+        },
+        {
+          "name": "quantity",
+          "type": "number",
+          "label": "数量"
+        },
+        {
+          "name": "sale_date",
+          "type": "date",
+          "label": "销售日期"
+        },
+        {
+          "name": "amount",
+          "type": "number",
+          "label": "金额"
+        }
       ]
     },
     {
@@ -57,12 +157,52 @@
       "key": "id",
       "domain": "生产域",
       "attributes": [
-        {"name": "id", "type": "string", "label": "编号", "required": true},
-        {"name": "device_name", "type": "string", "label": "设备名"},
-        {"name": "device_type", "type": "enum", "label": "设备类型"},
-        {"name": "workshop", "type": "string", "label": "车间"},
-        {"name": "power_kw", "type": "number", "label": "功率(kW)"},
-        {"name": "status", "type": "enum", "label": "状态"}
+        {
+          "name": "id",
+          "type": "string",
+          "label": "编号",
+          "required": true
+        },
+        {
+          "name": "device_name",
+          "type": "string",
+          "label": "设备名"
+        },
+        {
+          "name": "device_type",
+          "type": "enum",
+          "label": "设备类型"
+        },
+        {
+          "name": "workshop",
+          "type": "string",
+          "label": "车间"
+        },
+        {
+          "name": "power_kw",
+          "type": "number",
+          "label": "功率(kW)"
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "label": "状态"
+        },
+        {
+          "name": "vibration_mm_s",
+          "type": "number",
+          "label": "振动(mm/s)"
+        },
+        {
+          "name": "temp_c",
+          "type": "number",
+          "label": "温度(℃)"
+        },
+        {
+          "name": "current_a",
+          "type": "number",
+          "label": "电流(A)"
+        }
       ]
     },
     {
@@ -72,12 +212,37 @@
       "key": "id",
       "domain": "采购域",
       "attributes": [
-        {"name": "id", "type": "string", "label": "编号", "required": true},
-        {"name": "part_name", "type": "string", "label": "部件名"},
-        {"name": "material", "type": "string", "label": "材质"},
-        {"name": "supplier", "type": "string", "label": "供应商"},
-        {"name": "qc_result", "type": "enum", "label": "质检结果"},
-        {"name": "stock", "type": "number", "label": "库存"}
+        {
+          "name": "id",
+          "type": "string",
+          "label": "编号",
+          "required": true
+        },
+        {
+          "name": "part_name",
+          "type": "string",
+          "label": "部件名"
+        },
+        {
+          "name": "material",
+          "type": "string",
+          "label": "材质"
+        },
+        {
+          "name": "supplier",
+          "type": "string",
+          "label": "供应商"
+        },
+        {
+          "name": "qc_result",
+          "type": "enum",
+          "label": "质检结果"
+        },
+        {
+          "name": "stock",
+          "type": "number",
+          "label": "库存"
+        }
       ]
     },
     {
@@ -87,13 +252,43 @@
       "key": "id",
       "domain": "生产域",
       "attributes": [
-        {"name": "id", "type": "string", "label": "编号", "required": true},
-        {"name": "product_id", "type": "string", "label": "产品", "role": "reference"},
-        {"name": "produce_date", "type": "date", "label": "生产日期"},
-        {"name": "quantity", "type": "number", "label": "数量"},
-        {"name": "raw_parts", "type": "string", "label": "原料"},
-        {"name": "team", "type": "string", "label": "班组"},
-        {"name": "status", "type": "enum", "label": "状态"}
+        {
+          "name": "id",
+          "type": "string",
+          "label": "编号",
+          "required": true
+        },
+        {
+          "name": "product_id",
+          "type": "string",
+          "label": "产品",
+          "role": "reference"
+        },
+        {
+          "name": "produce_date",
+          "type": "date",
+          "label": "生产日期"
+        },
+        {
+          "name": "quantity",
+          "type": "number",
+          "label": "数量"
+        },
+        {
+          "name": "raw_parts",
+          "type": "string",
+          "label": "原料"
+        },
+        {
+          "name": "team",
+          "type": "string",
+          "label": "班组"
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "label": "状态"
+        }
       ]
     },
     {
@@ -104,8 +299,18 @@
       "domain": "生产域",
       "detail": true,
       "attributes": [
-        {"name": "batch_id", "type": "string", "label": "批次", "role": "reference"},
-        {"name": "raw_id", "type": "string", "label": "原料", "role": "reference"}
+        {
+          "name": "batch_id",
+          "type": "string",
+          "label": "批次",
+          "role": "reference"
+        },
+        {
+          "name": "raw_id",
+          "type": "string",
+          "label": "原料",
+          "role": "reference"
+        }
       ]
     },
     {
@@ -115,26 +320,126 @@
       "key": "id",
       "domain": "生产域",
       "attributes": [
-        {"name": "id", "type": "string", "label": "编号", "required": true},
-        {"name": "batch_id", "type": "string", "label": "批次", "role": "reference"},
-        {"name": "check_item", "type": "string", "label": "检验项"},
-        {"name": "result", "type": "enum", "label": "结果"},
-        {"name": "checker", "type": "string", "label": "检验员"},
-        {"name": "check_date", "type": "date", "label": "检验日期"}
+        {
+          "name": "id",
+          "type": "string",
+          "label": "编号",
+          "required": true
+        },
+        {
+          "name": "batch_id",
+          "type": "string",
+          "label": "批次",
+          "role": "reference"
+        },
+        {
+          "name": "check_item",
+          "type": "string",
+          "label": "检验项"
+        },
+        {
+          "name": "press_rule",
+          "type": "string",
+          "label": "试验压力"
+        },
+        {
+          "name": "hold_sec",
+          "type": "number",
+          "label": "保压(秒)"
+        },
+        {
+          "name": "leak_bubbles_min",
+          "type": "number",
+          "label": "泄漏率(泡/min)"
+        },
+        {
+          "name": "result",
+          "type": "enum",
+          "label": "结果"
+        },
+        {
+          "name": "checker",
+          "type": "string",
+          "label": "检验员"
+        },
+        {
+          "name": "check_date",
+          "type": "date",
+          "label": "检验日期"
+        }
       ]
     }
   ],
   "relations": [
-    {"id": "sells", "from": "Product", "to": "Sale", "fk": "valve_sales.product_id", "cardinality": "1:N", "label": "被销售"},
-    {"id": "boughtBy", "from": "Sale", "to": "Customer", "fk": "valve_sales.customer_id", "cardinality": "N:1", "label": "售予客户"},
-    {"id": "producedIn", "from": "Batch", "to": "Product", "fk": "valve_batches.product_id", "cardinality": "N:1", "label": "生产产品"},
-    {"id": "usesRawMaterial", "from": "BatchIngredient", "to": "RawMaterial", "fk": "valve_batch_ingredient.raw_id", "cardinality": "N:1", "label": "使用原料"},
-    {"id": "belongsToBatch", "from": "BatchIngredient", "to": "Batch", "fk": "valve_batch_ingredient.batch_id", "cardinality": "N:1", "label": "属于批次"},
-    {"id": "checkedBy", "from": "Qc", "to": "Batch", "fk": "valve_qc.batch_id", "cardinality": "N:1", "label": "质检批次"}
+    {
+      "id": "sells",
+      "from": "Product",
+      "to": "Sale",
+      "fk": "valve_sales.product_id",
+      "cardinality": "1:N",
+      "label": "被销售"
+    },
+    {
+      "id": "boughtBy",
+      "from": "Sale",
+      "to": "Customer",
+      "fk": "valve_sales.customer_id",
+      "cardinality": "N:1",
+      "label": "售予客户"
+    },
+    {
+      "id": "producedIn",
+      "from": "Batch",
+      "to": "Product",
+      "fk": "valve_batches.product_id",
+      "cardinality": "N:1",
+      "label": "生产产品"
+    },
+    {
+      "id": "usesRawMaterial",
+      "from": "BatchIngredient",
+      "to": "RawMaterial",
+      "fk": "valve_batch_ingredient.raw_id",
+      "cardinality": "N:1",
+      "label": "使用原料"
+    },
+    {
+      "id": "belongsToBatch",
+      "from": "BatchIngredient",
+      "to": "Batch",
+      "fk": "valve_batch_ingredient.batch_id",
+      "cardinality": "N:1",
+      "label": "属于批次"
+    },
+    {
+      "id": "checkedBy",
+      "from": "Qc",
+      "to": "Batch",
+      "fk": "valve_qc.batch_id",
+      "cardinality": "N:1",
+      "label": "质检批次"
+    }
   ],
   "constraints": [
-    {"type": "unique", "on": "Product.id", "msg": "产品编号唯一"},
-    {"type": "unique", "on": "Customer.id", "msg": "客户编号唯一"},
-    {"type": "unique", "on": "Equipment.id", "msg": "设备编号唯一"}
+    {
+      "type": "unique",
+      "on": "Product.id",
+      "msg": "产品编号唯一"
+    },
+    {
+      "type": "unique",
+      "on": "Customer.id",
+      "msg": "客户编号唯一"
+    },
+    {
+      "type": "unique",
+      "on": "Equipment.id",
+      "msg": "设备编号唯一"
+    },
+    {
+      "type": "unique",
+      "on": "RawMaterial.id",
+      "msg": "原材料编号唯一"
+    }
   ]
 }
