@@ -2,7 +2,7 @@
 
 工厂本体驱动的数据问答框架。本体建模到自然语言问答的开源实现。CSV 进，答案出，每个答案都带证据。
 
-[![Version](https://img.shields.io/badge/version-0.1.5-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.1.6-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
 [![CI](https://github.com/zhengjinjun1975/factory-ontology/actions/workflows/ci.yml/badge.svg)](https://github.com/zhengjinjun1975/factory-ontology/actions)
@@ -153,7 +153,7 @@ cd codes
 python valve_demo.py
 ```
 
-实测输出（v0.1.5，规则部分确定性可复现）：
+实测输出（v0.1.6，规则部分确定性可复现）：
 
 ```
 规则问答:  一共有多少个阀门 → 一共有 8 条记录
@@ -187,7 +187,7 @@ python api_server.py          # http://localhost:8000
 | `GET /api/admin/audit` | 审计日志查询 |
 | `GET /metrics` | 请求计数指标 |
 
-工程化能力：角色化鉴权（`FOOD_ADMIN_KEY`/`FOOD_READ_KEY`，不设则内网开放）、增量重建（数据 hash 检测，变了才重建）、多租户隔离（`config/kbs.json`）、Docker 一条命令部署（`docker compose up -d`）、结构化日志。
+工程化能力：角色化鉴权（`FOOD_ADMIN_KEY`/`FOOD_READ_KEY`，**默认 fail-closed**：未配置或 key 不匹配一律 401，需显式设置环境变量才可访问）、增量重建（数据 hash 检测，变了才重建）、多租户隔离（`config/kbs.json`）、Docker 一条命令部署（`docker compose up -d`）、结构化日志。
 
 ## Web 前端
 
@@ -247,6 +247,11 @@ python valve_demo.py
 
 规则能答的走规则（省 token、快、准、可复现），规则未命中才走 LLM。本地 Ollama 可全离线运行，数据不出厂。
 
+**如何填 `api_key`（不依赖 Hermes 或任何外部 Agent 框架）**：
+- **云端（`cloud`/DeepSeek）**：直接在 `api_key` 字段填入密钥；留空时自动尝试环境变量 `DEEPSEEK_API_KEY` 或 `ZHIPU_API_KEY`（`export DEEPSEEK_API_KEY=sk-xxx`）。两者都没有时，云端调用会明确返回 `[模型错误] 云端模型未配置 API Key`，不会静默失败。
+- **本地（`local`/Ollama）**：无需 key，`api_key` 保持空即可。
+- **切换模型**：改 `active` 字段，或用环境变量 `FOOD_MODEL` 覆盖（如 `FOOD_MODEL=cloud`），无需改配置文件。
+
 ## 设计原则
 
 1. **建模是桥不是终点**：让模型懂领域，别为建模而建模
@@ -280,6 +285,7 @@ v0.1.x 是当前版本线（schema 驱动重构后的新基线）；2.9.x 及更
 
 | 版本 | 内容 |
 |------|------|
+| **v0.1.6** | 工程化收尾：版本号统一、模型 key 配置说明（不依赖 Hermes）、文档对齐 fail-closed 鉴权 |
 | **v0.1.5** | 综合方案：9 大行业泛化建模（建库自动生成实体/极值/类型映射）+ 向量混合检索（BM25+语义）+ 极值词映射 + 向量模型配置——换任何行业数据即用、命中率 100% |
 | **v0.1.4** | 厂区数据真实化（GB/T 32808 型号编码、材料牌号、API 598 试压矩阵）+ 检索容错（同义词扩展，问"不锈钢"命中 CF8/304） |
 | **v0.1.3** | 安全加固：建模失败报告、SQL 注入白名单、编码正确性 |

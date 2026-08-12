@@ -141,7 +141,7 @@ def _warm_embedding():
     except Exception:
         pass  # 预热失败静默, 不阻塞服务启动
 
-app = FastAPI(title="食品企业知识库 API", version="0.1.4",
+app = FastAPI(title="食品企业知识库 API", version="0.1.6",
               description="本体驱动的食品企业问答 + 溯源检索（中小型食品企业场景）")
 
 # ── 托管移动端食品溯源 APP（与 API 同源，一套部署） ──
@@ -1086,7 +1086,7 @@ def api_version():
     """服务 + 契约版本与能力特性。"""
     start = time.time()
     return _ok_env({
-        "version": getattr(app, "version", "0.1.4"),
+        "version": getattr(app, "version", "0.1.6"),
         "contract_version": CONTRACT_VERSION,
         "features": FEATURES,
         "kb": KB_NAME,

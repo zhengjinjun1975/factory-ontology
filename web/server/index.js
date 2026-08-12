@@ -166,7 +166,7 @@ const server = createServer(async (req, res) => {
 
   // ── API: 代码版本（读 codes/run.py 的 __version__，单一事实源）──
   if (url === '/api/ontology/version') {
-    let version = '0.1.4';
+    let version = '0.1.6';
     try {
       const runSrc = readFileSync(join(__dirname, '..', '..', 'codes', 'run.py'), 'utf-8');
       const m = runSrc.match(/__version__\s*=\s*["']([^"']+)["']/);
