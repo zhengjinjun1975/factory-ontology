@@ -1,5 +1,5 @@
 {
-  "_说明": "多租户知识库注册表: 每个企业一个隔离的数据目录(数据/本体/词典各自独立)。FOOD_KB 环境变量选择激活的知识库。name/icon/examples 供 APP 动态渲染品牌与示例问题。",
+  "_说明": "多租户知识库注册表: 每个行业一个隔离的数据目录(数据/本体/词典各自独立)。kb 参数选择激活的知识库(替代 FOOD_KB 环境变量单库全局态, 根治串台)。name/icon/examples 供 APP 动态渲染品牌与示例问题。",
   "kbs": {
     "food": {
       "name": "食品企业溯源助手",
@@ -12,7 +12,70 @@
         "原味酸奶是什么"
       ],
       "data_dir": "data",
-      "lexicon": "lexicon_food_products.json"
+      "lexicon": "lexicon_food_products.json",
+      "nt": "output/food_products.nt"
+    },
+    "valve": {
+      "name": "阀门制造问答",
+      "icon": "🔧",
+      "examples": [
+        "有多少台设备",
+        "功率最大的设备",
+        "不锈钢材质的设备",
+        "客户总数"
+      ],
+      "data_dir": "data",
+      "lexicon": "lexicon_valve.json",
+      "nt": "output/valve.nt"
+    },
+    "ai4i": {
+      "name": "智能设备预测性维护",
+      "icon": "🤖",
+      "examples": [
+        "有多少台设备",
+        "设备类型有哪些",
+        "功率最大的设备",
+        "华东地区的客户"
+      ],
+      "data_dir": "data",
+      "lexicon": "lexicon_ai4i.json",
+      "nt": "output/ai4i.nt"
+    },
+    "energy_station": {
+      "name": "能源站问答",
+      "icon": "⚡",
+      "examples": [
+        "有多少台设备",
+        "能源站类型",
+        "温度最高的设备"
+      ],
+      "data_dir": "data",
+      "lexicon": "lexicon_energy_station.json",
+      "nt": "output/energy_station.nt"
+    },
+    "library": {
+      "name": "图书库存问答",
+      "icon": "📚",
+      "examples": [
+        "有多少本书",
+        "价格最贵的书",
+        "图书类型"
+      ],
+      "data_dir": "data",
+      "lexicon": "lexicon_library_inventory.json",
+      "nt": "output/library_inventory.nt"
+    },
+    "manufacturing": {
+      "name": "通用制造问答",
+      "icon": "🏭",
+      "examples": [
+        "有多少台设备",
+        "生产线的数量",
+        "供应商总数"
+      ],
+      "data_dir": "data",
+      "lexicon": "lexicon_internal.json",
+      "nt": "output/equipment.nt"
     }
   }
 }

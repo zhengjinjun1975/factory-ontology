@@ -1,9 +1,26 @@
 {
-  "description": "阀门行业词典（合成示例）— 换领域只换词典",
-  "attr_cn2en": {"产品名": "product_name", "型号": "type", "口径": "size_mm", "压力等级": "pressure_mpa", "材质": "material", "价格": "price", "保质期": "expiry_days"},
-  "attr_en2cn": {"product_name": "产品名", "type": "型号", "size_mm": "口径", "pressure_mpa": "压力等级", "material": "材质", "price": "价格"},
-  "status_cn2en": {"合格": "合格", "不合格": "不合格", "检验中": "检验中", "运行中": "运行中"},
-  "type_cn2en": {"闸阀": "闸阀", "球阀": "球阀", "蝶阀": "蝶阀", "止回阀": "止回阀", "安全阀": "安全阀"},
-  "field_aliases": {"deviceName": ["product_name"], "status": [], "deviceType": ["type"], "location": ["workshop"]},
-  "value_fields": ["material", "seal", "supplier", "qc_result"]
+  "status_cn2en": {
+    "已入库": "已入库",
+    "待质检": "待质检",
+    "生产中": "生产中"
+  },
+  "type_cn2en": {},
+  "zone_cn2en": {},
+  "attr_cn2en": {
+    "数量": "quantity"
+  },
+  "attr_en2cn": {
+    "quantity": "数量"
+  },
+  "field_aliases": {
+    "status": [
+      "status",
+      "Status"
+    ]
+  },
+  "relations_cn2en": {},
+  "value_fields": {
+    "status": "status"
+  },
+  "description": "由 LexiconAgent 全自动生成 (valve, 7字段)"
 }
