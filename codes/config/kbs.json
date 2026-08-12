@@ -90,18 +90,6 @@
       "lexicon": "lexicon_machining.json",
       "nt": "output/h_机械.nt"
     },
-    "precision": {
-      "name": "精密加工问答",
-      "icon": "🎯",
-      "examples": [
-        "有多少台设备",
-        "设备类型有哪些",
-        "精度等级最高的产品"
-      ],
-      "data_dir": "data_precision",
-      "lexicon": "lexicon_precision.json",
-      "nt": "output/h_精加工.nt"
-    },
     "ship": {
       "name": "船舶制造问答",
       "icon": "🚢",
@@ -113,19 +101,6 @@
       "data_dir": "data_ship",
       "lexicon": "lexicon_ship.json",
       "nt": "output/h_造船.nt"
-    },
-    "factory": {
-      "name": "工厂本体问答",
-      "icon": "🏭",
-      "examples": [
-        "有多少台设备",
-        "功率最大的设备",
-        "设备类型有哪些",
-        "不锈钢材质的设备"
-      ],
-      "data_dir": "data_valve",
-      "lexicon": "lexicon_factory.json",
-      "nt": "output/factory.nt"
     },
     "ai4i": {
       "name": "智能设备预测性维护",
@@ -140,18 +115,6 @@
       "lexicon": "lexicon_ai4i.json",
       "nt": "output/ai4i.nt"
     },
-    "energy_station": {
-      "name": "能源站问答",
-      "icon": "⚡",
-      "examples": [
-        "有多少台设备",
-        "能源站类型",
-        "温度最高的设备"
-      ],
-      "data_dir": "data",
-      "lexicon": "lexicon_energy_station.json",
-      "nt": "output/energy_station.nt"
-    },
     "library": {
       "name": "图书库存问答",
       "icon": "📚",
@@ -164,56 +127,6 @@
       "lexicon": "lexicon_library_inventory.json",
       "nt": "output/library_inventory.nt"
     },
-    "test_single": {
-      "nt": "output/test_single.nt",
-      "lexicon": "lexicon_test_single.json",
-      "data_dir": "data"
-    },
-    "test_multi": {
-      "nt": "output/test_multi.nt",
-      "lexicon": "lexicon_test_multi.json",
-      "data_dir": "data"
-    },
-    "ent_a": {
-      "nt": "output/ent_a.nt",
-      "lexicon": "lexicon_ent_a.json",
-      "data_dir": "data"
-    },
-    "ent_b": {
-      "nt": "output/ent_b.nt",
-      "lexicon": "lexicon_ent_b.json",
-      "data_dir": "data"
-    },
-    "tp_valve_a1": {
-      "nt": "output/tp_valve_a1.nt",
-      "lexicon": "lexicon_tp_valve_a1.json",
-      "data_dir": "data"
-    },
-    "tp_valve_multi": {
-      "nt": "output/tp_valve_multi.nt",
-      "lexicon": "lexicon_tp_valve_multi.json",
-      "data_dir": "data"
-    },
-    "test_e2e": {
-      "nt": "output/test_e2e.nt",
-      "lexicon": "lexicon_test_e2e.json",
-      "data_dir": "data"
-    },
-    "tp3p_a1": {
-      "nt": "output/tp3p_a1.nt",
-      "lexicon": "lexicon_tp3p_a1.json",
-      "data_dir": "data"
-    },
-    "tp3p_multi2": {
-      "nt": "output/tp3p_multi2.nt",
-      "lexicon": "lexicon_tp3p_multi2.json",
-      "data_dir": "data"
-    },
-    "tp3p_db": {
-      "nt": "output/tp3p_db.nt",
-      "lexicon": "lexicon_tp3p_db.json",
-      "data_dir": "data"
-    },
     "huaneng": {
       "data_dir": "data_huaneng",
       "lexicon": "lexicon_huaneng.json",
@@ -225,6 +138,98 @@
         "燃料有哪些",
         "客户总数"
       ]
+    },
+    "auto_parts": {
+      "name": "汽车零部件",
+      "icon": "🚗",
+      "examples": [
+        "有多少台设备",
+        "设备类型有哪些",
+        "功率最大的设备",
+        "客户总数",
+        "订单数量"
+      ],
+      "data_dir": "data_auto_parts",
+      "lexicon": "lexicon_auto_parts.json",
+      "nt": "output/auto_parts.nt"
+    },
+    "electronics": {
+      "name": "电子元件",
+      "icon": "🔌",
+      "examples": [
+        "有多少台设备",
+        "设备类型有哪些",
+        "价格最高的产品",
+        "客户总数"
+      ],
+      "data_dir": "data_electronics",
+      "lexicon": "lexicon_electronics.json",
+      "nt": "output/electronics.nt"
+    },
+    "appliance": {
+      "name": "家电制造",
+      "icon": "🏠",
+      "examples": [
+        "有多少台设备",
+        "设备类型有哪些",
+        "价格最高的产品",
+        "客户总数"
+      ],
+      "data_dir": "data_appliance",
+      "lexicon": "lexicon_appliance.json",
+      "nt": "output/appliance.nt"
+    },
+    "textile": {
+      "name": "纺织服装",
+      "icon": "🧵",
+      "examples": [
+        "有多少台设备",
+        "设备类型有哪些",
+        "功率最大的设备",
+        "价格最高的产品"
+      ],
+      "data_dir": "data_textile",
+      "lexicon": "lexicon_textile.json",
+      "nt": "output/textile.nt"
+    },
+    "plastics": {
+      "name": "塑料制品",
+      "icon": "🧪",
+      "examples": [
+        "有多少台设备",
+        "设备类型有哪些",
+        "价格最高的产品",
+        "客户总数"
+      ],
+      "data_dir": "data_plastics",
+      "lexicon": "lexicon_plastics.json",
+      "nt": "output/plastics.nt"
+    },
+    "medical_dev": {
+      "name": "医疗器械",
+      "icon": "💉",
+      "examples": [
+        "有多少台设备",
+        "设备类型有哪些",
+        "价格最高的产品",
+        "客户总数"
+      ],
+      "data_dir": "data_medical_dev",
+      "lexicon": "lexicon_medical_dev.json",
+      "nt": "output/medical_dev.nt"
+    },
+    "furniture": {
+      "name": "家具制造",
+      "icon": "🪑",
+      "examples": [
+        "有多少台设备",
+        "设备类型有哪些",
+        "功率最大的设备",
+        "客户总数"
+      ],
+      "data_dir": "data_furniture",
+      "lexicon": "lexicon_furniture.json",
+      "nt": "output/furniture.nt"
     }
   }
 }
