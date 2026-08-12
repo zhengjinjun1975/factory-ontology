@@ -18,6 +18,8 @@ embedding 失败/服务不可用时回落空结果，绝不阻塞下游。
 """
 import os
 import json
+import time
+import random
 import urllib.request
 import urllib.error
 
@@ -67,11 +69,19 @@ class VectorIndex:
         self._built = False
 
     @classmethod
-    def from_graph(cls, graph, lexicon=None, base=OLLAMA_BASE, model=EMBED_MODEL):
+    def from_graph(cls, graph, lexicon=None, base=OLLAMA_BASE, model=EMBED_MODEL,
+                   max_entries=2000, build_timeout=5.0):
         """从 build_graph 返回的 {node: {rel: [vals]}} 建向量索引。
         每个实例实体 = 一条记录(名字 + 各属性[中文label]:值)，做 embedding。
         lexicon 提供 attr_en2cn 把英文字段名转中文 label，提升中文语义匹配。
-        类/属性声明节点(无下划线实例id)跳过。embedding 失败回落空索引(不阻塞)。"""
+        类/属性声明节点(无下划线实例id)跳过。embedding 失败回落空索引(不阻塞)。
+
+        规模防护（防止万级实例逐条 embedding 卡死）：
+        - max_entries：实例实体超过该数量时随机抽样固定数量构建，其余不进向量索引
+          （BM25 仍全量覆盖，语义召回降级但不阻塞）。
+        - build_timeout：构建超时（秒）则放弃向量索引，降级纯 BM25（返回空索引），
+          由混合检索路径自动回落，绝不阻塞下游。
+        """
         vx = cls()
         en2cn = {}
         if lexicon:
@@ -79,6 +89,8 @@ class VectorIndex:
                 en2cn = lexicon.get("attr_en2cn", {}) or {}
             except AttributeError:
                 pass
+        # 先收集候选实例节点（文本已拼好），再决定抽样规模，避免构建前预嵌入
+        candidates = []
         for node, props in graph.items():
             name = str(node).split("#")[-1] if "#" in str(node) else str(node).split("/")[-1]
             if name.startswith("__") or "domain" in name:
@@ -92,7 +104,15 @@ class VectorIndex:
                 cn = en2cn.get(rel, rel) if isinstance(en2cn, dict) else rel
                 for v in (vals if isinstance(vals, list) else [vals]):
                     parts.append("%s:%s" % (cn, v))
-            text = " ".join(parts)
+            candidates.append((name, " ".join(parts)))
+        # 规模上限：超过则随机抽样，控制 embedding 调用次数
+        if max_entries and max_entries > 0 and len(candidates) > max_entries:
+            candidates = random.sample(candidates, max_entries)
+        # 超时防护：构建超过 build_timeout 秒则放弃向量索引，降级纯 BM25
+        deadline = time.monotonic() + (build_timeout or 0)
+        for name, text in candidates:
+            if build_timeout and build_timeout > 0 and time.monotonic() > deadline:
+                return cls()  # 超时：放弃向量索引，返回空索引（BM25 兜底）
             vec = embed_text(text, base=base, model=model)
             if vec is None:
                 continue
@@ -101,11 +121,13 @@ class VectorIndex:
         return vx
 
     @classmethod
-    def from_nt(cls, nt_file, lexicon=None, base=OLLAMA_BASE, model=EMBED_MODEL):
+    def from_nt(cls, nt_file, lexicon=None, base=OLLAMA_BASE, model=EMBED_MODEL,
+                max_entries=2000, build_timeout=5.0):
         """直接由 .nt 文件建向量索引（独立使用/测试入口）。"""
         import graph_rag as gr
         graph, _, _, _ = gr.build_graph(nt_file)
-        return cls.from_graph(graph, lexicon=lexicon, base=base, model=model)
+        return cls.from_graph(graph, lexicon=lexicon, base=base, model=model,
+                              max_entries=max_entries, build_timeout=build_timeout)
 
     def search(self, query, top_k=5, min_score=0.0):
         """embedding 问题 → 余弦相似度召回 top-k 语义相近实体。
