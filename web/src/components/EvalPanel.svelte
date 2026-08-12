@@ -120,7 +120,16 @@
     {/if}
 
     {#if loading}
-      <div class="eval-empty">正在评测 {kb} 知识库…</div>
+      <div class="skel-block">
+        <div class="skel-row">
+          <div class="skel skel-kpi"></div>
+          <div class="skel skel-kpi"></div>
+          <div class="skel skel-kpi"></div>
+        </div>
+        <div class="skel skel-line-lg"></div>
+        <div class="skel skel-line-sm"></div>
+        <div class="eval-thinking">正在评测 {kb} 知识库命中率…</div>
+      </div>
     {/if}
 
     {#if ran && !loading && !error && result}
@@ -189,7 +198,17 @@
     {/if}
 
     {#if isoLoading}
-      <div class="eval-empty">正在对 {kb} 知识库逐题作答…</div>
+      <div class="skel-block">
+        <div class="skel-card">
+          <div class="skel skel-line-sm"></div>
+          <div class="skel skel-line-lg"></div>
+        </div>
+        <div class="skel-card">
+          <div class="skel skel-line-sm"></div>
+          <div class="skel skel-line-lg"></div>
+        </div>
+        <div class="eval-thinking">正在对 {kb} 知识库逐题作答…</div>
+      </div>
     {/if}
 
     {#if isoResult && !isoLoading && !isoError}
@@ -263,6 +282,24 @@
   /* ─── 空态 / 错误 / 加载 ─── */
   .eval-empty { color: #94a3b8; font-size: 13px; text-align: center; padding: 30px; }
   .eval-err { color: #dc2626; }
+  .eval-thinking { color: #94a3b8; font-size: 12px; }
+
+  /* 骨架屏 */
+  @keyframes shimmer { 0% { background-position: -360px 0; } 100% { background-position: 360px 0; } }
+  .skel {
+    border-radius: 6px;
+    background: linear-gradient(90deg, #eef1f5 25%, #f7f9fc 40%, #eef1f5 55%);
+    background-size: 720px 100%; animation: shimmer 1.4s infinite linear;
+  }
+  .skel-block { display: flex; flex-direction: column; gap: 12px; }
+  .skel-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .skel-kpi { height: 74px; }
+  .skel-line-lg { height: 14px; width: 100%; }
+  .skel-line-sm { height: 12px; width: 30%; }
+  .skel-card {
+    border: 1px solid #e2e8f0; border-radius: 6px; background: #fff;
+    padding: 14px; display: flex; flex-direction: column; gap: 12px;
+  }
   .eval-retry {
     margin-left: 10px; background: #fff; color: #2563eb;
     border: 1px solid #cbd5e1; border-radius: 4px;
@@ -326,7 +363,7 @@
   }
 
   @media (max-width: 720px) {
-    .kpi-row { grid-template-columns: repeat(3, 1fr); }
+    .skel-row { grid-template-columns: repeat(3, 1fr); }
     .eval-top { flex-direction: column; align-items: stretch; }
     .eval-kb { justify-content: space-between; }
   }

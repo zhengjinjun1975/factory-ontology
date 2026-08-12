@@ -75,33 +75,42 @@ class QueryAgent(BaseAgent):
         except Exception:
             gans = None
 
-        # ---- 3. 混合检索(BM25 稀疏 + 向量语义) ----
+        # ---- 3. 混合检索(BM25 稀疏 + 向量语义, RRF 融合; 权重见 bm25_retrieval.HYBRID_CFG) ----
         try:
             graph, _, _, _ = build_graph(nt)
-            from bm25_retrieval import BM25Index
+            from bm25_retrieval import BM25Index, HYBRID_CFG, rrf_fuse
             from vector_retrieval import VectorIndex
             bm = BM25Index.from_graph(graph)
-            bm_hits = bm.search(q, top_k=3, min_score=4.0)
-            # 向量语义: 仅强语义信号(min_score 0.60)才触发, 避免对无关问题误召回
+            _b = HYBRID_CFG["bm25"]
+            bm_hits = bm.search(q, top_k=_b["top_k"], min_score=_b["min_score"])
+            # 向量语义: 阈值见 HYBRID_CFG(已放宽至 0.55, 提升复杂/口语问题语义召回)
+            _v = HYBRID_CFG["vector"]
             vec_hits = []
             vx = VectorIndex.from_graph(graph, lexicon=D)
-            vec_hits = vx.search(q, top_k=5, min_score=0.60)
-            seen, fused = set(), []
-            for h in (bm_hits + vec_hits):
-                e = h["entity"]
-                if e not in seen:
-                    seen.add(e)
-                    fused.append(h)
+            vec_hits = vx.search(q, top_k=_v["top_k"], min_score=_v["min_score"])
+            fused = rrf_fuse(bm_hits, vec_hits, HYBRID_CFG)
             if fused:
-                ents = "、".join(h["entity"] for h in fused)
+                ents = "、".join(f["entity"] for f in fused)
                 return self._ok(_pack(q, f"（混合检索）找到相关实体: {ents}",
                                      engines=["rule", "graphrag", "hybrid"],
-                                     evidence={"hits": fused[:5], "bm25_hits": bm_hits[:3],
-                                               "vector_hits": vec_hits[:5], "answer": ents}), "query")
+                                     evidence={"hits": fused[:5], "bm25_hits": bm_hits[:6],
+                                               "vector_hits": vec_hits[:8], "answer": ents}), "query")
         except Exception:
             pass
 
         # ---- 4. LLM 兜底(开放式问题, 借鉴 ontology_qa_v2 code_answer/llm_answer) ----
+        # 跨域校验钩子(P0): 若问题引用该 kb 词典外的实体概念(跨域), 且规则/图/混合全 miss,
+        # 禁止 LLM 兜底编造数据, 直接走 miss 返回"无相关数据"。
+        try:
+            legal = set(D.get("entity_cn2en", {})) | set(D.get("type_cn2en", {})) | set(D.get("status_cn2en", {})) | set(D.get("zone_cn2en", {})) | set(D.get("attr_cn2en", {})) | set(D.get("attr_en2cn", {}))
+            # 常见跨域实体词(其他行业概念): 本库若无法典匹配则判跨域
+            _cross_terms = ["书", "图书", "图书馆", "船舶", "订单", "测线", "炮点", "船", "原料", "原料"]
+            cross_hit = [w for w in _cross_terms if w in q and not any(w == k or w in str(k) for k in legal)]
+            if cross_hit:
+                return self._ok(_pack(q, "无相关数据（该知识库不含该实体概念）", engines=["miss"],
+                                     evidence={"cross_domain": cross_hit, "no_basis": True}), "query")
+        except Exception:
+            pass
         if task.get("use_llm", True):
             lans = self._llm_fallback(q, nt, D)
             if lans:
@@ -133,7 +142,9 @@ class QueryAgent(BaseAgent):
         prompt = (
             head +
             f"请回答以下关于工厂/本体知识库的问题: {q}\n"
-            "依据已有知识如实回答; 信息不足时如实说明, 不要编造。"
+            "严格规则: 仅可依据上面给出的本体 schema 中实际存在的实体/属性/概念作答。\n"
+            "若问题中的实体/概念【不在】该 schema(如问书/船/测线等本库没有的概念), 必须回答\"无相关数据\"。\n"
+            "严禁编造数量/记录/实体名。若本库有该数据但未给出具体值, 说明\"数据中未找到\", 不得猜测数字。\n"
         )
         try:
             ans = llm_generate(prompt, temperature=0.4, max_tokens=400)

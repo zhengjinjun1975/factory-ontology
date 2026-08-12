@@ -216,7 +216,13 @@
       <button class="dash-retry" onclick={load}>重试</button>
     </div>
   {:else if loading}
-    <div class="dash-empty">正在加载文档列表…</div>
+    <div class="skel-block">
+      <div class="skel skel-line-lg"></div>
+      <div class="skel skel-line-lg"></div>
+      <div class="skel skel-line-md"></div>
+      <div class="skel skel-line-lg"></div>
+      <div class="skel skel-line-md"></div>
+    </div>
   {:else if loaded && docs.length === 0}
     <div class="dash-empty dash-nodata">暂无文档，可通过上方「选择文件 + 上传文档」添加</div>
   {:else if loaded}
@@ -335,6 +341,17 @@
   .btn-clear:hover { border-color: #94a3b8; }
 
   .dash-empty { color: #94a3b8; font-size: 13px; text-align: center; padding: 30px; }
+
+  /* 骨架屏 */
+  @keyframes shimmer { 0% { background-position: -360px 0; } 100% { background-position: 360px 0; } }
+  .skel {
+    border-radius: 6px;
+    background: linear-gradient(90deg, #eef1f5 25%, #f7f9fc 40%, #eef1f5 55%);
+    background-size: 720px 100%; animation: shimmer 1.4s infinite linear;
+  }
+  .skel-block { display: flex; flex-direction: column; gap: 12px; }
+  .skel-line-lg { height: 14px; width: 100%; }
+  .skel-line-md { height: 14px; width: 70%; }
   .dash-nodata { color: #64748b; }
   .dash-err { color: #dc2626; }
   .dash-retry {

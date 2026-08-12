@@ -281,18 +281,40 @@ class AskReq(BaseModel):
 
 
 # ── 多租户惰性加载(T-D1 彻底化): 按 kb 加载本体/词典, 缓存多库, 根治串台 ──
+# 统一缓存失效(T-D2 稳定化): 缓存记录文件指纹(mtime+size), 每次访问校验 nt/词典文件变更,
+# 外部修改词典/本体后自动重载 —— 修"问答数字漂移"(词典改了缓存还用旧词典, 数字对不上)。
 _kb_ctx_cache = {}
+
+
+def _invalidate_kb(kb):
+    """统一失效某 kb 的所有缓存(本体/词典 ctx + BM25/向量索引)。
+
+    供回滚/重建/文件变更检测等场景调用; 幂等。同时失效词典(影响规则/向量)与本体
+    (影响 BM25/图), 保证"词典/本体一变, 问答即用新数据"。
+    """
+    kb = (kb or KB_NAME or "food").strip()
+    _kb_ctx_cache.pop(kb, None)
+    _KB_INDEX_CACHE.pop(f"bm25_{kb}", None)
+    _KB_INDEX_CACHE.pop(f"vec_{kb}", None)
+
+
+def _file_fingerprint(path):
+    """文件指纹 (mtime_ns, size)。文件缺失/不可读返回 None。"""
+    try:
+        st = os.stat(path)
+        return (st.st_mtime_ns, st.st_size)
+    except OSError:
+        return None
 
 
 def _get_kb_ctx(kb=None):
     """按 kb 惰性加载并缓存该知识库的本体图+词典+问答数据。
 
-    返回 {graph, labels, vi, rev, D, QDATA, nt_file, lex_file, kb}。
-    首次访问某 kb 才构建并缓存；kb 无效或数据缺失返回 None。
+    返回 {graph, labels, vi, rev, D, QDATA, nt_file, lex_file, kb, _fp_nt, _fp_lex}。
+    首次访问某 kb 才构建并缓存；之后每次访问校验 nt/词典文件指纹, 文件被外部修改时
+    自动失效重载(修"问答数字漂移": 词典变更后缓存仍用旧词典)。kb 无效返回 None。
     """
     kb = (kb or KB_NAME or "food").strip()
-    if kb in _kb_ctx_cache:
-        return _kb_ctx_cache[kb]
     kbc = KBS.get(kb)
     if not kbc:
         return None
@@ -300,6 +322,13 @@ def _get_kb_ctx(kb=None):
     lex_file = os.path.join(ROOT, "config", kbc.get("lexicon", f"lexicon_{kb}.json"))
     if not os.path.exists(nt_file) or not os.path.exists(lex_file):
         return None
+    # 文件变更检测: 缓存命中但 nt/词典指纹变化 → 统一失效, 走重载
+    if kb in _kb_ctx_cache:
+        ctx = _kb_ctx_cache[kb]
+        if (ctx.get("_fp_nt") == _file_fingerprint(nt_file)
+                and ctx.get("_fp_lex") == _file_fingerprint(lex_file)):
+            return ctx
+        _invalidate_kb(kb)  # 文件变了 → 失效(含 BM25/向量索引)
     try:
         g, lb, v, rv = gr.build_graph(nt_file)
         D = v3.load_dict(lex_file)
@@ -308,7 +337,8 @@ def _get_kb_ctx(kb=None):
         logger.warning(f"kb '{kb}' 加载失败: {e}")
         return None
     ctx = {"graph": g, "labels": lb, "vi": v, "rev": rv,
-           "D": D, "QDATA": QD, "nt_file": nt_file, "lex_file": lex_file, "kb": kb}
+           "D": D, "QDATA": QD, "nt_file": nt_file, "lex_file": lex_file, "kb": kb,
+           "_fp_nt": _file_fingerprint(nt_file), "_fp_lex": _file_fingerprint(lex_file)}
     _kb_ctx_cache[kb] = ctx
     return ctx
 
@@ -333,28 +363,49 @@ def _valid(key, target):
 def require_key(x_api_key: str = Header(default="")):
     """只读端点鉴权(fail-closed): 需匹配 read 或 admin key; 未配置或未匹配一律 401。"""
     if not _valid(x_api_key, ADMIN_KEY) and not _valid(x_api_key, READ_KEY):
+        _audit_event("login", role="deny", granted=False, reason="无效或缺失 API Key")
         raise HTTPException(401, "无效或缺失 API Key (需 X-API-Key 头)")
+    role = "admin" if _valid(x_api_key, ADMIN_KEY) else "read"
+    _audit_event("login", role=role, granted=True, scope="read")
 
 
 def require_admin(x_api_key: str = Header(default="")):
     """管理端点鉴权(fail-closed): 需匹配 admin key。"""
     if not _valid(x_api_key, ADMIN_KEY):
+        _audit_event("login", role="deny", granted=False, reason="需要 admin 权限")
         raise HTTPException(401, "需要管理权限 (admin API Key)")
+    _audit_event("login", role="admin", granted=True, scope="admin")
 
 # ── 请求计数(M1.3 metrics) + 审计日志(T3.1) ──
 from collections import Counter as _Counter
+import threading as _threading
 REQ_COUNT = _Counter()
 AUDIT_FILE = os.path.join(ROOT, "output", "audit.log")
+_AUDIT_LOCK = _threading.Lock()
+_AUDIT_MAX_BYTES = 10 * 1024 * 1024  # 单文件上限 10MB, 超出轮转归档(防无限增长)
 
 
 def _audit(record):
-    """追加审计日志(JSONL)。"""
+    """追加审计日志(JSONL)。线程安全 + 大小轮转; 失败静默不影响业务。"""
     try:
         os.makedirs(os.path.dirname(AUDIT_FILE), exist_ok=True)
-        with open(AUDIT_FILE, "a", encoding="utf-8") as f:
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        with _AUDIT_LOCK:
+            if os.path.exists(AUDIT_FILE) and os.path.getsize(AUDIT_FILE) > _AUDIT_MAX_BYTES:
+                try:
+                    os.replace(AUDIT_FILE, AUDIT_FILE + "." + datetime.now().strftime("%Y%m%d_%H%M%S"))
+                except Exception:
+                    pass
+            with open(AUDIT_FILE, "a", encoding="utf-8") as f:
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
     except Exception:
         pass
+
+
+def _audit_event(kind, **fields):
+    """结构化审计事件(kind=access/login/qa/delivery...)。统一带时间戳, 便于检索/分类。"""
+    rec = {"ts": datetime.now().isoformat(), "kind": kind}
+    rec.update(fields)
+    _audit(rec)
 
 
 @app.middleware("http")
@@ -362,14 +413,11 @@ async def audit_and_count(request: Request, call_next):
     REQ_COUNT[request.url.path] += 1
     start = time.time()
     response = await call_next(request)
-    _audit({
-        "ts": datetime.now().isoformat(),
-        "method": request.method,
-        "path": request.url.path,
-        "status": response.status_code,
-        "client": request.client.host if request.client else "",
-        "ms": int((time.time() - start) * 1000),
-    })
+    # access 审计: 记录请求角色(admin/read/anon), 供登录/访问审计
+    _audit_event("access", method=request.method, path=request.url.path,
+                 status=response.status_code,
+                 client=request.client.host if request.client else "",
+                 ms=int((time.time() - start) * 1000))
     return response
 
 
@@ -630,15 +678,8 @@ def _llm_fallback_answer(question, kb):
     return None
 
 
-@app.post("/api/ask", dependencies=[Depends(require_key)])
-def ask(req: AskReq):
-    """自然语言问答(对齐蓝图融合检索): 规则→逻辑→图谱→BM25→向量(RRF)→知识库doc→LLM兜底。
-
-    返回(兼容旧字段 + 蓝图字段):
-      {ok, mode, answer, evidence:[{entity,attr,value,source,score}],
-       engines:[rule/graph/vector/bm25/doc], structured?, no_basis, kb}
-    融合链每步命中即记录 engines; 全部答不上时 LLM 兜底, evidence 空数组 + no_basis=True。
-    """
+def _ask_impl(req: AskReq):
+    """问答引擎实现(供 ask 端点包装审计后调用)。"""
     ctx = _get_kb_ctx(req.kb)
     if ctx is None:
         kb = (req.kb or KB_NAME).strip()
@@ -688,34 +729,33 @@ def ask(req: AskReq):
                 "evidence": g_ev, "engines": ["graph"], "structured": None,
                 "no_basis": not g_ev, "kb": ctx["kb"]}
     # 3.5 混合检索(BM25 稀疏 + 向量语义, RRF 融合): 先暂存命中, 继续走知识库 doc 配合
+    #     权重/阈值统一见 bm25_retrieval.HYBRID_CFG(放宽召回 + 倒数排名融合, 提升复杂问题命中)
     hybrid_payload = None
     hit_engines = []
     try:
-        from bm25_retrieval import BM25Index
+        from bm25_retrieval import BM25Index, HYBRID_CFG, rrf_fuse
         from vector_retrieval import VectorIndex
         bm_key, vec_key = f"bm25_{ctx['kb']}", f"vec_{ctx['kb']}"
         if bm_key not in _KB_INDEX_CACHE:
             _KB_INDEX_CACHE[bm_key] = BM25Index.from_graph(graph)
         if vec_key not in _KB_INDEX_CACHE:
             _KB_INDEX_CACHE[vec_key] = VectorIndex.from_graph(graph, lexicon=D)
-        bm_hits = _KB_INDEX_CACHE[bm_key].search(q, top_k=3, min_score=4.0)
-        vec_hits = _KB_INDEX_CACHE[vec_key].search(q, top_k=5, min_score=0.60)
-        seen, fused = set(), []
-        for h in (bm_hits + vec_hits):
-            ent = h["entity"]
-            if ent not in seen:
-                seen.add(ent)
-                fused.append(h)
+        _b, _v = HYBRID_CFG["bm25"], HYBRID_CFG["vector"]
+        bm_hits = _KB_INDEX_CACHE[bm_key].search(q, top_k=_b["top_k"], min_score=_b["min_score"])
+        vec_hits = _KB_INDEX_CACHE[vec_key].search(q, top_k=_v["top_k"], min_score=_v["min_score"])
+        fused = rrf_fuse(bm_hits, vec_hits, HYBRID_CFG)
         if fused:
             # 记录实际命中的引擎: bm25 / vector
             if bm_hits:
                 hit_engines.append("bm25")
             if vec_hits:
                 hit_engines.append("vector")
-            ents = "、".join(h["entity"] for h in fused)
-            ev = [{"entity": h["entity"], "attr": None, "value": h.get("value", ""),
-                   "source": h.get("source", "hybrid"), "score": h.get("score")}
-                  for h in fused[:5]]
+            ents = "、".join(f["entity"] for f in fused)
+            ev = [{"entity": f["entity"], "attr": None,
+                   "value": (f.get("hit") or {}).get("value")
+                            or (f.get("hit") or {}).get("text") or f["entity"],
+                   "source": "hybrid", "score": f["rrf"]}
+                  for f in fused[:5]]
             hybrid_payload = {"ok": True, "mode": "hybrid",
                               "answer": f"（混合检索）找到相关实体: {ents}",
                               "evidence": ev, "engines": hit_engines,
@@ -755,6 +795,29 @@ def ask(req: AskReq):
     return {"ok": True, "mode": "miss", "answer": f"抱歉，暂未理解该问题。\n可试试问：\n{guide}",
             "evidence": [], "engines": [], "structured": None, "no_basis": True,
             "kb": ctx["kb"]}
+
+
+@app.post("/api/ask", dependencies=[Depends(require_key)])
+def ask(req: AskReq):
+    """自然语言问答(对齐蓝图融合检索): 规则→逻辑→图谱→BM25→向量(RRF)→知识库doc→LLM兜底。
+
+    返回(兼容旧字段 + 蓝图字段):
+      {ok, mode, answer, evidence:[{entity,attr,value,source,score}],
+       engines:[rule/graph/vector/bm25/doc], structured?, no_basis, kb}
+    融合链每步命中即记录 engines; 全部答不上时 LLM 兜底, evidence 空数组 + no_basis=True。
+    """
+    start = time.time()
+    result = _ask_impl(req)
+    # 问答审计: 记录问题/知识库/命中引擎/模式, 供追溯与质量分析
+    try:
+        _audit_event("qa", kb=req.kb or KB_NAME, question=req.question,
+                     mode=result.get("mode"), engines=result.get("engines", []),
+                     no_basis=result.get("no_basis"),
+                     ans_len=len(str(result.get("answer", ""))),
+                     ms=int((time.time() - start) * 1000))
+    except Exception:
+        pass
+    return result
 
 
 @app.get("/api/trace/forward", dependencies=[Depends(require_key)])
@@ -975,10 +1038,8 @@ def _asset_rollback(version, kb="food"):
         os.makedirs(kbd, exist_ok=True)
         shutil.copytree(sp, kbd, dirs_exist_ok=True)
     _asset_set_active(version, kb)
-    # 失效缓存, 下次 /api/ask 加载回滚后的本体
-    _kb_ctx_cache.pop(kb, None)
-    _KB_INDEX_CACHE.pop(f"bm25_{kb}", None)
-    _KB_INDEX_CACHE.pop(f"vec_{kb}", None)
+    # 失效缓存, 下次 /api/ask 加载回滚后的本体(统一失效: ctx + BM25/向量索引)
+    _invalidate_kb(kb)
     return version
 
 
@@ -1224,6 +1285,8 @@ def assets_snapshot(req: AssetSnapshotReq):
         return _err_env(5001, "快照失败(内部错误已记录)", start)
     if version is None:
         return _err_env(4001, f"知识库 '{kb}' 无效或数据缺失, 无法快照", start)
+    _audit_event("delivery", action="snapshot", kb=kb, version=version,
+                 label=req.label, created_by=req.created_by)
     return _ok_env({"version": version, "hash": h, "kb": kb}, start)
 
 
@@ -1239,6 +1302,7 @@ def assets_rollback(req: AssetRollbackReq):
         return _err_env(5001, "回滚失败(内部错误已记录)", start)
     if v is None:
         return _err_env(4041, f"版本不存在: {req.version} (kb={kb})", start)
+    _audit_event("delivery", action="rollback", kb=kb, version=req.version, active=v)
     return _ok_env({"active_version": v, "kb": kb}, start)
 
 
@@ -1341,10 +1405,8 @@ def ontology_build(req: OntologyBuildReq):
         _set_active_kb(kb, nt_rel, lex_rel)
     except Exception as e:
         logger.warning(f"web_state.json 激活 kb 更新失败: {e}")
-    # 失效该 kb 缓存, 下次 /api/ask 重新加载新本体
-    _kb_ctx_cache.pop(kb, None)
-    _KB_INDEX_CACHE.pop(f"bm25_{kb}", None)
-    _KB_INDEX_CACHE.pop(f"vec_{kb}", None)
+    # 失效该 kb 缓存, 下次 /api/ask 重新加载新本体(统一失效: ctx + BM25/向量索引)
+    _invalidate_kb(kb)
     return _ok_env({"kb": kb, "nt": nt_rel, "lexicon": lex_rel,
                     "status": "built", "ask_ready": True}, start)
 

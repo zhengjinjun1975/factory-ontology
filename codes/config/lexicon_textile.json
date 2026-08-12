@@ -1,0 +1,155 @@
+{
+  "description": "自动生成词典（multi_model, suggest_schema 推断 + LLM 语义聚类同义词 + data profiling 映射）",
+  "attr_cn2en": {
+    "编号": "id",
+    "客户名称": "customer_name",
+    "区域": "region",
+    "行业": "industry",
+    "信用等级": "credit_level",
+    "contact": "contact",
+    "设备名称": "device_name",
+    "设备类型": "device_type",
+    "车间": "workshop",
+    "功率(kW)": "power_kw",
+    "功率": "power_kw",
+    "状态": "status",
+    "温度(℃)": "temp_c",
+    "温度": "temp_c",
+    "振动(mm/s)": "vibration_mm_s",
+    "振动": "vibration_mm_s",
+    "deviceageyears": "device_age_years",
+    "maintainer": "maintainer",
+    "产品编号": "product_id",
+    "客户编号": "customer_id",
+    "数量": "quantity",
+    "orderdate": "order_date",
+    "金额": "amount",
+    "delivery状态": "delivery_status",
+    "产品名称": "product_name",
+    "product类型": "product_type",
+    "specvalue": "spec_value",
+    "材质": "material",
+    "价格": "price",
+    "库存qty": "stock_qty"
+  },
+  "attr_en2cn": {
+    "id": "编号",
+    "customer_name": "客户名称",
+    "region": "区域",
+    "industry": "行业",
+    "credit_level": "信用等级",
+    "contact": "contact",
+    "device_name": "设备名称",
+    "device_type": "设备类型",
+    "workshop": "车间",
+    "power_kw": "功率(kW)",
+    "status": "状态",
+    "temp_c": "温度(℃)",
+    "vibration_mm_s": "振动(mm/s)",
+    "device_age_years": "deviceageyears",
+    "maintainer": "maintainer",
+    "product_id": "产品编号",
+    "customer_id": "客户编号",
+    "quantity": "数量",
+    "order_date": "orderdate",
+    "amount": "金额",
+    "delivery_status": "delivery状态",
+    "product_name": "产品名称",
+    "product_type": "product类型",
+    "spec_value": "specvalue",
+    "material": "材质",
+    "price": "价格",
+    "stock_qty": "库存qty"
+  },
+  "status_cn2en": {
+    "运行中": "运行中",
+    "待机": "idle",
+    "报警": "alarm",
+    "维护中": "maintenance",
+    "离线": "offline",
+    "合格": "pass",
+    "不合格": "fail",
+    "停机": "停机",
+    "备用": "备用",
+    "检修": "检修",
+    "停产": "停产",
+    "试产": "试产",
+    "在产": "在产"
+  },
+  "type_cn2en": {
+    "织造设备": "织造设备",
+    "染整设备": "染整设备",
+    "缝制设备": "缝制设备",
+    "成衣": "成衣",
+    "面料": "面料",
+    "针织成衣": "针织成衣"
+  },
+  "zone_cn2en": {
+    "华东": "华东",
+    "华南": "华南",
+    "染整车间": "染整车间",
+    "针织车间": "针织车间",
+    "织造车间": "织造车间",
+    "缝制车间": "缝制车间"
+  },
+  "synonym_map": {
+    "产品类型": [
+      "product类型"
+    ],
+    "功率": [
+      "功率(kW)"
+    ],
+    "振动": [
+      "振动(mm/s)"
+    ],
+    "温度": [
+      "温度(℃)"
+    ],
+    "规格值": [
+      "specvalue"
+    ],
+    "维护人": [
+      "maintainer"
+    ],
+    "订单日期": [
+      "orderdate"
+    ],
+    "交付状态": [
+      "delivery状态"
+    ],
+    "设备年限": [
+      "deviceageyears"
+    ]
+  },
+  "entity_cn2en": {
+    "客户": "customers",
+    "设备": "equipment",
+    "订单": "orders",
+    "产品": "products"
+  },
+  "numeric_fields": {
+    "功率": "power_kw",
+    "温度": "temp_c",
+    "振动": "vibration_mm_s",
+    "数量": "quantity",
+    "金额": "amount",
+    "价格": "price",
+    "库存": "stock_qty"
+  },
+  "field_aliases": {
+    "status": [
+      "status"
+    ],
+    "deviceType": [
+      "deviceType",
+      "device_type",
+      "type"
+    ],
+    "deviceName": [
+      "deviceName",
+      "device_name",
+      "name"
+    ]
+  },
+  "value_fields": []
+}

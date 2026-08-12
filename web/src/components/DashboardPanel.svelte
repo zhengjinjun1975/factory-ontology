@@ -59,7 +59,16 @@
 
 <div class="dash">
   {#if loading}
-    <div class="dash-empty">正在加载统计数据…</div>
+    <div class="skel-block">
+      <div class="skel-row">
+        <div class="skel skel-kpi"></div>
+        <div class="skel skel-kpi"></div>
+        <div class="skel skel-kpi"></div>
+      </div>
+      <div class="skel skel-line-lg"></div>
+      <div class="skel skel-line-lg"></div>
+      <div class="skel skel-line-lg"></div>
+    </div>
   {:else if empty}
     <div class="dash-empty dash-nodata">尚未建模，请先在「数据建模」页上传数据</div>
   {:else if error}
@@ -150,6 +159,18 @@
 <style>
   .dash { display: flex; flex-direction: column; gap: 12px; }
   .dash-empty { color: #94a3b8; font-size: 13px; text-align: center; padding: 30px; }
+
+  /* 骨架屏 */
+  @keyframes shimmer { 0% { background-position: -360px 0; } 100% { background-position: 360px 0; } }
+  .skel {
+    border-radius: 6px;
+    background: linear-gradient(90deg, #eef1f5 25%, #f7f9fc 40%, #eef1f5 55%);
+    background-size: 720px 100%; animation: shimmer 1.4s infinite linear;
+  }
+  .skel-block { display: flex; flex-direction: column; gap: 12px; }
+  .skel-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .skel-kpi { height: 74px; }
+  .skel-line-lg { height: 14px; width: 100%; }
   .dash-nodata { color: #64748b; }   /* 未建模空态：中性灰，非红色 */
   .dash-err { color: #dc2626; }
   .dash-retry {
@@ -211,5 +232,6 @@
   @media (max-width: 720px) {
     .chart-grid { grid-template-columns: 1fr; }
     .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .skel-row { grid-template-columns: 1fr; }
   }
 </style>

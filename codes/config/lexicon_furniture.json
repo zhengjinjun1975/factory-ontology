@@ -1,0 +1,333 @@
+{
+  "description": "自动生成词典（multi_model, suggest_schema 推断 + LLM 语义聚类同义词 + data profiling 映射）",
+  "attr_cn2en": {
+    "编号": "id",
+    "客户名称": "customer_name",
+    "区域": "region",
+    "行业": "industry",
+    "信用等级": "credit_level",
+    "contact": "contact",
+    "设备名称": "device_name",
+    "设备类型": "device_type",
+    "车间": "workshop",
+    "功率(kW)": "power_kw",
+    "功率": "power_kw",
+    "状态": "status",
+    "温度(℃)": "temp_c",
+    "温度": "temp_c",
+    "振动(mm/s)": "vibration_mm_s",
+    "振动": "vibration_mm_s",
+    "deviceageyears": "device_age_years",
+    "maintainer": "maintainer",
+    "产品编号": "product_id",
+    "客户编号": "customer_id",
+    "数量": "quantity",
+    "orderdate": "order_date",
+    "金额": "amount",
+    "delivery状态": "delivery_status",
+    "产品名称": "product_name",
+    "product类型": "product_type",
+    "specvalue": "spec_value",
+    "材质": "material",
+    "价格": "price",
+    "库存qty": "stock_qty"
+  },
+  "attr_en2cn": {
+    "id": "编号",
+    "customer_name": "客户名称",
+    "region": "区域",
+    "industry": "行业",
+    "credit_level": "信用等级",
+    "contact": "contact",
+    "device_name": "设备名称",
+    "device_type": "设备类型",
+    "workshop": "车间",
+    "power_kw": "功率(kW)",
+    "status": "状态",
+    "temp_c": "温度(℃)",
+    "vibration_mm_s": "振动(mm/s)",
+    "device_age_years": "deviceageyears",
+    "maintainer": "maintainer",
+    "product_id": "产品编号",
+    "customer_id": "客户编号",
+    "quantity": "数量",
+    "order_date": "orderdate",
+    "amount": "金额",
+    "delivery_status": "delivery状态",
+    "product_name": "产品名称",
+    "product_type": "product类型",
+    "spec_value": "specvalue",
+    "material": "材质",
+    "price": "价格",
+    "stock_qty": "库存qty"
+  },
+  "status_cn2en": {
+    "运行中": "运行中",
+    "待机": "idle",
+    "报警": "alarm",
+    "维护中": "maintenance",
+    "离线": "offline",
+    "合格": "pass",
+    "不合格": "fail",
+    "检修": "检修",
+    "备用": "备用",
+    "停机": "停机",
+    "停产": "停产",
+    "在产": "在产",
+    "试产": "试产"
+  },
+  "type_cn2en": {
+    "木工设备": "木工设备",
+    "卧室家具": "卧室家具",
+    "客厅家具": "客厅家具",
+    "书房家具": "书房家具"
+  },
+  "zone_cn2en": {
+    "华东": "华东",
+    "华北": "华北",
+    "板式车间": "板式车间",
+    "开料车间": "开料车间",
+    "油漆车间": "油漆车间"
+  },
+  "synonym_map": {
+    "contact": [
+      "联系人",
+      "联系方式",
+      "联系人信息"
+    ],
+    "delivery状态": [
+      "发货状态",
+      "配送状态",
+      "交货状态"
+    ],
+    "deviceageyears": [
+      "设备年龄(年)",
+      "设备使用年限",
+      "设备年限"
+    ],
+    "maintainer": [
+      "维护人员",
+      "维修人员",
+      "保养人员"
+    ],
+    "orderdate": [
+      "下单日期",
+      "订单日期",
+      "订货日期"
+    ],
+    "product类型": [
+      "产品类别",
+      "产品种类",
+      "产品分类"
+    ],
+    "specvalue": [
+      "规格值",
+      "规格参数值"
+    ],
+    "书房家具": [
+      "书房类家具",
+      "书房用品家具"
+    ],
+    "产品名称": [
+      "品名",
+      "产品名"
+    ],
+    "产品编号": [
+      "产品编码",
+      "产品代码",
+      "产品号"
+    ],
+    "价格": [
+      "单价",
+      "售价",
+      "价格值"
+    ],
+    "信用等级": [
+      "信誉等级",
+      "资信等级"
+    ],
+    "停产": [
+      "停止生产",
+      "已停产",
+      "不再生产"
+    ],
+    "停机": [
+      "停止运行",
+      "停运",
+      "设备停机"
+    ],
+    "功率": [
+      "功率值",
+      "额定功率"
+    ],
+    "功率(kW)": [
+      "功率(千瓦)",
+      "功率kW"
+    ],
+    "区域": [
+      "地区",
+      "地域",
+      "销售区域"
+    ],
+    "华东": [
+      "华东地区",
+      "华东区"
+    ],
+    "华北": [
+      "华北地区",
+      "华北区"
+    ],
+    "卧室家具": [
+      "卧室类家具",
+      "卧室用品家具"
+    ],
+    "在产": [
+      "生产中",
+      "正在生产",
+      "在制"
+    ],
+    "备用": [
+      "备件",
+      "备用状态",
+      "备用设备"
+    ],
+    "客厅家具": [
+      "客厅类家具",
+      "客厅用品家具"
+    ],
+    "客户名称": [
+      "客户名",
+      "顾客名称"
+    ],
+    "客户编号": [
+      "客户编码",
+      "客户代码",
+      "客户号"
+    ],
+    "库存qty": [
+      "库存数量",
+      "库存量",
+      "库存数"
+    ],
+    "开料车间": [
+      "下料车间",
+      "开料工段"
+    ],
+    "振动": [
+      "振动值",
+      "振动量"
+    ],
+    "振动(mm/s)": [
+      "振动(毫米/秒)",
+      "振动速度"
+    ],
+    "数量": [
+      "个数",
+      "件数",
+      "数量值"
+    ],
+    "木工设备": [
+      "木工机械",
+      "木工机器"
+    ],
+    "材质": [
+      "材料",
+      "材质类型",
+      "用料"
+    ],
+    "板式车间": [
+      "板式家具车间",
+      "板式工段"
+    ],
+    "检修": [
+      "维修",
+      "检查修理",
+      "保养检修"
+    ],
+    "油漆车间": [
+      "涂装车间",
+      "喷漆车间"
+    ],
+    "温度": [
+      "温度值",
+      "温度读数"
+    ],
+    "温度(℃)": [
+      "温度(摄氏度)",
+      "摄氏温度"
+    ],
+    "状态": [
+      "状况",
+      "当前状态",
+      "运行状态"
+    ],
+    "编号": [
+      "编码",
+      "代码",
+      "序号"
+    ],
+    "行业": [
+      "所属行业",
+      "行业类别"
+    ],
+    "设备名称": [
+      "设备名",
+      "机器名称"
+    ],
+    "设备类型": [
+      "设备类别",
+      "设备种类",
+      "设备分类"
+    ],
+    "试产": [
+      "试生产",
+      "试验生产"
+    ],
+    "车间": [
+      "工段",
+      "生产车间",
+      "厂房"
+    ],
+    "运行中": [
+      "正在运行",
+      "运转中",
+      "运行状态"
+    ],
+    "金额": [
+      "金额值",
+      "总金额",
+      "金额数"
+    ]
+  },
+  "entity_cn2en": {
+    "客户": "customers",
+    "设备": "equipment",
+    "订单": "orders",
+    "产品": "products"
+  },
+  "numeric_fields": {
+    "功率": "power_kw",
+    "温度": "temp_c",
+    "振动": "vibration_mm_s",
+    "数量": "quantity",
+    "金额": "amount",
+    "价格": "price",
+    "库存": "stock_qty"
+  },
+  "field_aliases": {
+    "status": [
+      "status"
+    ],
+    "deviceType": [
+      "deviceType",
+      "device_type",
+      "type"
+    ],
+    "deviceName": [
+      "deviceName",
+      "device_name",
+      "name"
+    ]
+  },
+  "value_fields": []
+}

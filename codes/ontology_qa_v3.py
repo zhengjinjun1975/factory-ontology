@@ -153,25 +153,54 @@ def _extreme_field(dict_data, q):
     return None, None
 
 
+# CJK 统一表意文字范围 [U+4E00, U+9FFF], 用 chr() 构造避免源码转义被改写
+_CJK_START, _CJK_END = chr(0x4E00), chr(0x9FFF)
+
+
+def _strip_unit(cn):
+    """去掉属性中文名末尾的单位后缀, 让口语能命中带单位后缀的词典键。
+
+    支持括号单位('功率（千瓦）'→'功率')与无括号单位('功率kW'/'温度℃'/'尺寸mm'→
+    '功率'/'温度'/'尺寸'), 从而 '功率最大的设备' 能命中词典键 '功率kW'→powerKw。
+    仅当剥离后仍以中文开头才生效, 避免把纯英文字段名('batchsizel')剥空造成误匹配。
+    """
+    if not cn:
+        return cn or ""
+    stripped = re.sub(r"[（(][^（）()]*[）)]$", "", cn).strip()
+    base = re.sub(r"[^%s-%s]+$" % (_CJK_START, _CJK_END), "", stripped)  # 去末尾非中文单位
+    if _CJK_START <= base[:1] <= _CJK_END:
+        return base.strip()
+    return stripped  # 无中文则保留原样, 防误剥纯英文键
+
+
 def _find_attr(dict_data, q):
     """从词典找问题里出现的属性中文词 -> 字段英文。按长度降序避免短词短路。
-    词典未命中时兜底查 _ATTR_CN_ALIASES 通用中文别名(保质期→expiry_days)。"""
-    attr_cn2en = dict_data.get("attr_cn2en", {})
-    for cn, en in sorted(attr_cn2en.items(), key=lambda x: len(x[0]), reverse=True):
-        if cn in q:
-            return en, cn
-    # 通用中文别名兜底：词典缺"保质期"等口语时，映射到规范英文，供极值/过滤模板用
-    for cn in sorted(_ATTR_CN_ALIASES, key=len, reverse=True):
-        if len(cn) >= 2 and cn in q:
-            return _ATTR_CN_ALIASES[cn], cn
-    # data profiling 极值字段兜底：词典 numeric_fields {中文极值词: 英文字段}
-    # （精度/投资/价格/吨位/金额/合同金额/容量/功率…，替代硬编码的极值字段集）
+
+    兼容词典键带单位后缀('功率（千瓦）')也能被'功率'口语命中: 为每个 attr_cn2en 键
+    额外生成去单位后缀的变体, 保证映射到可解析的规范字段(power_kw), 而非泛化别名
+    (如'功率'→'power')。词典未命中时兜底 _ATTR_CN_ALIASES / numeric_fields / 极值推断。
+    """
+    cand = []  # (min_len, 中文匹配词, 英文字段); min_len 防单字别名误命中
+    for cn, en in dict_data.get("attr_cn2en", {}).items():
+        cand.append((1, cn, en))
+        base = _strip_unit(cn)
+        if base and base != cn:
+            cand.append((1, base, en))
+    for cn, en in _ATTR_CN_ALIASES.items():
+        cand.append((2, cn, en))
     nf = dict_data.get("numeric_fields", {}) or {}
-    for cn in sorted(nf, key=len, reverse=True):
-        if cn in q:
-            return nf[cn], cn
-    # 通用极值词兜底：'最X的Y' 中 X 为形容词(贵/便宜/大/小/高/低)时，
-    # 从数值字段推断 Y（如 最贵→price）。词典直匹配未命中才走这里，不破坏现有命中。
+    for cn, en in nf.items():
+        cand.append((1, cn, en))
+    seen = set()
+    # 按长度降序, 优先长词(完整键), 稳定排序保证同长时 attr_cn2en 变体先于泛化别名
+    for min_len, cn, en in sorted(cand, key=lambda x: len(x[1]), reverse=True):
+        key = (cn, en)
+        if key in seen:
+            continue
+        seen.add(key)
+        if len(cn) >= min_len and cn in q:
+            return en, cn
+    # 通用极值词兜底: '最X的Y' 中 X 为形容词(贵/便宜/大/小/高/低)时推断 Y 的数值字段
     return _extreme_field(dict_data, q)
 
 

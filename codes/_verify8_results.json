@@ -1,0 +1,50 @@
+{
+  "auto_parts": {
+    "build_st": 200,
+    "build_status": null,
+    "hits": 5,
+    "questions": 5
+  },
+  "electronics": {
+    "build_st": 200,
+    "build_status": null,
+    "hits": 4,
+    "questions": 4
+  },
+  "appliance": {
+    "build_st": 200,
+    "build_status": null,
+    "hits": 4,
+    "questions": 4
+  },
+  "textile": {
+    "build_st": 200,
+    "build_status": null,
+    "hits": 4,
+    "questions": 4
+  },
+  "plastics": {
+    "build_st": 200,
+    "build_status": null,
+    "hits": 4,
+    "questions": 4
+  },
+  "medical_dev": {
+    "build_st": 200,
+    "build_status": null,
+    "hits": 4,
+    "questions": 4
+  },
+  "furniture": {
+    "build_st": 200,
+    "build_status": null,
+    "hits": 4,
+    "questions": 4
+  },
+  "hardware": {
+    "build_st": 200,
+    "build_status": null,
+    "hits": 4,
+    "questions": 4
+  }
+}

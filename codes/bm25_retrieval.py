@@ -121,3 +121,51 @@ if __name__ == "__main__":
     bm = BM25Index.from_graph(g)
     for q in ["保质期最长的", "面包", "酸奶"]:
         print(f"问 [{q}] →", [h["entity"] for h in bm.search(q)])
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# 混合检索(RRF)共享调参 — query_agent / api_server 复用同一套权重
+# ═══════════════════════════════════════════════════════════════════════
+# 调参说明(复杂问题命中优化, 兼顾防误召回):
+#   - BM25 稀疏: min_score 4.0→3.0 + top_k 3→6, 放宽字面匹配提升召回。
+#     阈值 3.0 仍能滤掉纯噪音(如无关问题的字符碰巧命中 ~2.8), 保持"无关→miss"。
+#   - 向量语义: top_k 5→8 加深语义召回, 但 min_score 保持 0.60(调低到 0.55 会让
+#     无关问题误召回, 实测 ~0.55 噪音, 故不动, 精度优先)。
+#   - RRF 融合: 用倒数排名融合(Reciprocal Rank Fusion)替代简单拼接, 让 BM25 与
+#     向量在不同排名区间互补, 单一引擎高排名不被另一个淹没, 提升复杂问题命中。
+HYBRID_CFG = {
+    "bm25": {"top_k": 6, "min_score": 3.0},
+    "vector": {"top_k": 8, "min_score": 0.60},
+    "rrf": {"k": 60, "w_bm25": 1.0, "w_vec": 1.0},  # k 为标准平滑参数
+    "rrf_top": 6,  # 融合后返回的实体数(进入 evidence)
+}
+
+
+def rrf_fuse(bm_hits, vec_hits, cfg=None):
+    """Reciprocal Rank Fusion: 按排名倒数融合 BM25+向量命中, 返回去重排序实体。
+
+    输入: bm_hits/vec_hits = [{entity, score, text|value}]
+    返回: [{entity, rrf, sources:[str], hit}] 按融合分降序, 截断到 cfg['rrf_top']。
+      hit 为来源实体原始命中(取 BM25/向量中分数高者), 供上层拼 evidence 值。
+    """
+    cfg = cfg or HYBRID_CFG
+    k = cfg["rrf"]["k"]
+    w_b, w_v = cfg["rrf"]["w_bm25"], cfg["rrf"]["w_vec"]
+    acc = {}          # entity -> rrf 分
+    best = {}         # entity -> (score, hit)
+    src = {}          # entity -> [sources]
+    for i, h in enumerate(bm_hits):
+        e = h["entity"]
+        acc[e] = acc.get(e, 0) + w_b / (k + i + 1)
+        src.setdefault(e, []).append("bm25")
+        if e not in best or (h.get("score") or 0) > best[e][0]:
+            best[e] = (h.get("score") or 0, h)
+    for i, h in enumerate(vec_hits):
+        e = h["entity"]
+        acc[e] = acc.get(e, 0) + w_v / (k + i + 1)
+        src.setdefault(e, []).append("vector")
+        if e not in best or (h.get("score") or 0) > best[e][0]:
+            best[e] = (h.get("score") or 0, h)
+    ranked = sorted(acc.items(), key=lambda x: -x[1])
+    return [{"entity": e, "rrf": round(acc[e], 4), "sources": src[e],
+             "hit": best.get(e, (0, None))[1]} for e, _ in ranked[:cfg["rrf_top"]]]
