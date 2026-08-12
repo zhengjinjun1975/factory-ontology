@@ -318,6 +318,7 @@
           setStatus('err', formatError(res, null) || '分析失败'); status = 'ready';
         } else {
           analysis = { report: res.report, stats: res.stats };
+          evidence = res.evidence || null;   // 分析答案带文档RAG溯源则一并展示
           status = 'ready';
           setStatus('ok', `分析完成：${q}`);
         }
@@ -698,6 +699,17 @@
             <div class="analysis-body">
               <AnalysisResult stats={analysis.stats} report={analysis.report} />
             </div>
+            {#if evidence}
+              <div class="evidence-wrap">
+                <button class="evidence-toggle" onclick={() => (evidenceOpen = !evidenceOpen)}>
+                  📎 证据溯源
+                  <span class="chevron">{evidenceOpen ? '▾' : '▸'}</span>
+                </button>
+                {#if evidenceOpen}
+                  <div class="evidence-body">{@html renderEvidence(evidence)}</div>
+                {/if}
+              </div>
+            {/if}
           {:else if answer}
             <div class="result-head">
               <span class="result-label">查询结果</span>

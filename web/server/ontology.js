@@ -773,18 +773,30 @@ export async function graphOntology(kb) {
 
 /**
  * 智能分析（统计摘要 + LLM 洞察），返回结构化数据供前端画图+展示报告
+ * 降级方案：不再调用不存在的 analysis.py(ENOENT)，改调后端 POST /api/ask
+ * （已有 规则+GraphRAG+文档RAG 融合，能答"分析/比较/趋势"类问题）。
+ * 复用 apiFetch + getCurrentKb（多租户）。返回 {ok, report, stats, evidence} 适配前端 AnalysisResult。
  * @param {string} question 分析类问题
- * @returns {Promise<{ok, report?, stats?, error?}>}
+ * @returns {Promise<{ok, report?, stats?, evidence?, error?}>}
  */
 export async function analyzeOntology(question) {
   try {
-    const dataDir = join(KIT, 'data');
-    const eqPath = join(dataDir, 'equipment.csv');
-    const linePath = join(dataDir, 'line.csv');
-    const r = await run(PY, ['analysis.py', eqPath, linePath, question], KIT);
-    if (!r.ok) return { ok: false, error: r.error || '分析失败' };
-    const res = JSON.parse(r.output);
-    return { ok: true, report: res.report, stats: res.stats };
+    // 复用普通问答入口：后端 /api/ask 自带 规则+GraphRAG+文档RAG 融合，能覆盖分析类意图
+    const kb = getCurrentKb();
+    const r = await apiFetch('/api/ask', { method: 'POST', body: { kb, question } });
+    if (r && r.ok && (r.answer != null || (r.data && r.data.answer != null))) {
+      // 兼容后端直返/套 data 信封两种形态；evidence 为文档 RAG 溯源切块，透传供前端展示
+      const d = (r.data && r.data.answer != null) ? r.data : r;
+      // stats 置 null：无专项统计图表，仅展示 /api/ask 的 markdown 报告（AnalysisResult 兼容）
+      return { ok: true, report: String(d.answer).trim(), stats: null, evidence: d.evidence || null, kb: d.kb || kb };
+    }
+    if (r && r.offline) {
+      // 后端不可达：降级 run.py CLI 问答（单库），保证前端可用
+      const cli = await run(PY, ['run.py', 'ask', question], KIT);
+      if (!cli.ok) return { ok: false, error: cli.error || '分析失败' };
+      return { ok: true, report: cli.output.trim(), stats: null, kb };
+    }
+    return { ok: false, error: (r && r.error) || '后端分析失败' };
   } catch (e) {
     return { ok: false, error: String(e.message || e) };
   }
