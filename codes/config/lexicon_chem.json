@@ -1,77 +1,310 @@
 {
-  "description": "自动生成词典 (chem)",
+  "description": "自动生成词典（multi_model, suggest_schema 推断 + LLM 语义聚类同义词 + data profiling 映射）",
   "attr_cn2en": {
-    "批量L": "batchSizeL",
-    "容量L": "capacityL",
-    "类别": "category",
-    "设备名称": "deviceName",
-    "设备类型": "deviceType",
-    "型号代码": "modelCode",
-    "名称": "name",
-    "包装": "packaging",
-    "压力MPa": "pressureMpa",
-    "价格": "price",
-    "单价/kg": "pricePerKg",
-    "生产日期": "produceDate",
-    "产品名称": "productName",
-    "纯度%": "purityPct",
-    "qualityStatus": "qualityStatus",
-    "状态": "status",
-    "搅拌转速rpm": "stirSpeedRpm",
-    "库存kg": "stockKg",
-    "供应商": "supplier",
+    "编号": "id",
+    "产品编号": "product_id",
+    "batchsizel": "batch_size_l",
+    "生产日期": "produce_date",
+    "yieldpct": "yield_pct",
+    "quality状态": "quality_status",
     "班组": "team",
-    "温度℃": "tempC",
+    "设备名称": "device_name",
+    "设备类型": "device_type",
     "车间": "workshop",
-    "收率%": "yieldPct"
+    "capacityl": "capacity_l",
+    "状态": "status",
+    "pressurempa": "pressure_mpa",
+    "温度(℃)": "temp_c",
+    "温度": "temp_c",
+    "stir转速rpm": "stir_speed_rpm",
+    "型号代码": "model_code",
+    "产品名称": "product_name",
+    "category": "category",
+    "puritypct": "purity_pct",
+    "packaging": "packaging",
+    "价格": "price",
+    "名称": "name",
+    "类型": "type",
+    "供应商": "supplier",
+    "库存kg": "stock_kg",
+    "价格perkg": "price_per_kg"
   },
   "attr_en2cn": {
-    "batchSizeL": "批量L",
-    "capacityL": "容量L",
-    "category": "类别",
-    "deviceName": "设备名称",
-    "deviceType": "设备类型",
-    "modelCode": "型号代码",
-    "name": "名称",
-    "packaging": "包装",
-    "pressureMpa": "压力MPa",
-    "price": "价格",
-    "pricePerKg": "单价/kg",
-    "produceDate": "生产日期",
-    "productName": "产品名称",
-    "purityPct": "纯度%",
-    "qualityStatus": "qualityStatus",
-    "status": "状态",
-    "stirSpeedRpm": "搅拌转速rpm",
-    "stockKg": "库存kg",
-    "supplier": "供应商",
+    "id": "编号",
+    "product_id": "产品编号",
+    "batch_size_l": "batchsizel",
+    "produce_date": "生产日期",
+    "yield_pct": "yieldpct",
+    "quality_status": "quality状态",
     "team": "班组",
-    "tempC": "温度℃",
+    "device_name": "设备名称",
+    "device_type": "设备类型",
     "workshop": "车间",
-    "yieldPct": "收率%"
+    "capacity_l": "capacityl",
+    "status": "状态",
+    "pressure_mpa": "pressurempa",
+    "temp_c": "温度(℃)",
+    "stir_speed_rpm": "stir转速rpm",
+    "model_code": "型号代码",
+    "product_name": "产品名称",
+    "category": "category",
+    "purity_pct": "puritypct",
+    "packaging": "packaging",
+    "price": "价格",
+    "name": "名称",
+    "type": "类型",
+    "supplier": "供应商",
+    "stock_kg": "库存kg",
+    "price_per_kg": "价格perkg"
   },
-  "status_cn2en": {},
-  "type_cn2en": {},
-  "zone_cn2en": {},
-  "relations_cn2en": {},
+  "status_cn2en": {
+    "运行中": "运行中",
+    "待机": "待机",
+    "报警": "alarm",
+    "维护中": "维护中",
+    "离线": "offline",
+    "合格": "pass",
+    "不合格": "fail"
+  },
+  "type_cn2en": {
+    "反应设备": "反应设备",
+    "换热设备": "换热设备",
+    "分离设备": "分离设备",
+    "干燥设备": "干燥设备",
+    "生物反应设备": "生物反应设备",
+    "生物农药": "生物农药",
+    "化学农药": "化学农药",
+    "除草剂": "除草剂",
+    "原药": "原药",
+    "助剂": "助剂",
+    "溶剂": "溶剂",
+    "菌种": "菌种"
+  },
+  "zone_cn2en": {
+    "合成车间": "合成车间",
+    "精馏车间": "精馏车间",
+    "后处理车间": "后处理车间",
+    "发酵车间": "发酵车间"
+  },
+  "synonym_map": {
+    "batchsizel": [
+      "批量大小",
+      "批次大小",
+      "批量"
+    ],
+    "capacityl": [
+      "容量",
+      "容积"
+    ],
+    "category": [
+      "类别",
+      "分类"
+    ],
+    "packaging": [
+      "包装",
+      "包装方式"
+    ],
+    "pressurempa": [
+      "压力MPa",
+      "压力(兆帕)"
+    ],
+    "puritypct": [
+      "纯度%",
+      "纯度百分比"
+    ],
+    "quality状态": [
+      "质量状态",
+      "品质状态"
+    ],
+    "stir转速rpm": [
+      "搅拌转速rpm",
+      "搅拌速度rpm"
+    ],
+    "yieldpct": [
+      "收率%",
+      "产率%",
+      "得率%"
+    ],
+    "产品名称": [
+      "品名",
+      "产品名"
+    ],
+    "产品编号": [
+      "产品代码",
+      "产品号"
+    ],
+    "价格": [
+      "单价",
+      "售价"
+    ],
+    "价格perkg": [
+      "每公斤价格",
+      "单价(每kg)"
+    ],
+    "供应商": [
+      "供货商",
+      "厂家"
+    ],
+    "分离设备": [
+      "分离机",
+      "分离装置"
+    ],
+    "助剂": [
+      "添加剂",
+      "辅助剂"
+    ],
+    "化学农药": [
+      "化学杀虫剂",
+      "化学农药类"
+    ],
+    "原药": [
+      "原药料",
+      "原料药"
+    ],
+    "反应设备": [
+      "反应器",
+      "反应釜"
+    ],
+    "发酵车间": [
+      "发酵工段",
+      "发酵区"
+    ],
+    "合成车间": [
+      "合成工段",
+      "合成区"
+    ],
+    "名称": [
+      "名字",
+      "称谓"
+    ],
+    "后处理车间": [
+      "后处理工段",
+      "后处理区"
+    ],
+    "型号代码": [
+      "型号",
+      "规格代码"
+    ],
+    "干燥设备": [
+      "干燥机",
+      "干燥装置"
+    ],
+    "库存kg": [
+      "库存量(kg)",
+      "库存公斤数"
+    ],
+    "待机": [
+      "待机状态",
+      "停机待命"
+    ],
+    "换热设备": [
+      "换热器",
+      "热交换设备"
+    ],
+    "温度": [
+      "温度值",
+      "温度读数"
+    ],
+    "温度(℃)": [
+      "摄氏温度",
+      "温度(摄氏度)"
+    ],
+    "溶剂": [
+      "溶媒",
+      "溶解剂"
+    ],
+    "状态": [
+      "状况",
+      "运行状态"
+    ],
+    "班组": [
+      "班次",
+      "作业组"
+    ],
+    "生产日期": [
+      "制造日期",
+      "生产日"
+    ],
+    "生物农药": [
+      "生物杀虫剂",
+      "生物农药类"
+    ],
+    "生物反应设备": [
+      "生物反应器",
+      "生物发酵设备"
+    ],
+    "类型": [
+      "种类",
+      "类别类型"
+    ],
+    "精馏车间": [
+      "精馏工段",
+      "精馏区"
+    ],
+    "维护中": [
+      "维修中",
+      "保养中"
+    ],
+    "编号": [
+      "代码",
+      "序号"
+    ],
+    "菌种": [
+      "菌株",
+      "微生物菌种"
+    ],
+    "设备名称": [
+      "设备名",
+      "机器名称"
+    ],
+    "设备类型": [
+      "设备类别",
+      "机器类型"
+    ],
+    "车间": [
+      "工段",
+      "生产车间"
+    ],
+    "运行中": [
+      "运转中",
+      "工作中"
+    ],
+    "除草剂": [
+      "除草药",
+      "除草剂类"
+    ]
+  },
+  "entity_cn2en": {
+    "批次": "chem_batches",
+    "化工批次": "chem_batches",
+    "设备": "chem_equipment",
+    "化工设备": "chem_equipment",
+    "产品": "chem_products",
+    "化工产品": "chem_products",
+    "原料": "chem_raw_materials",
+    "化工原料": "chem_raw_materials"
+  },
   "numeric_fields": {
+    "容量": "capacity_l",
+    "温度": "temp_c",
+    "stir转速rpm": "stir_speed_rpm",
     "价格": "price",
-    "金额": "amount",
-    "数量": "quantity",
-    "功率": "powerKw",
-    "库存": "stock",
-    "容量": "capacityL",
-    "批量": "batchSizeL",
-    "压力": "pressureMpa",
-    "纯度": "purityPct",
-    "收率": "yieldPct",
-    "吨位": "tonnage",
-    "深度": "depthM",
-    "投资": "investmentWan",
-    "合同额": "contractAmountWan",
-    "进度": "progressPct",
-    "载重": "tonnageDwt"
+    "库存": "stock_kg"
   },
-  "field_aliases": {},
+  "field_aliases": {
+    "status": [
+      "status"
+    ],
+    "deviceType": [
+      "deviceType",
+      "device_type",
+      "type"
+    ],
+    "deviceName": [
+      "deviceName",
+      "device_name",
+      "name"
+    ]
+  },
   "value_fields": []
 }

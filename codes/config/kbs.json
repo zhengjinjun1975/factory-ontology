@@ -40,7 +40,7 @@
       ],
       "data_dir": "data_chem",
       "lexicon": "lexicon_chem.json",
-      "nt": "output/h_化工.nt"
+      "nt": "output/chem.nt"
     },
     "bellows": {
       "name": "波纹管制造问答",
@@ -124,8 +124,8 @@
         "不锈钢材质的设备"
       ],
       "data_dir": "data_valve",
-      "lexicon": "lexicon_factory_multi_1786434147909.json",
-      "nt": "output/factory_multi.nt"
+      "lexicon": "lexicon_factory.json",
+      "nt": "output/factory.nt"
     },
     "ai4i": {
       "name": "智能设备预测性维护",
