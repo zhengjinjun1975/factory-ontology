@@ -3,8 +3,11 @@
   // 调前端 server 转发的 /api/ontology/assets-list?kb= 获取某知识库的语义资产版本清单
   // 后端 data = { kb, versions:[{version, hash, created, assets:{lexicon,ontology,knowledge}}], active_version }
   // 支持：创建快照（POST assets-snapshot）+ 回滚到历史版本（POST assets-rollback）
+  // 跟随当前激活 kb：与"本体中心、知识库配合、建哪个检索哪个"一致，不复用硬编码 food。
+  import { onMount } from 'svelte';
+  import { fetchKbs } from '../lib/api.js';
 
-  let kb = $state('food');       // 知识库名
+  let kb = $state('');           // 知识库名（初始跟随当前激活 kb，见 onMount）
   let versions = $state([]);     // 版本链 [{version, hash, created, assets}]
   let activeVersion = $state(''); // 当前激活版本
   let curKb = $state('');
@@ -37,6 +40,30 @@
     }
     return String(err);
   };
+
+  // 跟随当前激活 kb：读后端 getCurrentKb（/api/ontology/kbs → current），
+  // 加载/快照/回滚全部使用该当前 kb，不复用硬编码 food。
+  async function fetchCurrentKb() {
+    try {
+      const res = await fetchKbs();
+      if (res && res.ok && res.current) return String(res.current);
+    } catch (e) { /* 后端未就绪时忽略 */ }
+    return '';
+  }
+
+  let followTimer = null;
+
+  onMount(async () => {
+    const cur = await fetchCurrentKb();
+    if (cur) kb = cur;
+    await load();
+    // 实时跟随当前激活 kb：切换本体（头部下拉）后资产面板自动跟随刷新
+    followTimer = setInterval(async () => {
+      const cur = await fetchCurrentKb();
+      if (cur && cur !== kb) { kb = cur; await load(); }
+    }, 2000);
+    return () => { if (followTimer) clearInterval(followTimer); };
+  });
 
   async function load() {
     const kbName = kb.trim();
@@ -149,7 +176,7 @@
       id="asset-kb"
       class="kb-input"
       type="text"
-      placeholder="输入知识库名，如 food"
+      placeholder="当前激活知识库（自动跟随本体切换）"
       bind:value={kb}
       onkeydown={(e) => { if (e.key === 'Enter') load(); }}
     />
