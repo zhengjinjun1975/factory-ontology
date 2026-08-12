@@ -227,10 +227,34 @@ def ontology_graph():
 
 @app.get("/", include_in_schema=False)
 def app_home():
-    """食品溯源移动端 APP 首页。"""
-    if os.path.exists(FOOD_APP_HTML):
-        return FileResponse(FOOD_APP_HTML, media_type="text/html")
-    return HTMLResponse("食品溯源 APP 未找到（web/food_app/index.html）", status_code=404)
+    """统一前端入口：优先跳转到新 Web 前端（3001）；否则动态渲染当前激活 kb 的落地页。
+
+    不再硬绑 food_app（BP-6）：前端应反映当前激活/建模的本体——建了哪个模检索哪个。
+    """
+    # 新 Web 前端地址（工厂本体问答 SPA，端口 3001）
+    WEB_FRONT = os.environ.get("WEB_FRONT_URL", "http://localhost:3001/")
+    # 动态渲染当前激活 kb 的品牌/示例（去硬编码）
+    kb_name = KB_NAME
+    name = _kb.get("name", "知识库助手")
+    icon = _kb.get("icon", "🏭")
+    examples = _kb.get("examples", [])
+    ex_html = "".join(f"<li>{e}</li>" for e in examples[:6])
+    return HTMLResponse(f"""<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{icon} {name} · 工厂智能体</title>
+<style>body{{font-family:'Segoe UI','Microsoft YaHei',sans-serif;background:#eef1f5;color:#2d3436;margin:0;padding:0}}
+.wrap{{max-width:680px;margin:60px auto;background:#fff;border:1px solid #d5dbe3;border-radius:8px;padding:32px;box-shadow:0 2px 10px rgba(0,0,0,.05)}}
+h1{{font-size:20px}} .kb{{color:#2563eb;font-weight:700}}
+.btn{{display:inline-block;margin-top:16px;background:#2563eb;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:600}}
+li{{margin:6px 0}} .foot{{color:#94a3b8;font-size:12px;margin-top:24px}}</style>
+</head><body><div class="wrap">
+<h1>{icon} {name}</h1>
+<p>当前激活知识库：<span class="kb">{kb_name}</span>（跟随激活本体，非固定 food）</p>
+<p>示例问题：</p><ul>{ex_html}</ul>
+<a class="btn" href="{WEB_FRONT}">打开新版 Web 前端（3001）→</a>
+<p class="foot">统一前端入口 · 工厂本体问答套件</p>
+</div></body></html>""")
 
 
 class AskReq(BaseModel):
@@ -551,6 +575,10 @@ def ask(req: AskReq):
     if not gans.startswith("[图检索]"):
         return {"ok": True, "mode": "graphrag", "answer": gans, "context": gctx[:2000], "kb": ctx["kb"]}
     # 3.5 混合检索(BM25 稀疏 + 向量语义, 提升模糊/同义/口语化查询召回)
+    # 本体中心、知识库配合: hybrid 只是"召回相关实体"的占位答案, 不直接 return。
+    # 先暂存 fused 命中, 继续尝试知识库 RAG 配合(L606 逻辑); 知识库能答则返回 kb_rag,
+    # 知识库无有效答案才回落到 hybrid 占位(带 hits), 保证用户拿到真答案。
+    hybrid_payload = None
     try:
         from bm25_retrieval import BM25Index
         from vector_retrieval import VectorIndex
@@ -570,15 +598,17 @@ def ask(req: AskReq):
                 fused.append(h)
         if fused:
             ents = "、".join(h["entity"] for h in fused)
-            return {"ok": True, "mode": "hybrid",
-                    "answer": f"（混合检索）找到相关实体: {ents}",
-                    "hits": fused[:5], "bm25_hits": bm_hits[:3], "vector_hits": vec_hits[:5],
-                    "kb": ctx["kb"]}
+            # 只暂存, 不 return; 留给知识库 RAG 优先回答(知识库配合)
+            hybrid_payload = {"ok": True, "mode": "hybrid",
+                              "answer": f"（混合检索）找到相关实体: {ents}",
+                              "hits": fused[:5], "bm25_hits": bm_hits[:3], "vector_hits": vec_hits[:5],
+                              "kb": ctx["kb"]}
     except Exception:
         pass
-    # 3.75 文档知识库 RAG 兜底: 本体/图/混合检索都答不上时, 检索该 kb 已入库的
+    # 3.75 文档知识库 RAG 配合: 本体/图答不上时, 检索该 kb 已入库的
     #      说明书/规范/PDF 文档知识, 返回带溯源的答案(让知识库不再是"孤岛")。
-    #      全程 try/except, 检索失败/无有效答案则降级到原 miss, 绝不抛异常。
+    #      优先于 hybrid 占位: 只要知识库有有效答案+evidence 就返回 kb_rag。
+    #      全程 try/except, 检索失败/无有效答案则降级到 hybrid 或原 miss, 绝不抛异常。
     try:
         from knowledge.rag import answer as _rag_answer
         from knowledge.store import KnowledgeStore
@@ -595,6 +625,9 @@ def ask(req: AskReq):
                         "evidence": _ev, "kb": ctx["kb"]}
     except Exception:
         pass
+    # 知识库无有效答案: 若本体 hybrid 命中了相关实体, 回落返回 hybrid 占位(带 hits)
+    if hybrid_payload is not None:
+        return hybrid_payload
     # 4. 答不上: 从 KB 配置读示例引导(去硬编码)
     examples = KBS.get(ctx["kb"], {}).get("examples", ["乳制品的数量", "原味酸奶是什么"])
     guide = "\n".join(f"· {e}" for e in examples[:5])
