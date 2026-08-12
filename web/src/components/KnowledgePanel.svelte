@@ -1,13 +1,47 @@
 <script>
-  // KnowledgePanel — 知识库管理面板
-  // 选择 kb 加载文档列表（调前端 knowledge-list 转发端点），表格展示 doc_id/title/chunks/ingested_at
+  // KnowledgePanel — 知识库管理面板（上传 / 删除 / 查看内容 / 列表）
+  // 选择 kb → 加载文档列表；支持上传文档(multipart)、每行删除/查看切块内容。
   import { onMount } from 'svelte';
+
+  const JSON_HEADERS = { 'Content-Type': 'application/json' };
+  const ALLOWED_EXT = ['.pdf', '.doc', '.docx', '.txt'];
 
   let kb = $state('food');        // 知识库名（默认与后端一致）
   let docs = $state([]);          // [{doc_id,title,chunks,ingested_at}]
   let loading = $state(false);
   let loaded = $state(false);     // 是否已成功加载过一次（区分未加载空态 vs 真正空态）
   let error = $state('');
+
+  // 上传
+  let file = $state(null);
+  let fileName = $state('');
+  let uploading = $state(false);
+
+  // 删除
+  let deletingDoc = $state('');
+
+  // 查看
+  let viewingDoc = $state('');
+  let viewContent = $state([]);   // [{doc_id,title,chunk,score}]
+  let viewLoading = $state(false);
+  let viewError = $state('');
+
+  // 操作反馈
+  let notice = $state({ type: '', text: '' });
+  let noticeTimer = null;
+  function flash(type, text) {
+    notice = { type, text };
+    if (noticeTimer) clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => { notice = { type: '', text: '' }; }, 4000);
+  }
+
+  function fmtError(res) {
+    if (res && res.error) {
+      if (typeof res.error === 'object' && res.error.message) return res.error.message;
+      return String(res.error);
+    }
+    return '操作失败';
+  }
 
   async function load() {
     const name = kb.trim();
@@ -29,7 +63,7 @@
         }));
         loaded = true;
       } else {
-        error = (res && res.error && res.error.message) || '加载失败';
+        error = fmtError(res) || '加载失败';
       }
     } catch (e) {
       error = '网络错误，请确认服务已启动';
@@ -42,11 +76,108 @@
     if (e.key === 'Enter') { e.preventDefault(); load(); }
   }
 
+  // ── 上传 ──
+  function onFilePick(e) {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    const ext = '.' + (f.name.split('.').pop() || '').toLowerCase();
+    if (!ALLOWED_EXT.includes(ext)) {
+      flash('err', '仅支持 PDF / Word / TXT 文件');
+      return;
+    }
+    file = f;
+    fileName = f.name;
+  }
+
+  async function doUpload() {
+    const name = kb.trim();
+    if (!file) { flash('err', '请先选择文件'); return; }
+    if (!name) { flash('err', '请输入知识库名称'); return; }
+    uploading = true;
+    flash('', '');
+    try {
+      const fd = new FormData();
+      fd.append('file', file, file.name);
+      fd.append('kb', name);
+      const resp = await fetch('/api/ontology/knowledge-ingest', { method: 'POST', body: fd });
+      const res = await resp.json();
+      if (res && res.ok) {
+        const d = res.data || {};
+        flash('ok', '上传成功：' + (d.title || file.name) + '（' + (d.chunks ?? '?') + ' 分块）');
+        file = null; fileName = '';
+        await load();
+        if (d.doc_id) { viewingDoc = d.doc_id; await viewDoc({ doc_id: d.doc_id, title: d.title || file.name }); }
+      } else {
+        flash('err', fmtError(res) || '上传失败');
+      }
+    } catch (e) {
+      flash('err', '网络错误，请确认服务已启动');
+    } finally {
+      uploading = false;
+    }
+  }
+
+  // ── 删除 ──
+  async function deleteDoc(d) {
+    if (!window.confirm('确定删除文档「' + (d.title || d.doc_id) + '」？此操作不可恢复。')) return;
+    deletingDoc = d.doc_id;
+    flash('', '');
+    try {
+      const resp = await fetch('/api/ontology/knowledge-delete', {
+        method: 'POST', headers: JSON_HEADERS,
+        body: JSON.stringify({ kb: kb.trim(), doc_id: d.doc_id }),
+      });
+      const res = await resp.json();
+      if (res && res.ok) {
+        flash('ok', '已删除文档：' + (d.title || d.doc_id));
+        if (viewingDoc === d.doc_id) { viewingDoc = ''; viewContent = []; }
+        await load();
+      } else {
+        flash('err', fmtError(res) || '删除失败');
+      }
+    } catch (e) {
+      flash('err', '网络错误，请确认服务已启动');
+    } finally {
+      deletingDoc = '';
+    }
+  }
+
+  // ── 查看内容（knowledge-query 检索该文档切块）──
+  async function viewDoc(d) {
+    if (viewingDoc === d.doc_id) { viewingDoc = ''; viewContent = []; viewError = ''; return; }
+    viewingDoc = d.doc_id;
+    viewContent = []; viewError = '';
+    viewLoading = true;
+    try {
+      const resp = await fetch('/api/ontology/knowledge-query', {
+        method: 'POST', headers: JSON_HEADERS,
+        body: JSON.stringify({ kb: kb.trim(), q: (d.title || d.doc_id) + ' 内容 说明 参数 详情 知识 技术文档', top_k: 20 }),
+      });
+      const res = await resp.json();
+      if (res && res.ok) {
+        const ev = (res.data && Array.isArray(res.data.evidence)) ? res.data.evidence : [];
+        viewContent = ev.filter(h => String(h.doc_id) === String(d.doc_id));
+        if (viewContent.length === 0) viewError = '该文档未检索到切块内容（可能知识库为空或文档未被命中）';
+      } else {
+        viewError = fmtError(res) || '查看失败';
+      }
+    } catch (e) {
+      viewError = '网络错误，请确认服务已启动';
+    } finally {
+      viewLoading = false;
+    }
+  }
+
   onMount(load);
 </script>
 
 <div class="kp">
-  <!-- 顶部：kb 选择 + 加载 -->
+  {#if notice.text}
+    <div class="kp-notice {notice.type === 'ok' ? 'ok' : 'err'}">{notice.type === 'ok' ? '✅ ' : '⚠️ '}{notice.text}</div>
+  {/if}
+
+  <!-- 顶部：kb 选择 + 加载 + 上传 -->
   <div class="kb-bar">
     <span class="kb-label">知识库</span>
     <input
@@ -62,6 +193,24 @@
     </button>
   </div>
 
+  <!-- 上传区 -->
+  <div class="upload-bar">
+    <label class="file-pick">
+      <span class="btn-icon">📄</span>
+      {fileName || '选择文件（.pdf/.doc/.docx/.txt）'}
+      <input type="file" accept=".pdf,.doc,.docx,.txt" hidden onchange={onFilePick} />
+    </label>
+    {#if fileName}
+      <span class="file-name">{fileName}</span>
+    {/if}
+    <button class="btn-upload" onclick={doUpload} disabled={uploading || !fileName}>
+      {uploading ? '上传中…' : '上传文档'}
+    </button>
+    {#if file}
+      <button class="btn-clear" onclick={() => { file = null; fileName = ''; }}>取消</button>
+    {/if}
+  </div>
+
   {#if error}
     <div class="dash-empty dash-err">
       {error}
@@ -70,12 +219,12 @@
   {:else if loading}
     <div class="dash-empty">正在加载文档列表…</div>
   {:else if loaded && docs.length === 0}
-    <div class="dash-empty dash-nodata">暂无文档，可上传知识文档</div>
+    <div class="dash-empty dash-nodata">暂无文档，可通过上方「选择文件 + 上传文档」添加</div>
   {:else if loaded}
     <div class="doc-table-wrap">
       <table class="doc-table">
         <thead>
-          <tr><th>文档 ID</th><th>标题</th><th>分块数</th><th>入库时间</th></tr>
+          <tr><th>文档 ID</th><th>标题</th><th>分块数</th><th>入库时间</th><th class="col-act">操作</th></tr>
         </thead>
         <tbody>
           {#each docs as d}
@@ -84,7 +233,39 @@
               <td>{d.title}</td>
               <td class="mono">{d.chunks}</td>
               <td class="mono">{d.ingested_at || '—'}</td>
+              <td class="col-act">
+                <div class="row-actions">
+                  <button class="btn-view" onclick={() => viewDoc(d)} disabled={viewLoading}>
+                    {viewingDoc === d.doc_id ? '收起' : '查看'}
+                  </button>
+                  <button class="btn-del" onclick={() => deleteDoc(d)} disabled={deletingDoc === d.doc_id}>
+                    {deletingDoc === d.doc_id ? '删除中…' : '删除'}
+                  </button>
+                </div>
+              </td>
             </tr>
+            {#if viewingDoc === d.doc_id}
+              <tr class="view-row">
+                <td colspan="5">
+                  {#if viewLoading}
+                    <div class="dash-empty">正在检索该文档切块…</div>
+                  {:else if viewError}
+                    <div class="dash-empty dash-err">{viewError}</div>
+                  {:else if viewContent.length === 0}
+                    <div class="dash-empty dash-nodata">该文档暂无可见切块</div>
+                  {:else}
+                    <div class="chunk-list">
+                      {#each viewContent as c, i}
+                        <div class="chunk-item">
+                          <div class="chunk-head">切块 {i + 1}<span class="chunk-score">相似度 {c.score != null ? Number(c.score).toFixed(3) : '—'}</span></div>
+                          <pre class="chunk-text">{c.chunk}</pre>
+                        </div>
+                      {/each}
+                    </div>
+                  {/if}
+                </td>
+              </tr>
+            {/if}
           {/each}
         </tbody>
       </table>
@@ -97,6 +278,13 @@
 
 <style>
   .kp { display: flex; flex-direction: column; gap: 12px; }
+
+  .kp-notice {
+    padding: 8px 12px; font-size: 12px; border-radius: 4px;
+    border: 1px solid transparent;
+  }
+  .kp-notice.ok { color: #166534; background: #ecfdf5; border-color: #a7f3d0; }
+  .kp-notice.err { color: #991b1b; background: #fef2f2; border-color: #fecaca; }
 
   .kb-bar { display: flex; align-items: center; gap: 8px; }
   .kb-label { font-size: 12px; font-weight: 700; color: #1e293b; }
@@ -117,6 +305,30 @@
   .kb-load:hover:not(:disabled) { background: #1d4ed8; }
   .kb-load:disabled { opacity: 0.6; cursor: not-allowed; }
   .btn-icon { font-size: 12px; }
+
+  /* 上传区 */
+  .upload-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .file-pick {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 12px; font-size: 12px; color: #334155;
+    background: #fff; border: 1px dashed #94a3b8; border-radius: 4px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .file-pick:hover { border-color: #2563eb; color: #2563eb; background: #f8fafc; }
+  .file-name { font-size: 12px; color: #475569; }
+  .btn-upload {
+    padding: 6px 14px; font-size: 12px; cursor: pointer;
+    color: #166534; background: #ecfdf5;
+    border: 1px solid #10b981; border-radius: 4px; transition: all 0.15s;
+  }
+  .btn-upload:hover:not(:disabled) { background: #d1fae5; }
+  .btn-upload:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-clear {
+    padding: 6px 10px; font-size: 12px; cursor: pointer;
+    color: #64748b; background: #fff;
+    border: 1px solid #cbd5e1; border-radius: 4px; transition: all 0.15s;
+  }
+  .btn-clear:hover { border-color: #94a3b8; }
 
   .dash-empty { color: #94a3b8; font-size: 13px; text-align: center; padding: 30px; }
   .dash-nodata { color: #64748b; }
@@ -141,5 +353,34 @@
   .doc-table th { color: #64748b; font-weight: 600; background: #f1f5f9; }
   .doc-table td { color: #334155; }
   .mono { font-family: 'Consolas', monospace; }
+  .col-act { width: 130px; }
   .doc-count { margin-top: 8px; font-size: 11px; color: #94a3b8; }
+
+  .row-actions { display: flex; gap: 6px; }
+  .btn-view {
+    padding: 3px 10px; font-size: 12px; cursor: pointer;
+    color: #1d4ed8; background: #eff6ff;
+    border: 1px solid #bfdbfe; border-radius: 4px; transition: all 0.15s;
+  }
+  .btn-view:hover:not(:disabled) { background: #dbeafe; }
+  .btn-view:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-del {
+    padding: 3px 10px; font-size: 12px; cursor: pointer;
+    color: #b91c1c; background: #fef2f2;
+    border: 1px solid #fecaca; border-radius: 4px; transition: all 0.15s;
+  }
+  .btn-del:hover:not(:disabled) { background: #fee2e2; }
+  .btn-del:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .view-row td { background: #f1f5f9; }
+  .chunk-list { display: flex; flex-direction: column; gap: 8px; }
+  .chunk-item {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px 10px;
+  }
+  .chunk-head { font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 4px; }
+  .chunk-score { font-weight: 400; color: #94a3b8; margin-left: 8px; }
+  .chunk-text {
+    margin: 0; white-space: pre-wrap; word-break: break-word;
+    font-family: inherit; font-size: 12px; line-height: 1.6; color: #334155;
+  }
 </style>

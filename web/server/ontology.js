@@ -511,6 +511,70 @@ export async function knowledgeList(kb) {
 }
 
 /**
+ * 知识库：转发后端 POST /api/knowledge/ingest（multipart 上传文档）
+ * multipart 请求体(含 boundary)由前端 server 透传，本函数只负责把原始体+Content-Type
+ * 原样转发给后端(文件+kb+doc_id 由前端 FormData 组装)。后端返回统一信封 {ok, data, error}。
+ * @param {string} contentType 原始 multipart Content-Type（含 boundary）
+ * @param {Buffer} rawBody multipart 原始二进制体
+ * @returns {Promise<{ok, data?, offline?, error?}>}
+ */
+export async function knowledgeIngest(contentType, rawBody) {
+  const headers = { 'Content-Type': contentType };
+  if (API_KEY) headers['X-API-Key'] = API_KEY;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 60000);
+  try {
+    const resp = await fetch(API_URL + '/api/knowledge/ingest', {
+      method: 'POST', headers, body: rawBody, signal: ctrl.signal,
+    });
+    const text = await resp.text();
+    let data = null;
+    try { data = JSON.parse(text); } catch (e) { /* 非 JSON */ }
+    if (!data) return { ok: false, offline: false, error: `后端返回非 JSON (HTTP ${resp.status})` };
+    return data;
+  } catch (e) {
+    const aborted = e && e.name === 'AbortError';
+    return { ok: false, offline: true, error: aborted ? '后端超时' : String((e && e.message) || e) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * 知识库：转发后端 POST /api/knowledge/delete（删除一篇文档，幂等）
+ * @param {string} kb 知识库名
+ * @param {string} doc_id 文档 id
+ * @returns {Promise<{ok, data?, offline?, error?}>}
+ */
+export async function knowledgeDelete(kb, doc_id) {
+  try {
+    kb = kb || getCurrentKb();
+    const r = await apiFetch('/api/knowledge/delete', { method: 'POST', body: { kb, doc_id } });
+    return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '后端删除失败' };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+/**
+ * 知识库：转发后端 POST /api/knowledge/query（文档 RAG 检索，供前端"查看内容"展示切块）
+ * 后端返回 {ok, data:{kb, answer, evidence:[{doc_id,title,chunk,score}]}}。
+ * @param {string} kb 知识库名
+ * @param {string} q 检索问题
+ * @param {number} [top_k] 检索块数
+ * @returns {Promise<{ok, data?, offline?, error?}>}
+ */
+export async function knowledgeQuery(kb, q, top_k = 8) {
+  try {
+    kb = kb || getCurrentKb();
+    const r = await apiFetch('/api/knowledge/query', { method: 'POST', body: { kb, q, top_k } });
+    return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '后端检索失败' };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+/**
  * 资产：转发后端 GET /api/assets/list?kb= （版本清单 + 当前激活版本）
  * 后端返回 {ok, data:{versions, active_version}}。
  * @param {string} [kb] 知识库名, 缺省用当前激活 kb

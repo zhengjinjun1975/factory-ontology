@@ -4,7 +4,7 @@ import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, graphOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, evalBenchmark, knowledgeList, assetsList } from './ontology.js';
+import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, graphOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, evalBenchmark, knowledgeList, assetsList, knowledgeIngest, knowledgeDelete, knowledgeQuery } from './ontology.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
@@ -31,6 +31,21 @@ function readBody(req, max = 2 * 1024 * 1024) {
       if (body.length > max) { req.destroy(); reject(new Error('body too large')); }
     });
     req.on('end', () => resolve(body));
+    req.on('error', reject);
+  });
+}
+
+// 读取原始二进制请求体（multipart 上传透传用，保留 boundary 与文件字节）
+function readRawBody(req, max = 60 * 1024 * 1024) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > max) { req.destroy(); reject(new Error('body too large')); }
+      chunks.push(c);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
 }
@@ -322,6 +337,66 @@ const server = createServer(async (req, res) => {
     try {
       const kb = new URL(req.url, 'http://x').searchParams.get('kb') || '';
       const result = await knowledgeList(kb);
+      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 知识库上传文档（multipart 透传后端 /api/knowledge/ingest）──
+  if (req.method === 'POST' && url === '/api/ontology/knowledge-ingest') {
+    try {
+      const contentType = String(req.headers['content-type'] || '');
+      if (!contentType.toLowerCase().includes('multipart/form-data')) {
+        res.writeHead(400, { 'Content-Type': 'application/json;charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: 'Content-Type 必须为 multipart/form-data' }));
+        return;
+      }
+      const raw = await readRawBody(req, 60 * 1024 * 1024);
+      const result = await knowledgeIngest(contentType, raw);
+      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 知识库删除文档（转发后端 /api/knowledge/delete）──
+  if (req.method === 'POST' && url === '/api/ontology/knowledge-delete') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const { kb, doc_id } = body;
+      if (!kb || !doc_id) {
+        res.writeHead(400, { 'Content-Type': 'application/json;charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: 'kb 和 doc_id 必填' }));
+        return;
+      }
+      const result = await knowledgeDelete(kb, doc_id);
+      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 知识库检索（转发后端 /api/knowledge/query，供查看文档切块）──
+  if (req.method === 'POST' && url === '/api/ontology/knowledge-query') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const { kb, q, top_k } = body;
+      if (!q) {
+        res.writeHead(400, { 'Content-Type': 'application/json;charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: 'q 必填' }));
+        return;
+      }
+      const result = await knowledgeQuery(kb, q, top_k);
       res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
       res.end(JSON.stringify(result));
     } catch (err) {
