@@ -4,7 +4,7 @@ import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, evalBenchmark, knowledgeList, assetsList } from './ontology.js';
+import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, graphOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, evalBenchmark, knowledgeList, assetsList } from './ontology.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
@@ -238,6 +238,20 @@ const server = createServer(async (req, res) => {
       const result = await schemaOntology();
       res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
       res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 模型结构图（图结构 nodes/edges，供 ECharts 力导向图渲染）──
+  if (req.method === 'GET' && url === '/api/ontology/graph') {
+    try {
+      const kb = new URL(req.url, 'http://x').searchParams.get('kb') || '';
+      const result = await graphOntology(kb);
+      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result.ok ? { ok: true, nodes: result.graph.nodes, edges: result.graph.edges } : result));
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
       res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));

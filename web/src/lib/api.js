@@ -75,6 +75,11 @@ export async function fetchSchema() {
   return fetchRetry('/api/ontology/schema', { cache: 'no-store' });
 }
 
+// 模型结构图（图结构 nodes/edges）：/api/ontology/graph → 后端本体实例图，供 ECharts 力导向图渲染
+export async function fetchGraph() {
+  return fetchRetry('/api/ontology/graph', { cache: 'no-store' });
+}
+
 export async function analyzeOntology(question) {
   return fetchRetry('/api/ontology/analyze', {
     method: 'POST',

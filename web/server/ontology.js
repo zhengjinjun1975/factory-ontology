@@ -619,6 +619,56 @@ export async function schemaOntology() {
 }
 
 /**
+ * 模型结构图（图结构：节点+边），供前端 ECharts 力导向图渲染。
+ * 优先转发后端 GET /api/ontology/graph（多租户按 kb，返回 {ok, nodes, edges}，
+ * nodes=[{id,name,entity}], edges=[{from,to,rel}]）；后端不可达时降级由 schema 组装最小图，
+ * 保证离线也能画出类结构。
+ * @param {string} [kb] 知识库名, 缺省用当前激活 kb
+ * @returns {Promise<{ok, graph?: {nodes, edges}, error?}>}
+ */
+export async function graphOntology(kb) {
+  try {
+    kb = kb || getCurrentKb();
+    const q = new URLSearchParams({ kb }).toString();
+    const r = await apiFetch(`/api/ontology/graph?${q}`);
+    // 后端返回统一信封 {ok, nodes, edges, counts}（本体实例图）
+    if (r && r.ok && Array.isArray(r.nodes)) {
+      return { ok: true, graph: { nodes: r.nodes, edges: r.edges || [] } };
+    }
+    if (r && r.offline) {
+      // 降级：后端不可达，由本地 schema 组装最小图（类节点 + 类间对象关系），
+      // 供前端离线仍能渲染类结构（节点/边为前端通用形状）
+      const s = await schemaOntology();
+      if (!s.ok || !s.schema) return { ok: false, error: (s && s.error) || '模型结构图获取失败' };
+      const schema = s.schema;
+      const nodes = [], edges = [];
+      // 每个类一个节点（id 用 cls_ 前缀，与 ModelGraph 类节点渲染约定一致）
+      const classes = Array.isArray(schema.class) ? schema.class
+        : Object.keys(schema.type_hierarchy || {});
+      for (const c of classes) {
+        nodes.push({ id: 'cls_' + c, name: c, entity: 'cls_' + c });
+      }
+      // 类间对象属性连成边（对象属性形如 obj_xxx，两端落在类上）
+      const objProps = Array.isArray(schema.object_properties) ? schema.object_properties : [];
+      const seen = new Set();
+      for (const op of objProps) {
+        const nm = (typeof op === 'object' && op !== null) ? (op.name || op.rel || op.predicate) : op;
+        const from = 'cls_' + (op && op.domain || '');
+        const to = 'cls_' + (op && op.range || '');
+        if (from !== 'cls_' && to !== 'cls_' && from !== to && !seen.has(from + to)) {
+          edges.push({ source: from, target: to, rel: String(nm) });
+          seen.add(from + to);
+        }
+      }
+      return { ok: true, graph: { nodes, edges } };
+    }
+    return { ok: false, error: (r && r.error) || '后端模型图获取失败' };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+/**
  * 智能分析（统计摘要 + LLM 洞察），返回结构化数据供前端画图+展示报告
  * @param {string} question 分析类问题
  * @returns {Promise<{ok, report?, stats?, error?}>}

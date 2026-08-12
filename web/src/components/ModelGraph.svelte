@@ -1,13 +1,14 @@
 <script>
   // ModelGraph — 本体模型力导向图（ECharts graph，学习 sme 库 instance-graph.js）
+  // 数据源：/api/ontology/graph 图结构 {nodes, edges}（后端本体实例图，nodes=[{id,name,entity}], edges=[{from,to,rel}]）
   // 层级：企业 hub 顶部 → 业务域/实体类 → 实例；roam 缩放平移 + 分类着色 + 多样化链接
   import { onMount } from 'svelte';
   import echarts from '../lib/echarts.cjs';
-  import { fetchSchema } from '../lib/api.js';
+  import { fetchGraph } from '../lib/api.js';
 
   let { refreshKey = 0 } = $props();   // 建模时间戳，变化时重新加载
 
-  let schema = $state(null);
+  let graph = $state(null);            // {nodes:[{id,name,entity}], edges:[{source,target,rel}]}
   let loading = $state(true);
   let error = $state('');
   let chartEl = $state(null);
@@ -35,24 +36,34 @@
     return ENTITY_COLORS[h % ENTITY_COLORS.length];
   }
 
+  // 节点分类名（着色依据）：hub / cls_ 类 / 其余按实体类
+  function nodeCat(n) {
+    if (n.id === '__hub__') return '企业';
+    if (String(n.id).startsWith('cls_')) return '类';
+    return n.entity || n.name || '其他';
+  }
+
   function render() {
-    if (!chartEl || !schema?.nodes?.length) return;
-    const nodes = schema.nodes, edges = schema.edges || [];
+    if (!chartEl || !graph?.nodes?.length) return;
+    // 归一化边：后端图结构用 from/to，统一转成 source/target 供 ECharts 消费
+    const nodes = graph.nodes, edges = (graph.edges || []).map(e => ({
+      source: e.source ?? e.from, target: e.target ?? e.to, rel: e.rel,
+    }));
     // 分类 = 所有实体类名（着色依据）
-    const cats = [...new Set(nodes.map(n => n.entity))];
+    const cats = [...new Set(nodes.map(nodeCat))];
     const catIdx = {}; cats.forEach((c, i) => (catIdx[c] = i));
 
     const data = nodes.map(n => {
       const isHub = n.id === '__hub__';
-      const isCls = n.id.startsWith('cls_');
-      const color = isHub ? '#2563eb' : (isCls ? '#1e293b' : entityColor(n.entity));
+      const isCls = String(n.id).startsWith('cls_');
+      const color = isHub ? '#2563eb' : (isCls ? '#1e293b' : entityColor(nodeCat(n)));
       return {
         id: n.id, name: n.name,
         symbolSize: isHub ? 64 : (isCls ? 30 : 11),
-        category: catIdx[n.entity] ?? 0,
+        category: catIdx[nodeCat(n)] ?? 0,
         itemStyle: { color, borderColor: isCls ? color : '#ffffff', borderWidth: isCls ? 0 : 1 },
         label: isCls ? { show: true, fontSize: 12, fontWeight: 'bold', color: '#1e293b' } : undefined,
-        tooltip: { formatter: `<b>${n.entity}</b> ${n.name}<br/>域：${n.domain || ''}` },
+        tooltip: { formatter: `<b>${nodeCat(n)}</b> ${n.name}<br/>id：${n.id}` },
       };
     });
 
@@ -77,7 +88,7 @@
         top: 4, left: 'center', type: 'scroll',
         textStyle: { fontSize: 10, color: '#475569' },
         icon: 'circle', itemWidth: 10, itemHeight: 10,
-        data: cats.map(c => ({ name: c, itemStyle: { color: c === '企业' ? '#2563eb' : (c.startsWith('cls_') ? '#1e293b' : entityColor(c)) } })),
+        data: cats.map(c => ({ name: c, itemStyle: { color: c === '企业' ? '#2563eb' : (c === '类' ? '#1e293b' : entityColor(c)) } })),
       },
       series: [{
         type: 'graph', layout: 'force', roam: true,
@@ -95,9 +106,9 @@
   async function load() {
     loading = true; error = '';
     try {
-      const res = await fetchSchema();
-      if (res.ok && res.schema) {
-        schema = res.schema;
+      const res = await fetchGraph();
+      if (res.ok && Array.isArray(res.nodes)) {
+        graph = { nodes: res.nodes, edges: res.edges || [] };
         render();
       } else {
         error = res.error || '模型结构加载失败';
@@ -124,11 +135,11 @@
     if (refreshKey > 0) load();
   });
 
-  // 节点数 / 关系数统计
-  const instCount = $derived((schema?.nodes || []).filter(n => n.id !== '__hub__' && !n.id.startsWith('cls_')).length);
-  const clsCount = $derived((schema?.nodes || []).filter(n => n.id.startsWith('cls_')).length);
-  const edgeCount = $derived((schema?.edges || []).length);
-  const rels = $derived([...new Set((schema?.edges || []).map(e => e.rel))].filter(r => r !== 'owns' && r !== 'type'));
+  // 图统计：节点/边/关系种类（图结构直接推导，无类级元数据时归零）
+  const instCount = $derived((graph?.nodes || []).filter(n => n.id !== '__hub__' && !String(n.id).startsWith('cls_')).length);
+  const clsCount = $derived((graph?.nodes || []).filter(n => String(n.id).startsWith('cls_')).length);
+  const edgeCount = $derived((graph?.edges || []).length);
+  const rels = $derived([...new Set((graph?.edges || []).map(e => e.rel))].filter(r => r !== 'owns' && r !== 'type'));
 </script>
 
 <div class="model-graph">
@@ -136,13 +147,13 @@
     <div class="mg-empty">正在解析模型结构…</div>
   {:else if error}
     <div class="mg-empty mg-err">{error}</div>
-  {:else if schema}
+  {:else if graph}
     <div class="mg-meta">
-      <span class="mg-cls">类：{schema.class}</span>
-      <span class="mg-inst">{schema.instance_count} 个实例</span>
-      <span class="mg-obj">{schema.object_properties.length} 个对象关系</span>
-      <span class="mg-dp">{schema.data_properties.length} 个数据属性</span>
-      <span class="mg-graph">图：{clsCount} 实体 · {instCount} 实例 · {edgeCount} 边</span>
+      <span class="mg-graph">节点：{graph.nodes.length}</span>
+      <span class="mg-inst">{instCount} 个实例</span>
+      <span class="mg-cls">{clsCount} 个类</span>
+      <span class="mg-obj">{rels.length} 种对象关系</span>
+      <span class="mg-dp">边：{edgeCount}</span>
     </div>
 
     <div class="mg-echarts" bind:this={chartEl}></div>
@@ -160,25 +171,6 @@
     {/if}
 
     <div class="mg-hint">拖动 / 滚轮缩放看全图 · 悬停高亮邻居 · 不同关系不同颜色线型</div>
-
-    <!-- 实体属性（属性本体：各关联类的自身属性） -->
-    {#if schema?.class_attributes && Object.keys(schema.class_attributes).length > 0}
-      <div class="mg-attrs">
-        <div class="mg-hier-title">实体属性</div>
-        <div class="mg-attr-groups">
-          {#each Object.entries(schema.class_attributes) as [cls, attrs]}
-            {#if cls !== 'DeviceType'}
-              <div class="mg-attr-group">
-                <span class="mg-attr-cls">{cls}</span>
-                <div class="mg-attr-items">
-                  <span class="mg-attr-item">{attrs.instance_count} 实例</span>
-                </div>
-              </div>
-            {/if}
-          {/each}
-        </div>
-      </div>
-    {/if}
   {/if}
 </div>
 
@@ -203,12 +195,4 @@
   .lg-line { width: 20px; height: 2px; border-radius: 1px; }
 
   .mg-hint { font-size: 11px; color: #94a3b8; }
-
-  .mg-attrs { border: 1px solid #e2e8f0; border-radius: 4px; padding: 12px; background: #f8fafc; }
-  .mg-hier-title { font-size: 12px; font-weight: 700; color: #1e293b; margin-bottom: 10px; letter-spacing: 0.3px; }
-  .mg-attr-groups { display: flex; flex-direction: column; gap: 8px; }
-  .mg-attr-group { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 7px 10px; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; }
-  .mg-attr-cls { font-size: 12px; font-weight: 700; color: #0ea5e9; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 4px; padding: 2px 9px; white-space: nowrap; }
-  .mg-attr-items { display: flex; gap: 5px; flex-wrap: wrap; }
-  .mg-attr-item { font-size: 10px; color: #64748b; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 3px; padding: 1px 7px; }
 </style>

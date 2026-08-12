@@ -502,7 +502,7 @@
           </div>
           <div class="attr-chips">
             {#each modelResult.attrs as a}
-              <span class="attr-chip">{a}</span>
+              <span class="attr-chip">{typeof a === 'object' && a !== null ? (a.cn || a.field || JSON.stringify(a)) : a}</span>
             {/each}
           </div>
         </div>
