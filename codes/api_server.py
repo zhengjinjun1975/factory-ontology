@@ -1093,8 +1093,13 @@ def ontology_build(req: OntologyBuildReq):
     kb = (req.kb or "").strip()
     if not kb or kb.startswith(".") or any(c in kb for c in ("/", "\\", "..")):
         return _err_env(4001, "非法 kb 名", start)
-    src = req.csv_path or req.data_dir
-    if not src:
+    # 数据源分流：data_dir(多文件目录) 优先，其次 csv_path(单文件)。
+    # 修复: 此前用 `src = req.csv_path or req.data_dir` 把目录当单文件传 run.setup → 报"不支持的数据格式"。
+    if req.data_dir:
+        src = req.data_dir
+    elif req.csv_path:
+        src = req.csv_path
+    else:
         return _err_env(4001, "需提供 csv_path(单表) 或 data_dir(多表)", start)
     # 安全加固(架构师审计 P0-2): 数据源必须限定在 codes/data 或 codes/output 白名单内,
     # 拒绝绝对路径和 .. 穿越, 防止任意文件读取(/etc/passwd/.env/.ssh 等)。
@@ -1108,7 +1113,16 @@ def ontology_build(req: OntologyBuildReq):
         return _err_env(4001, f"数据源不存在: {src}", start)
     try:
         import run as run_mod
-        nt, lex = run_mod.setup(src_abs, table=kb, use_llm=req.use_llm)
+        if req.data_dir:
+            # 多文件目录: 复用 multi_model 统一多表建模(schema-free), 同时产出 nt + lex。
+            # setup_schema 只返回 nt 不产出词典, 故用 multi_model.build 等效多文件建模。
+            import multi_model as mm_mod
+            mm_mod.build(src_abs, table=kb)
+            nt = os.path.join(ROOT, "output", f"{kb}.nt")
+            lex = os.path.join(ROOT, "config", f"lexicon_{kb}.json")
+        else:
+            # 单文件: 复用 run.setup 单表建模, 产出 nt + lex
+            nt, lex = run_mod.setup(src_abs, table=kb, use_llm=req.use_llm)
     except Exception as e:
         logger.warning(f"API内部错误[建本体失败]: {e}")
         return _err_env(5001, "建本体失败(内部错误已记录)", start)
