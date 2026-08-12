@@ -12,8 +12,8 @@
         "原味酸奶是什么"
       ],
       "data_dir": "data",
-      "lexicon": "lexicon_food_products.json",
-      "nt": "output/food_products.nt"
+      "lexicon": "lexicon_food.json",
+      "nt": "output/food.nt"
     },
     "valve": {
       "name": "阀门制造问答",
@@ -21,12 +21,111 @@
       "examples": [
         "有多少台设备",
         "功率最大的设备",
+        "设备类型有哪些",
         "不锈钢材质的设备",
         "客户总数"
       ],
-      "data_dir": "data",
+      "data_dir": "data_valve",
       "lexicon": "lexicon_valve.json",
-      "nt": "output/valve.nt"
+      "nt": "output/h_阀门.nt"
+    },
+    "chem": {
+      "name": "化工企业问答",
+      "icon": "🧪",
+      "examples": [
+        "有多少台设备",
+        "设备类型有哪些",
+        "纯度为100%的产品",
+        "价格最高的产品"
+      ],
+      "data_dir": "data_chem",
+      "lexicon": "lexicon_chem.json",
+      "nt": "output/h_化工.nt"
+    },
+    "bellows": {
+      "name": "波纹管制造问答",
+      "icon": "🌀",
+      "examples": [
+        "有多少台设备",
+        "设备类型有哪些",
+        "压力等级最高的产品"
+      ],
+      "data_dir": "data_bellows",
+      "lexicon": "lexicon_bellows.json",
+      "nt": "output/h_波纹管.nt"
+    },
+    "seismic": {
+      "name": "地震勘探问答",
+      "icon": "🌍",
+      "examples": [
+        "有多少台设备",
+        "测线有哪些",
+        "炮点数最多的测线"
+      ],
+      "data_dir": "data_seismic",
+      "lexicon": "lexicon_seismic.json",
+      "nt": "output/h_地震.nt"
+    },
+    "eco": {
+      "name": "环保工程问答",
+      "icon": "🌿",
+      "examples": [
+        "有多少台设备",
+        "项目有哪些",
+        "投资金额最大的项目"
+      ],
+      "data_dir": "data_eco",
+      "lexicon": "lexicon_eco.json",
+      "nt": "output/h_环保.nt"
+    },
+    "machining": {
+      "name": "机械制造问答",
+      "icon": "⚙️",
+      "examples": [
+        "有多少台设备",
+        "功率最大的设备",
+        "客户总数"
+      ],
+      "data_dir": "data_machining",
+      "lexicon": "lexicon_machining.json",
+      "nt": "output/h_机械.nt"
+    },
+    "precision": {
+      "name": "精密加工问答",
+      "icon": "🎯",
+      "examples": [
+        "有多少台设备",
+        "设备类型有哪些",
+        "精度等级最高的产品"
+      ],
+      "data_dir": "data_precision",
+      "lexicon": "lexicon_precision.json",
+      "nt": "output/h_精加工.nt"
+    },
+    "ship": {
+      "name": "船舶制造问答",
+      "icon": "🚢",
+      "examples": [
+        "有多少台设备",
+        "船舶订单有哪些",
+        "载重吨最大的船"
+      ],
+      "data_dir": "data_ship",
+      "lexicon": "lexicon_ship.json",
+      "nt": "output/h_造船.nt"
+    },
+    "factory": {
+      "name": "工厂本体问答",
+      "icon": "🏭",
+      "examples": [
+        "有多少台设备",
+        "功率最大的设备",
+        "设备类型有哪些",
+        "不锈钢材质的设备"
+      ],
+      "data_dir": "data_valve",
+      "lexicon": "lexicon_factory_multi_1786434147909.json",
+      "nt": "output/factory_multi.nt"
     },
     "ai4i": {
       "name": "智能设备预测性维护",
@@ -64,18 +163,6 @@
       "data_dir": "data",
       "lexicon": "lexicon_library_inventory.json",
       "nt": "output/library_inventory.nt"
-    },
-    "manufacturing": {
-      "name": "通用制造问答",
-      "icon": "🏭",
-      "examples": [
-        "有多少台设备",
-        "生产线的数量",
-        "供应商总数"
-      ],
-      "data_dir": "data",
-      "lexicon": "lexicon_internal.json",
-      "nt": "output/equipment.nt"
     }
   }
 }

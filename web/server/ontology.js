@@ -106,13 +106,18 @@ function loadKbs() {
 }
 
 /**
- * 取当前激活 kb: 优先前端自身状态(web_state.json 记录 Web 建模的 kb),
- * 否则回退 kbs.json 第一个注册的 kb, 再否则后端默认 'food'。
+ * 取当前激活 kb: 优先前端自身状态(web_state.json 记录 Web 显式选择的 kb),
+ * 但校验该 kb 已注册(避免陈旧/无效锁定); 否则回退 kbs.json 第一个注册的 kb,
+ * 再否则后端默认 'food'。
  * @returns {string}
  */
 export function getCurrentKb() {
   const web = loadWebState();
-  if (web && web.kb) return web.kb;
+  if (web && web.kb) {
+    const kbs = loadKbs();
+    // 前端显式选择的 kb 若仍注册则采用; 若已失效(注册表被改)则回退, 避免锁死旧值
+    if (kbs[web.kb]) return web.kb;
+  }
   const kbs = loadKbs();
   const keys = Object.keys(kbs);
   return keys.length ? keys[0] : 'food';
@@ -783,10 +788,10 @@ export async function graphOntology(kb) {
  * @param {string} question 分析类问题
  * @returns {Promise<{ok, report?, stats?, evidence?, error?}>}
  */
-export async function analyzeOntology(question) {
+export async function analyzeOntology(question, kb) {
   try {
     // 复用普通问答入口：后端 /api/ask 自带 规则+GraphRAG+文档RAG 融合，能覆盖分析类意图
-    const kb = getCurrentKb();
+    kb = kb || getCurrentKb();
     const r = await apiFetch('/api/ask', { method: 'POST', body: { kb, question } });
     if (r && r.ok && (r.answer != null || (r.data && r.data.answer != null))) {
       // 兼容后端直返/套 data 信封两种形态；evidence 为文档 RAG 溯源切块，透传供前端展示

@@ -231,13 +231,13 @@ const server = createServer(async (req, res) => {
   if (req.method === 'POST' && url === '/api/ontology/analyze') {
     try {
       const body = JSON.parse((await readBody(req)) || '{}');
-      const { question } = body;
+      const { question, kb } = body;
       if (!question || typeof question !== 'string') {
         res.writeHead(400, { 'Content-Type': 'application/json;charset=utf-8' });
         res.end(JSON.stringify({ ok: false, error: 'question 必填' }));
         return;
       }
-      const result = await analyzeOntology(question);
+      const result = await analyzeOntology(question, kb);
       res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8' });
       res.end(JSON.stringify(result));
     } catch (err) {

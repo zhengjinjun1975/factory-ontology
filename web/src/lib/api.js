@@ -55,11 +55,26 @@ export async function dbSetup(cfg) {
   });
 }
 
-export async function askOntology(question) {
+export async function askOntology(question, kb) {
   return fetchRetry('/api/ontology/ask', {
     method: 'POST',
     headers: JSON_HEADERS,
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({ question, kb }),
+  });
+}
+
+// ── 多租户 kb 切换 ──
+// 读取已注册知识库列表 + 当前激活 kb（后端 /api/ontology/kbs）
+export async function fetchKbs() {
+  return fetchRetry('/api/ontology/kbs', { cache: 'no-store' });
+}
+
+// 切换当前激活 kb（后端 setCurrentKb 持久化到 web_state）
+export async function setKb(kb) {
+  return fetchRetry('/api/ontology/kb', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ kb }),
   });
 }
 
@@ -80,11 +95,11 @@ export async function fetchGraph() {
   return fetchRetry('/api/ontology/graph', { cache: 'no-store' });
 }
 
-export async function analyzeOntology(question) {
+export async function analyzeOntology(question, kb) {
   return fetchRetry('/api/ontology/analyze', {
     method: 'POST',
     headers: JSON_HEADERS,
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({ question, kb }),
   });
 }
 

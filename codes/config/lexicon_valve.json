@@ -1,26 +1,102 @@
 {
-  "status_cn2en": {
-    "已入库": "已入库",
-    "待质检": "待质检",
-    "生产中": "生产中"
-  },
-  "type_cn2en": {},
-  "zone_cn2en": {},
+  "description": "自动生成词典 (valve, 来自 h_阀门.nt 完整本体)",
   "attr_cn2en": {
-    "数量": "quantity"
+    "阀体材质": "bodyMaterial",
+    "检验日期": "checkDate",
+    "检验项目": "checkItem",
+    "检验员": "checker",
+    "连接形式": "connection",
+    "信用等级": "creditLevel",
+    "电流A": "currentA",
+    "客户名称": "customerName",
+    "设备名称": "deviceName",
+    "设备类型": "deviceType",
+    "保压时间": "holdSec",
+    "行业": "industry",
+    "泄漏气泡": "leakBubblesMin",
+    "材质": "material",
+    "型号代码": "modelCode",
+    "零件名称": "partName",
+    "功率kW": "powerKw",
+    "试压规则": "pressRule",
+    "压力等级": "pressureGrade",
+    "价格": "price",
+    "生产日期": "produceDate",
+    "产品名称": "productName",
+    "数量": "quantity",
+    "原材料": "rawParts",
+    "地区": "region",
+    "结果": "result",
+    "密封材质": "sealMaterial",
+    "尺寸mm": "sizeMm",
+    "标准号": "standardNo",
+    "状态": "status",
+    "班组": "team",
+    "温度℃": "tempC",
+    "温度范围": "tempRange",
+    "振动mm/s": "vibrationMmS",
+    "车间": "workshop"
   },
   "attr_en2cn": {
-    "quantity": "数量"
+    "bodyMaterial": "阀体材质",
+    "checkDate": "检验日期",
+    "checkItem": "检验项目",
+    "checker": "检验员",
+    "connection": "连接形式",
+    "creditLevel": "信用等级",
+    "currentA": "电流A",
+    "customerName": "客户名称",
+    "deviceName": "设备名称",
+    "deviceType": "设备类型",
+    "holdSec": "保压时间",
+    "industry": "行业",
+    "leakBubblesMin": "泄漏气泡",
+    "material": "材质",
+    "modelCode": "型号代码",
+    "partName": "零件名称",
+    "powerKw": "功率kW",
+    "pressRule": "试压规则",
+    "pressureGrade": "压力等级",
+    "price": "价格",
+    "produceDate": "生产日期",
+    "productName": "产品名称",
+    "quantity": "数量",
+    "rawParts": "原材料",
+    "region": "地区",
+    "result": "结果",
+    "sealMaterial": "密封材质",
+    "sizeMm": "尺寸mm",
+    "standardNo": "标准号",
+    "status": "状态",
+    "team": "班组",
+    "tempC": "温度℃",
+    "tempRange": "温度范围",
+    "vibrationMmS": "振动mm/s",
+    "workshop": "车间"
+  },
+  "status_cn2en": {},
+  "type_cn2en": {},
+  "zone_cn2en": {},
+  "relations_cn2en": {},
+  "numeric_fields": {
+    "价格": "price",
+    "金额": "amount",
+    "数量": "quantity",
+    "功率": "powerKw",
+    "库存": "stock"
   },
   "field_aliases": {
     "status": [
-      "status",
-      "Status"
+      "status"
+    ],
+    "deviceType": [
+      "deviceType",
+      "type"
+    ],
+    "deviceName": [
+      "deviceName",
+      "name"
     ]
   },
-  "relations_cn2en": {},
-  "value_fields": {
-    "status": "status"
-  },
-  "description": "由 LexiconAgent 全自动生成 (valve, 7字段)"
+  "value_fields": []
 }

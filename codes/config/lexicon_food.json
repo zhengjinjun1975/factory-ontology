@@ -1,0 +1,30 @@
+{
+  "description": "食品企业(中小型)产品数据示例词典",
+  "attr_cn2en": {
+    "产品名": "product_name",
+    "品类": "category",
+    "规格": "spec",
+    "保质期": "expiry_days",
+    "储存": "storage",
+    "价格": "price"
+  },
+  "attr_en2cn": {
+    "product_name": "产品名",
+    "category": "品类",
+    "spec": "规格",
+    "expiry_days": "保质期",
+    "storage": "储存",
+    "price": "价格"
+  },
+  "status_cn2en": {},
+  "type_cn2en": {
+    "乳制品": "乳制品", "烘焙食品": "烘焙食品", "速冻食品": "速冻食品", "果汁饮品": "果汁饮品"
+  },
+  "field_aliases": {
+    "deviceName": ["product_name", "产品名"],
+    "status": [],
+    "deviceType": ["category"],
+    "location": []
+  },
+  "value_fields": []
+}

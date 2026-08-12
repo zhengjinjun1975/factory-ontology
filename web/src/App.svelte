@@ -1,7 +1,7 @@
 <script>
   // 工厂智能体 · 本体问答 — 独立 Web 应用（工业软件浅色风格）
   import { onMount } from 'svelte';
-  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, setModel, getModels, saveModels, fetchVersion, browseFiles, readDataFile, fetchExample } from './lib/api.js';
+  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, setModel, getModels, saveModels, fetchVersion, browseFiles, readDataFile, fetchExample, fetchKbs, setKb } from './lib/api.js';
   import DashboardPanel from './components/DashboardPanel.svelte';
   import ModelGraph from './components/ModelGraph.svelte';
   import AnalysisResult from './components/AnalysisResult.svelte';
@@ -48,14 +48,21 @@
   let statusMsg = $state('等待数据导入');
   let statusType = $state('info');   // info | ok | err
   let answerBox = $state(null);
+  // 多租户 kb 切换：已注册知识库列表 + 当前激活 kb（中文名显示）
+  let kbList = $state([]);        // [{key, name, icon, examples}]
+  let currentKb = $state('');     // 当前激活 kb key
+  let kbsLoaded = $state(false);
 
-  const quickQuestions = [
-    '有多少台运行中的设备',
-    '车间A的设备有哪些',
-    '功率最大的设备',
-    '有多少台报警的',
-    'L1产线的设备有哪些',
-  ];
+  // 快速问题：跟随当前激活 kb 的 examples（不锁死 food）
+  const quickQuestions = $derived(
+    (kbList.find(k => k.key === currentKb)?.examples) || [
+      '有多少台运行中的设备',
+      '车间A的设备有哪些',
+      '功率最大的设备',
+      '有多少台报警的',
+      'L1产线的设备有哪些',
+    ]
+  );
 
   function setStatus(type, msg) {
     statusType = type; statusMsg = msg;
@@ -91,8 +98,56 @@
     activeTab = tab;
   }
 
+  // ─── 多租户 kb 加载与切换 ───
+  // 从后端 /api/ontology/kbs 读取已注册知识库 + 当前激活 kb，中文名显示。
+  async function loadKbs() {
+    try {
+      const res = await fetchKbs();
+      if (res && res.ok && Array.isArray(res.kbs)) {
+        kbList = res.kbs;
+        currentKb = (res.current && res.kbs.some(k => k.key === res.current)) ? res.current : (res.kbs[0] && res.kbs[0].key) || '';
+        kbsLoaded = true;
+        // 跟随激活 kb 的品牌/示例问题（不锁死 food）
+        const cur = kbList.find(k => k.key === currentKb);
+        if (cur) setStatus('info', `已切换知识库：${cur.icon} ${cur.name}`);
+        // 已注册 kb 可直接查询（无需先本地建模），放行查询输入
+        if (status === 'idle') { status = 'ready'; }
+        return true;
+      }
+    } catch (e) { /* 忽略，前端降级用默认 */ }
+    return false;
+  }
+
+  // 切换 kb：setCurrentKb(选中) → 刷新查询/看板/本体图
+  async function switchKb(e) {
+    const key = e.target.value;
+    if (!key || key === currentKb) return;
+    const prev = currentKb;
+    currentKb = key;
+    try {
+      const res = await setKb(key);   // 后端 setCurrentKb 持久化到 web_state
+      if (!(res && res.ok)) {
+        currentKb = prev;
+        setStatus('err', '知识库切换失败');
+        return;
+      }
+      const cur = kbList.find(k => k.key === key);
+      setStatus('ok', `已切换知识库：${cur ? cur.icon + ' ' + cur.name : key}`);
+      // 清空上一次查询/分析结果，强制刷新看板/本体图到新 kb
+      answer = ''; answerHTML = null; evidence = null; analysis = null;
+      modelResult = modelResult ? { ...modelResult, ts: Date.now() } : modelResult;
+    } catch (err) {
+      currentKb = prev;
+      setStatus('err', formatError(null, err));
+    }
+  }
+
+  function onKbChange(e) { switchKb(e); }
+
   // ─── 模型配置加载与切换 ───
   onMount(async () => {
+    // 多租户：先加载已注册知识库 + 当前激活 kb（决定查询/看板/本体图检索哪个）
+    await loadKbs();
     try {
       const res = await getModels();
       if (res.ok) {
@@ -313,7 +368,7 @@
     try {
       if (isAnalyzeQuestion(q)) {
         // 智能分析：统计摘要 + LLM 洞察（前端画图 + 报告）
-        const res = await analyzeOntology(q);
+        const res = await analyzeOntology(q, currentKb);
         if (!res.ok) {
           setStatus('err', formatError(res, null) || '分析失败'); status = 'ready';
         } else {
@@ -324,7 +379,7 @@
         }
       } else {
         // 普通问答
-        const res = await askOntology(q);
+        const res = await askOntology(q, currentKb);
         if (!res.ok) {
           setStatus('err', formatError(res, null) || '问答失败'); status = 'ready';
         } else {
@@ -429,6 +484,16 @@
       </div>
     </div>
     <div class="toolbar-right">
+      {#if kbsLoaded && kbList.length > 0}
+        <label class="model-select kb-select">
+          <span class="model-label">知识库</span>
+          <select value={currentKb} onchange={onKbChange}>
+            {#each kbList as kb}
+              <option value={kb.key}>{kb.icon} {kb.name}</option>
+            {/each}
+          </select>
+        </label>
+      {/if}
       {#if modelList.length > 0}
         <label class="model-select">
           <span class="model-label">模型</span>
@@ -733,7 +798,7 @@
               </div>
             {/if}
           {:else}
-            <div class="result-empty">请先在「数据建模」中完成建模，再进行查询。</div>
+            <div class="result-empty">{#if kbsLoaded && currentKb}当前知识库「{kbList.find(k => k.key === currentKb)?.name || currentKb}」已就绪，输入中文问题开始查询。{/if}</div>
           {/if}
         </div>
       </div>
