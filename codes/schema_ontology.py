@@ -25,6 +25,7 @@
 """
 import os
 import json
+from collections import Counter
 
 # ═══════════ 数据加载（复用 factory data_loader 接口）═══════════
 def load_all(data_dir: str) -> dict:
@@ -32,17 +33,16 @@ def load_all(data_dir: str) -> dict:
 
     失败时报告清晰原因：目录不存在 / 目录为空 / 无支持格式数据，而非裸抛异常。
     """
-    import os as _os
-    if not _os.path.isdir(data_dir):
+    if not os.path.isdir(data_dir):
         raise FileNotFoundError(f"[建模失败] 数据目录不存在: {data_dir}")
     from data_loader import load_table
     data = {}
     found = 0
-    for f in sorted(_os.listdir(data_dir)):
-        if not f.startswith(".") and _os.path.splitext(f)[1].lower() in (".csv", ".json", ".db", ".sqlite", ".sqlite3", ".xlsx", ".xls"):
+    for f in sorted(os.listdir(data_dir)):
+        if not f.startswith(".") and os.path.splitext(f)[1].lower() in (".csv", ".json", ".db", ".sqlite", ".sqlite3", ".xlsx", ".xls"):
             found += 1
             try:
-                name, _headers, rows = load_table(_os.path.join(data_dir, f))
+                name, _headers, rows = load_table(os.path.join(data_dir, f))
             except Exception as e:
                 raise ValueError(f"[建模失败] 加载表 {f} 出错: {e}")
             if rows:
@@ -60,8 +60,7 @@ def load_schema(path: str) -> dict:
 
     失败时报告清晰原因：文件不存在 / JSON 非法 / 实体冲突 / 关系引用不存在。
     """
-    import os as _os
-    if not _os.path.exists(path):
+    if not os.path.exists(path):
         raise FileNotFoundError(f"[建模失败] schema 文件不存在: {path}")
     try:
         schema = json.load(open(path, encoding="utf-8"))
@@ -71,7 +70,7 @@ def load_schema(path: str) -> dict:
     if not entities:
         raise ValueError(f"[建模失败] schema {path} 未定义任何实体(entities)")
     # 实体 id 唯一（assert → 显式异常，报告具体重复项）
-    dup = [eid for eid, c in __import__("collections").Counter(
+    dup = [eid for eid, c in Counter(
         e["id"] for e in schema.get("entities", [])).items() if c > 1]
     if dup:
         raise ValueError(f"[建模失败] schema 实体 id 重复: {dup}")
@@ -294,6 +293,17 @@ _ATTR_CN = {
     "leak_bubbles_min": "泄漏气泡", "result": "结果", "checker": "检查员",
     "team": "班组", "qc_result": "质检结果", "vibration_mm_s": "振动(mm/s)",
     "temp_c": "温度(℃)", "current_a": "电流(A)", "size_mm": "尺寸(mm)",
+    # AI4I 预测性维护列（中文 label 兜底, 覆盖英文列名防中英混杂）
+    "air_temperature": "空气温度", "air_temperature_k": "空气温度(K)",
+    "process_temperature": "工艺温度", "process_temperature_k": "工艺温度(K)",
+    "rotational_speed": "转速", "rotational_speed_rpm": "转速(rpm)",
+    "torque": "扭矩", "torque_nm": "扭矩(Nm)",
+    "tool_wear": "刀具磨损", "tool_wear_min": "刀具磨损(min)",
+    "machine_failure": "机器故障", "twf": "刀具磨损故障", "hdf": "热耗散故障",
+    "pwf": "功率故障", "osf": "过冲故障", "rnf": "随机故障",
+    # 逐词兜底(拆词查询用): air_temperature_ → air + temperature
+    "air": "空气", "temperature": "温度", "process": "工艺",
+    "rotational": "转速", "speed": "转速", "wear": "磨损", "tool": "刀具",
 }
 
 
@@ -323,7 +333,7 @@ def _attr_cn_label(name: str) -> str:
         if name.endswith(suf):
             base = name[:-len(suf)]
             return (_ATTR_CN.get(base, base) if base else "编号") + "编号"
-    words = [w for w in str(name).replace("-", "_").split("_") if w]
+    words = [w for w in str(name).replace("-", "_").lower().split("_") if w]
     return "".join(_ATTR_CN.get(w, w) for w in words) if words else name
 
 
@@ -348,8 +358,7 @@ def llm_enhance(schema: dict, use_llm: bool = True) -> dict:
         from model_llm import llm_generate, get_model_config
         cfg = get_model_config()
         if cfg.get("type") == "openai" and not cfg.get("api_key"):
-            import os as _os
-            if not (_os.environ.get("DEEPSEEK_API_KEY") or _os.environ.get("ZHIPU_API_KEY")):
+            if not (os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("ZHIPU_API_KEY")):
                 return schema
         need = [e["id"] for e in schema["entities"] if e["label"] == _entity_cn_label(e.get("table") or e["id"])]
         if not need:

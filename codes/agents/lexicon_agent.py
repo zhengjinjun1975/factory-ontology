@@ -178,6 +178,11 @@ class LexiconAgent(BaseAgent):
         "run": "运行", "running": "运行", "alarm": "报警", "fault": "故障", "failure": "故障",
         "error": "错误", "normal": "正常", "idle": "空闲", "offline": "离线",
         "sensor": "传感器", "signal": "信号", "value": "数值",
+        # AI4I 预测性维护(拆词兜底)
+        "air": "空气", "process": "工艺", "tool": "刀具", "wear": "磨损",
+        "rotational": "转速", "torque": "扭矩", "twf": "刀具磨损故障",
+        "hdf": "热耗散故障", "pwf": "功率故障", "osf": "过冲故障", "rnf": "随机故障",
+        "udi": "唯一标识", "ud": "唯一标识",
     }
 
     def _split_parts(self, field):
@@ -193,14 +198,18 @@ class LexiconAgent(BaseAgent):
         skip = {"kw", "mw", "w", "v", "a", "hz", "m3", "h", "m", "s", "mm", "cm", "kg",
                 "of", "the", "no", "at", "in", "per", "max", "min", "avg", "mean"}
         main = []
+        seen = set()
         for p in parts:
             if p in skip or len(p) == 1:
                 continue
             if p in self.EN_CN:
-                main.append(self.EN_CN[p])
+                cn_w = self.EN_CN[p]
             else:
                 # 未命中：作为原始词保留（避免丢信息）
-                main.append(p)
+                cn_w = p
+            if cn_w not in seen:  # 去重同义词合成(rotational+speed→转速, 防"转速转速")
+                seen.add(cn_w)
+                main.append(cn_w)
         if not main:
             return field
         return "".join(main)

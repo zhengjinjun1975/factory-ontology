@@ -14,11 +14,14 @@
 需: pip install fastapi uvicorn   （Python 3.9+）
 """
 import os
+import re
 import sys
 import json
 import time
+import shutil
 import hashlib
 import logging
+import threading
 from datetime import datetime
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -29,7 +32,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("food-api")
 
-from fastapi import FastAPI, HTTPException, Query, Header, Request, Depends, UploadFile, File
+from fastapi import FastAPI, HTTPException, Query, Header, Request, Depends, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, FileResponse, PlainTextResponse
 from pydantic import BaseModel
 
@@ -122,8 +125,21 @@ def _load():
 graph, labels, vi, rev = _load()
 D = v3.load_dict(FOOD_LEX)
 QDATA = v3.build_data(v3.parse_nt(FOOD_NT), D)
-_BM25_INDEX = None  # BM25 混合检索索引(惰性构建)
-_VECTOR_INDEX = None  # 向量语义检索索引(惰性构建)
+_KB_INDEX_CACHE = {}  # 多租户: {kb} 独立的 BM25/向量索引缓存
+
+
+def _warm_embedding():
+    """后台预热 embedding 模型(nomic-embed-text), 避免首次查询冷加载卡住。
+
+    冷启动时 Ollama 首次拉 274MB 模型进显存耗时, 首查会慢(记忆经验: 超15s)。
+    启动即后台预加载, 用户首查时模型已就绪。失败静默(不阻塞启动)。
+    """
+    try:
+        from vector_retrieval import embed_text, EMBED_MODEL
+        embed_text("预热 embedding 模型", model=EMBED_MODEL)
+        logger.info(f"embedding 模型预热完成: {EMBED_MODEL}")
+    except Exception:
+        pass  # 预热失败静默, 不阻塞服务启动
 
 app = FastAPI(title="食品企业知识库 API", version="0.1.4",
               description="本体驱动的食品企业问答 + 溯源检索（中小型食品企业场景）")
@@ -219,27 +235,68 @@ def app_home():
 
 class AskReq(BaseModel):
     question: str
+    kb: str = ""  # 多租户: 指定知识库; 缺省用 FOOD_KB(默认 food), 兼容旧调用
+
+
+# ── 多租户惰性加载(T-D1 彻底化): 按 kb 加载本体/词典, 缓存多库, 根治串台 ──
+_kb_ctx_cache = {}
+
+
+def _get_kb_ctx(kb=None):
+    """按 kb 惰性加载并缓存该知识库的本体图+词典+问答数据。
+
+    返回 {graph, labels, vi, rev, D, QDATA, nt_file, lex_file, kb}。
+    首次访问某 kb 才构建并缓存；kb 无效或数据缺失返回 None。
+    """
+    kb = (kb or KB_NAME or "food").strip()
+    if kb in _kb_ctx_cache:
+        return _kb_ctx_cache[kb]
+    kbc = KBS.get(kb)
+    if not kbc:
+        return None
+    nt_file = os.path.join(ROOT, kbc.get("nt", f"output/{kb}.nt"))
+    lex_file = os.path.join(ROOT, "config", kbc.get("lexicon", f"lexicon_{kb}.json"))
+    if not os.path.exists(nt_file) or not os.path.exists(lex_file):
+        return None
+    try:
+        g, lb, v, rv = gr.build_graph(nt_file)
+        D = v3.load_dict(lex_file)
+        QD = v3.build_data(v3.parse_nt(nt_file), D)
+    except Exception as e:
+        logger.warning(f"kb '{kb}' 加载失败: {e}")
+        return None
+    ctx = {"graph": g, "labels": lb, "vi": v, "rev": rv,
+           "D": D, "QDATA": QD, "nt_file": nt_file, "lex_file": lex_file, "kb": kb}
+    _kb_ctx_cache[kb] = ctx
+    return ctx
 
 
 # ── 角色化鉴权(M1.2): FOOD_ADMIN_KEY 管理 / FOOD_READ_KEY 只读 ──
+# 安全加固(2026-08-12, 架构师审计 P0-1): fail-closed 默认拒绝, 不再无 key 开放。
 ADMIN_KEY = os.environ.get("FOOD_ADMIN_KEY", "").strip()
 READ_KEY = os.environ.get("FOOD_READ_KEY", "").strip()
 
 
 def _valid(key, target):
-    """key 是否匹配目标(或已配置的角色 key)。空=该角色未配置。"""
-    return target != "" and key == target
+    """key 是否匹配目标(或已配置的角色 key)。用常量时间比较防时序侧信道。"""
+    if not target:
+        return False
+    try:
+        import hmac
+        return hmac.compare_digest(key, target)
+    except Exception:
+        return key == target
 
 
 def require_key(x_api_key: str = Header(default="")):
-    """只读端点鉴权: 配置了任一 key 时, 需匹配 read 或 admin key; 均未配置则开放。"""
-    if (ADMIN_KEY or READ_KEY) and not (_valid(x_api_key, ADMIN_KEY) or _valid(x_api_key, READ_KEY)):
+    """只读端点鉴权(fail-closed): 需匹配 read 或 admin key; 未配置或未匹配一律 401。"""
+    if not _valid(x_api_key, ADMIN_KEY) and not _valid(x_api_key, READ_KEY):
         raise HTTPException(401, "无效或缺失 API Key (需 X-API-Key 头)")
 
 
 def require_admin(x_api_key: str = Header(default="")):
-    """管理端点鉴权: 需匹配 admin key(配置时)。"""
-    if ADMIN_KEY and not _valid(x_api_key, ADMIN_KEY):
+    """管理端点鉴权(fail-closed): 需匹配 admin key。"""
+    if not _valid(x_api_key, ADMIN_KEY):
         raise HTTPException(401, "需要管理权限 (admin API Key)")
 
 # ── 请求计数(M1.3 metrics) + 审计日志(T3.1) ──
@@ -455,7 +512,17 @@ def app_config():
 
 @app.post("/api/ask", dependencies=[Depends(require_key)])
 def ask(req: AskReq):
-    """自然语言问答：规则引擎 → 逻辑推理桥(确定性) → GraphRAG → 引导。返回答案+证据(可解释)。"""
+    """自然语言问答：规则引擎 → 逻辑推理桥(确定性) → GraphRAG → 引导。返回答案+证据(可解释)。
+
+    多租户: 按 req.kb 惰性加载对应知识库(根治串台); kb 缺省用 FOOD_KB 兼容旧调用。
+    """
+    ctx = _get_kb_ctx(req.kb)
+    if ctx is None:
+        kb = (req.kb or KB_NAME).strip()
+        return {"ok": False, "error": {"code": 4001,
+                "message": f"知识库 '{kb}' 无效或数据缺失(未注册/本体或词典不存在)"}}
+    D, QDATA, graph = ctx["D"], ctx["QDATA"], ctx["graph"]
+    FOOD_NT, FOOD_LEX = ctx["nt_file"], ctx["lex_file"]
     # 1. 规则引擎(确定性, 结构化查询)
     ans = v3.answer(req.question, QDATA, D)
     if ans != "暂不支持该问题":
@@ -464,7 +531,7 @@ def ask(req: AskReq):
             ev = evidence.extract_evidence(req.question, QDATA, D, ans)
         except Exception:
             ev = {}
-        return {"ok": True, "mode": "rule", "answer": ans, "evidence": ev}
+        return {"ok": True, "mode": "rule", "answer": ans, "evidence": ev, "kb": ctx["kb"]}
     # 2. 逻辑推理桥(LLM转逻辑查询→确定性执行, 借鉴KAG; 覆盖更多开放式问题而不失确定性)
     try:
         import logical_qa
@@ -476,29 +543,25 @@ def ask(req: AskReq):
                 ev = evidence.extract_evidence(req.question, QDATA, D, lans)
             except Exception:
                 ev = {}
-            return {"ok": True, "mode": "logical", "answer": lans, "evidence": ev}
+            return {"ok": True, "mode": "logical", "answer": lans, "evidence": ev, "kb": ctx["kb"]}
     except Exception:
         pass  # 逻辑桥不可用则跳过
     # 3. GraphRAG(LLM 兜底)
-    gans, ctx = gr.answer_graph(req.question, FOOD_NT, depth=2, max_nodes=40, lexicon=D)
+    gans, gctx = gr.answer_graph(req.question, FOOD_NT, depth=2, max_nodes=40, lexicon=D)
     if not gans.startswith("[图检索]"):
-        return {"ok": True, "mode": "graphrag", "answer": gans, "context": ctx[:2000]}
+        return {"ok": True, "mode": "graphrag", "answer": gans, "context": gctx[:2000], "kb": ctx["kb"]}
     # 3.5 混合检索(BM25 稀疏 + 向量语义, 提升模糊/同义/口语化查询召回)
-    # 检索链路: 查询 → 规则 → GraphRAG → BM25(稀疏) → 向量语义(embedding) → 融合 → 下游
-    # 向量层召回语义相近实体(如"最贵"→price、"油轮"→船型); embedding 失败回落 BM25, 绝不阻塞。
     try:
         from bm25_retrieval import BM25Index
         from vector_retrieval import VectorIndex
-        global _BM25_INDEX, _VECTOR_INDEX
-        if _BM25_INDEX is None:
-            _BM25_INDEX = BM25Index.from_graph(graph)
-        if _VECTOR_INDEX is None:
-            _VECTOR_INDEX = VectorIndex.from_graph(graph, lexicon=D)
-        bm_hits = _BM25_INDEX.search(req.question, top_k=3, min_score=4.0)
-        # 向量语义召回: 仅强语义信号(min_score 0.60)才触发, 避免对无关问题(如"完全无关xyz"~0.58)误召回。
-        # 模糊/同义查询("最贵/油轮/保质期最长")语义相似度高(≥0.62), 正常触发。
-        vec_hits = _VECTOR_INDEX.search(req.question, top_k=5, min_score=0.60)
-        # 融合: BM25 分数 + 向量相似度 取并集(去重), 保持 BM25 优先排序
+        # 多租户: 每个 kb 独立索引缓存
+        bm_key, vec_key = f"bm25_{ctx['kb']}", f"vec_{ctx['kb']}"
+        if bm_key not in _KB_INDEX_CACHE:
+            _KB_INDEX_CACHE[bm_key] = BM25Index.from_graph(graph)
+        if vec_key not in _KB_INDEX_CACHE:
+            _KB_INDEX_CACHE[vec_key] = VectorIndex.from_graph(graph, lexicon=D)
+        bm_hits = _KB_INDEX_CACHE[bm_key].search(req.question, top_k=3, min_score=4.0)
+        vec_hits = _KB_INDEX_CACHE[vec_key].search(req.question, top_k=5, min_score=0.60)
         seen, fused = set(), []
         for h in (bm_hits + vec_hits):
             ent = h["entity"]
@@ -509,13 +572,15 @@ def ask(req: AskReq):
             ents = "、".join(h["entity"] for h in fused)
             return {"ok": True, "mode": "hybrid",
                     "answer": f"（混合检索）找到相关实体: {ents}",
-                    "hits": fused[:5], "bm25_hits": bm_hits[:3], "vector_hits": vec_hits[:5]}
+                    "hits": fused[:5], "bm25_hits": bm_hits[:3], "vector_hits": vec_hits[:5],
+                    "kb": ctx["kb"]}
     except Exception:
         pass
     # 4. 答不上: 从 KB 配置读示例引导(去硬编码)
-    examples = _kb.get("examples", ["乳制品的数量", "原味酸奶是什么"])
+    examples = KBS.get(ctx["kb"], {}).get("examples", ["乳制品的数量", "原味酸奶是什么"])
     guide = "\n".join(f"· {e}" for e in examples[:5])
-    return {"ok": True, "mode": "miss", "answer": f"抱歉，暂未理解该问题。\n可试试问：\n{guide}"}
+    return {"ok": True, "mode": "miss", "answer": f"抱歉，暂未理解该问题。\n可试试问：\n{guide}",
+            "kb": ctx["kb"]}
 
 
 @app.get("/api/trace/forward", dependencies=[Depends(require_key)])
@@ -546,6 +611,556 @@ def stats():
             "raw_materials": n_raw, "nodes": len(graph), "edges": sum(len(v) for v in graph.values())}
 
 
+# ════════════════════════════════════════════════════════════════════════
+# 契约端点 v1.0 — knowledge / eval / assets / version（增量，不影响既有接口）
+# 统一响应信封: {ok, data?, error?, elapsed_s}
+# 错误码: 4001参数 4041不存在 4091冲突 5001引擎 5031模型
+# 多租户兼容: kb 参数隔离存储目录; 写操作幂等
+# ════════════════════════════════════════════════════════════════════════
+
+CONTRACT_VERSION = "1.0"
+FEATURES = ["knowledge", "eval", "assets", "version", "trace", "qa", "ontology", "stats"]
+
+# 文档知识库存储根 + 临时上传目录(每 kb 一个隔离子目录)
+_KB_ROOT = os.path.join(ROOT, "output", "kb_store")
+_TMP_UPLOAD = os.path.join(ROOT, "output", "_tmp_uploads")
+_ASSET_DIR = os.path.join(ROOT, "output", "asset_versions")
+_ASSET_MANIFEST = os.path.join(_ASSET_DIR, "manifest.json")
+
+
+def _kb_dir(kb):
+    """多租户隔离目录。kb 名非法(路径穿越/空)返回 None。"""
+    kb = (kb or "food").strip()
+    if not kb or kb.startswith(".") or any(c in kb for c in ("/", "\\", "..")):
+        return None
+    d = os.path.join(_KB_ROOT, kb)
+    try:
+        os.makedirs(d, exist_ok=True)
+    except Exception:
+        return None
+    return d
+
+
+def _safe_doc_id(doc_id):
+    """doc_id 白名单化(字母数字下划线连字符), 避免向量文件名路径穿越。"""
+    return re.sub(r"[^A-Za-z0-9_\-]", "_", doc_id or "")
+
+
+def _ok_env(data, start):
+    """成功信封。"""
+    return {"ok": True, "data": data, "elapsed_s": round(time.time() - start, 3)}
+
+
+def _err_env(code, msg, start):
+    """失败信封。"""
+    return {"ok": False, "error": {"code": code, "message": str(msg)},
+            "elapsed_s": round(time.time() - start, 3)}
+
+
+# ── 语义资产快照/回滚（lexicon + ontology + knowledge store）──
+
+def _asset_dir(kb):
+    """按 kb 隔离的资产版本目录(多租户)。"""
+    kb = _safe_doc_id(kb or "food")
+    return os.path.join(_ASSET_DIR, kb)
+
+
+def _asset_manifest(kb="food"):
+    kb_dir = _asset_dir(kb)
+    p = os.path.join(kb_dir, "manifest.json")
+    try:
+        if os.path.exists(p):
+            with open(p, encoding="utf-8") as f:
+                m = json.load(f)
+                return m if isinstance(m, dict) else {}
+    except Exception:
+        pass
+    return {}
+
+
+def _asset_save_manifest(man, kb="food"):
+    kb_dir = _asset_dir(kb)
+    try:
+        os.makedirs(kb_dir, exist_ok=True)
+        with open(os.path.join(kb_dir, "manifest.json"), "w", encoding="utf-8") as f:
+            json.dump(man, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+def _asset_active(kb="food"):
+    p = os.path.join(_asset_dir(kb), "active.txt")
+    try:
+        if os.path.exists(p):
+            with open(p, encoding="utf-8") as f:
+                return f.read().strip() or None
+    except Exception:
+        pass
+    return None
+
+
+def _asset_set_active(v, kb="food"):
+    try:
+        os.makedirs(_asset_dir(kb), exist_ok=True)
+        with open(os.path.join(_asset_dir(kb), "active.txt"), "w", encoding="utf-8") as f:
+            f.write(v)
+    except Exception:
+        pass
+
+
+def _hash_dir(d):
+    """目录内容哈希(相对路径 + 字节), 供资产版本指纹。"""
+    h = hashlib.sha256()
+    items = []
+    for root, _, files in os.walk(d):
+        for fn in sorted(files):
+            p = os.path.join(root, fn)
+            items.append((os.path.relpath(p, d).replace("\\", "/"), p))
+    for rel, p in sorted(items):
+        try:
+            with open(p, "rb") as f:
+                h.update(rel.encode("utf-8"))
+                h.update(f.read())
+        except Exception:
+            pass
+    return h.hexdigest()[:16]
+
+
+def _asset_snapshot(kb="food"):
+    """快照当前激活语义资产(词典/本体/文档知识库), 返回 (version, hash)。多租户: 按 kb 隔离。"""
+    ctx = _get_kb_ctx(kb)
+    if ctx is None:
+        return None, None
+    nt_file, lex_file = ctx["nt_file"], ctx["lex_file"]
+    version = datetime.now().strftime("v%Y%m%d_%H%M%S")
+    vdir = os.path.join(_asset_dir(kb), version)
+    os.makedirs(vdir, exist_ok=True)
+    copied = {"lexicon": False, "ontology": False, "knowledge": False}
+    if os.path.exists(lex_file):
+        try:
+            shutil.copy2(lex_file, os.path.join(vdir, "lexicon.json")); copied["lexicon"] = True
+        except Exception:
+            pass
+    if os.path.exists(nt_file):
+        try:
+            shutil.copy2(nt_file, os.path.join(vdir, "ontology.nt")); copied["ontology"] = True
+        except Exception:
+            pass
+    try:
+        os.makedirs(os.path.join(vdir, "knowledge"), exist_ok=True)
+        kbd = _kb_dir(kb)
+        if kbd and os.path.isdir(kbd):
+            shutil.copytree(kbd, os.path.join(vdir, "knowledge"), dirs_exist_ok=True)
+        copied["knowledge"] = True
+    except Exception:
+        copied["knowledge"] = False
+    h = _hash_dir(vdir)
+    man = _asset_manifest(kb)
+    man[version] = {"hash": h, "created": datetime.now().isoformat(), "assets": copied}
+    _asset_save_manifest(man, kb)
+    _asset_set_active(version, kb)
+    return version, h
+
+
+def _asset_rollback(version, kb="food"):
+    """按版本回滚语义资产到磁盘。返回 version 或 None(版本不存在)。多租户: 按 kb 隔离。"""
+    ctx = _get_kb_ctx(kb)
+    if ctx is None:
+        return None
+    nt_file, lex_file = ctx["nt_file"], ctx["lex_file"]
+    man = _asset_manifest(kb)
+    if version not in man:
+        return None
+    vdir = os.path.join(_asset_dir(kb), version)
+    if not os.path.isdir(vdir):
+        return None
+    sp = os.path.join(vdir, "lexicon.json")
+    if os.path.exists(sp):
+        os.makedirs(os.path.dirname(lex_file) or ROOT, exist_ok=True)
+        shutil.copy2(sp, lex_file)
+    sp = os.path.join(vdir, "ontology.nt")
+    if os.path.exists(sp):
+        os.makedirs(os.path.dirname(nt_file) or ROOT, exist_ok=True)
+        shutil.copy2(sp, nt_file)
+    sp = os.path.join(vdir, "knowledge")
+    kbd = _kb_dir(kb)
+    if os.path.isdir(sp) and kbd:
+        shutil.rmtree(kbd, ignore_errors=True)
+        os.makedirs(kbd, exist_ok=True)
+        shutil.copytree(sp, kbd, dirs_exist_ok=True)
+    _asset_set_active(version, kb)
+    # 失效缓存, 下次 /api/ask 加载回滚后的本体
+    _kb_ctx_cache.pop(kb, None)
+    _KB_INDEX_CACHE.pop(f"bm25_{kb}", None)
+    _KB_INDEX_CACHE.pop(f"vec_{kb}", None)
+    return version
+
+
+# ── 请求模型 ──
+
+class KnowledgeQueryReq(BaseModel):
+    kb: str = "food"
+    q: str
+    top_k: int = 5
+
+
+class KnowledgeDeleteReq(BaseModel):
+    kb: str = "food"
+    doc_id: str
+
+
+class AssetSnapshotReq(BaseModel):
+    kb: str = "food"
+
+
+class AssetRollbackReq(BaseModel):
+    version: str
+    kb: str = "food"
+
+
+# ── 1. knowledge ──
+
+@app.post("/api/knowledge/ingest", dependencies=[Depends(require_key)])
+async def knowledge_ingest(file: UploadFile = File(...),
+                           kb: str = Form("food"),
+                           doc_id: str = Form("")):
+    """上传文档(PDF/Word/TXT) → 解析+切块+向量化+入库。同 doc_id 幂等覆盖。"""
+    start = time.time()
+    try:
+        from knowledge.ingest import extract_text
+        from knowledge.chunk import chunk_text
+        from knowledge.embed import embed_chunks
+        from knowledge.store import KnowledgeStore
+    except Exception as e:
+        logger.warning(f"API内部错误[知识引擎不可用]: {e}")
+        return _err_env(5001, "知识引擎不可用(内部错误已记录)", start)
+    fname = file.filename or "upload.txt"
+    ext = os.path.splitext(fname)[1].lower()
+    if ext not in (".pdf", ".doc", ".docx", ".txt"):
+        return _err_env(4001, f"仅支持 PDF/Word/TXT, 收到: {ext or '未知扩展名'}", start)
+    # 安全加固(架构师审计 P1-5): 上传大小上限 50MB, 防 DoS。
+    MAX_UPLOAD = 50 * 1024 * 1024
+    try:
+        _size = file.size if hasattr(file, "size") else None
+        if _size is not None and _size > MAX_UPLOAD:
+            return _err_env(4001, f"文件过大: >50MB", start)
+    except Exception:
+        pass
+    kbdir = _kb_dir(kb)
+    if kbdir is None:
+        return _err_env(4001, "非法 kb 名", start)
+    tmp = os.path.join(_TMP_UPLOAD, f"{time.time_ns()}{ext}")
+    try:
+        try:
+            os.makedirs(_TMP_UPLOAD, exist_ok=True)
+            with open(tmp, "wb") as f:
+                f.write(await file.read())
+            doc = extract_text(tmp)
+            if not doc:
+                return _err_env(4001, "文档解析失败(缺解析库或内容为空), 未入库", start)
+            chunks = chunk_text(doc["raw_text"])
+            if not chunks:
+                return _err_env(4001, "文档切块为空, 未入库", start)
+            vectors = embed_chunks(chunks)
+            if not vectors:
+                return _err_env(5031, "embedding 服务不可用(未产出向量), 文档未入库", start)
+            did = _safe_doc_id(doc_id.strip()) or "%s_%s" % (
+                doc["title"], hashlib.md5(doc["raw_text"].encode("utf-8")).hexdigest()[:8])
+            store = KnowledgeStore(kbdir)
+            if not store.add_doc(did, doc["title"], chunks, vectors):
+                return _err_env(5001, "文档入库失败", start)
+            return _ok_env({"kb": kb, "doc_id": did, "title": doc["title"],
+                            "chunks": len(chunks), "status": "stored"}, start)
+        finally:
+            if os.path.exists(tmp):
+                try:
+                    os.remove(tmp)
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.warning(f"API内部错误[文档接入失败]: {e}")
+        return _err_env(5001, "文档接入失败(内部错误已记录)", start)
+
+
+@app.post("/api/knowledge/query", dependencies=[Depends(require_key)])
+def knowledge_query(req: KnowledgeQueryReq):
+    """文档 RAG 检索。body {kb, q, top_k?} → {answer, evidence}。"""
+    start = time.time()
+    try:
+        from knowledge.rag import answer as rag_answer
+        from knowledge.store import KnowledgeStore
+    except Exception as e:
+        logger.warning(f"API内部错误[知识引擎不可用]: {e}")
+        return _err_env(5001, "知识引擎不可用(内部错误已记录)", start)
+    if not (req.q or "").strip():
+        return _err_env(4001, "缺少 q", start)
+    kbdir = _kb_dir(req.kb)
+    if kbdir is None:
+        return _err_env(4001, "非法 kb 名", start)
+    try:
+        store = KnowledgeStore(kbdir)
+        res = rag_answer(None, req.q, store, top_k=max(1, min(req.top_k, 20)))
+    except Exception as e:
+        logger.warning(f"API内部错误[检索失败]: {e}")
+        return _err_env(5001, "检索失败(内部错误已记录)", start)
+    ans = res.get("answer", "")
+    if ans.startswith("[模型未配置]"):
+        return _err_env(5031, "模型未配置", start)
+    return _ok_env({"kb": req.kb, "answer": ans, "evidence": res.get("evidence", [])}, start)
+
+
+@app.get("/api/knowledge/list", dependencies=[Depends(require_key)])
+def knowledge_list(kb: str = Query("food")):
+    """列出某 kb 的已入库文档。"""
+    start = time.time()
+    try:
+        from knowledge.store import KnowledgeStore
+    except Exception as e:
+        logger.warning(f"API内部错误[知识引擎不可用]: {e}")
+        return _err_env(5001, "知识引擎不可用(内部错误已记录)", start)
+    kbdir = _kb_dir(kb)
+    if kbdir is None:
+        return _err_env(4001, "非法 kb 名", start)
+    try:
+        docs = KnowledgeStore(kbdir).list_docs()
+    except Exception as e:
+        logger.warning(f"API内部错误[读取失败]: {e}")
+        return _err_env(5001, "读取失败(内部错误已记录)", start)
+    return _ok_env({"kb": kb, "docs": docs}, start)
+
+
+@app.post("/api/knowledge/delete", dependencies=[Depends(require_key)])
+def knowledge_delete(req: KnowledgeDeleteReq):
+    """删除某 kb 下的一篇文档。幂等: 重复删除已不存在文档返回 4041。"""
+    start = time.time()
+    try:
+        from knowledge.store import KnowledgeStore
+    except Exception as e:
+        logger.warning(f"API内部错误[知识引擎不可用]: {e}")
+        return _err_env(5001, "知识引擎不可用(内部错误已记录)", start)
+    kbdir = _kb_dir(req.kb)
+    if kbdir is None:
+        return _err_env(4001, "非法 kb 名", start)
+    try:
+        ok = KnowledgeStore(kbdir).delete(req.doc_id)
+    except Exception as e:
+        logger.warning(f"API内部错误[删除失败]: {e}")
+        return _err_env(5001, "删除失败(内部错误已记录)", start)
+    if not ok:
+        return _err_env(4041, f"文档不存在: {req.doc_id}", start)
+    return _ok_env({"kb": req.kb, "deleted": req.doc_id}, start)
+
+
+# ── 2. eval ──
+
+@app.get("/api/eval/benchmark", dependencies=[Depends(require_key)])
+def eval_benchmark(kb: str = Query("food")):
+    """评测基线: 用 kb 配置的示例题目跑 EvalAgent baseline, 返回命中率。"""
+    start = time.time()
+    kbc = KBS.get(kb, {})
+    questions = kbc.get("examples") or _kb.get("examples", [])
+    if not questions:
+        return _err_env(4001, f"kb '{kb}' 无评测题目(未配置 examples)", start)
+    ctx = _get_kb_ctx(kb)  # 多租户: 按 kb 取本体/词典, 与 /api/ask 对齐
+    if ctx is None:
+        return _err_env(4001, f"知识库 '{kb}' 无效或数据缺失", start)
+    try:
+        from agents.eval_agent import EvalAgent
+        r = EvalAgent().run({"questions": questions, "nt_file": ctx["nt_file"],
+                             "lexicon": ctx["lex_file"], "mode": "baseline"})
+    except Exception as e:
+        logger.warning(f"API内部错误[评测引擎不可用]: {e}")
+        return _err_env(5001, "评测引擎不可用(内部错误已记录)", start)
+    if not r.ok:
+        return _err_env(5001, r.error, start)
+    data = r.data or {}
+    per = data.get("per_question", [])
+    hits = sum(1 for p in per if p.get("hit"))
+    return _ok_env({"kb": kb, "questions_n": data.get("questions_n", len(per)),
+                    "hits": hits, "score": data.get("score")}, start)
+
+
+@app.post("/api/eval/isolate", dependencies=[Depends(require_key)])
+async def eval_isolate(request: Request):
+    """评测隔离: 只问答不打分。字段白名单 {kb, questions}; 出现 gold/rubric/score 返回 4001。"""
+    start = time.time()
+    try:
+        body = await request.json()
+    except Exception:
+        return _err_env(4001, "请求体不是合法 JSON", start)
+    if not isinstance(body, dict):
+        return _err_env(4001, "请求体应为 JSON 对象", start)
+    allowed = {"kb", "questions"}
+    extra = set(body.keys()) - allowed
+    if extra:
+        return _err_env(4001, f"isolate 模式禁止字段: {sorted(extra)} (白名单: {sorted(allowed)})", start)
+    questions = body.get("questions")
+    if not isinstance(questions, list) or not questions:
+        return _err_env(4001, "缺少非空 questions 列表", start)
+    if any(not isinstance(q, str) or not q.strip() for q in questions):
+        return _err_env(4001, "questions 必须全为非空字符串", start)
+    kb = body.get("kb", "food")
+    ctx = _get_kb_ctx(kb)  # 多租户: 按 kb 取本体/词典, 与 /api/ask 对齐
+    if ctx is None:
+        return _err_env(4001, f"知识库 '{kb}' 无效或数据缺失", start)
+    try:
+        from agents.eval_agent import EvalAgent
+        r = EvalAgent().run({"questions": questions, "nt_file": ctx["nt_file"],
+                             "lexicon": ctx["lex_file"], "mode": "isolate"})
+    except Exception as e:
+        logger.warning(f"API内部错误[评测引擎不可用]: {e}")
+        return _err_env(5001, "评测引擎不可用(内部错误已记录)", start)
+    if not r.ok:
+        return _err_env(5001, r.error, start)
+    data = r.data or {}
+    per = data.get("per_question", [])
+    answers = [{"q": p.get("q"), "answer": p.get("answer"), "hit": p.get("hit")} for p in per]
+    return _ok_env({"kb": kb, "questions_n": len(answers), "answers": answers}, start)
+
+
+# ── 3. assets ──
+
+@app.post("/api/assets/snapshot", dependencies=[Depends(require_key)])
+def assets_snapshot(req: AssetSnapshotReq):
+    """快照语义资产(lexicon + ontology + knowledge) → {version, hash}。多租户按 kb 隔离。"""
+    start = time.time()
+    kb = req.kb or KB_NAME
+    try:
+        version, h = _asset_snapshot(kb)
+    except Exception as e:
+        logger.warning(f"API内部错误[快照失败]: {e}")
+        return _err_env(5001, "快照失败(内部错误已记录)", start)
+    if version is None:
+        return _err_env(4001, f"知识库 '{kb}' 无效或数据缺失, 无法快照", start)
+    return _ok_env({"version": version, "hash": h, "kb": kb}, start)
+
+
+@app.post("/api/assets/rollback", dependencies=[Depends(require_key)])
+def assets_rollback(req: AssetRollbackReq):
+    """按版本回滚语义资产并重载内存本体 → {active_version}。多租户按 kb 隔离。"""
+    start = time.time()
+    kb = req.kb or KB_NAME
+    try:
+        v = _asset_rollback(req.version, kb)
+    except Exception as e:
+        logger.warning(f"API内部错误[回滚失败]: {e}")
+        return _err_env(5001, "回滚失败(内部错误已记录)", start)
+    if v is None:
+        return _err_env(4041, f"版本不存在: {req.version} (kb={kb})", start)
+    return _ok_env({"active_version": v, "kb": kb}, start)
+
+
+@app.get("/api/assets/list", dependencies=[Depends(require_key)])
+def assets_list(kb: str = Query("food")):
+    """列出某 kb 的语义资产版本。多租户按 kb 隔离。"""
+    start = time.time()
+    man = _asset_manifest(kb)
+    versions = [{"version": v, "hash": e.get("hash"), "created": e.get("created"),
+                 "assets": e.get("assets", {})} for v, e in sorted(man.items())]
+    return _ok_env({"kb": kb, "versions": versions, "active_version": _asset_active(kb)}, start)
+
+
+# ── 4. version ──
+
+@app.get("/api/version", dependencies=[Depends(require_key)])
+def api_version():
+    """服务 + 契约版本与能力特性。"""
+    start = time.time()
+    return _ok_env({
+        "version": getattr(app, "version", "0.1.4"),
+        "contract_version": CONTRACT_VERSION,
+        "features": FEATURES,
+        "kb": KB_NAME,
+    }, start)
+
+
+# ── 5. ontology/build（多租户: 闭源 REST 化前置——建本体端点）──
+
+class OntologyBuildReq(BaseModel):
+    kb: str
+    csv_path: str = ""   # 单表: 数据文件路径(相对 codes/ 或绝对)
+    data_dir: str = ""   # 多表: 数据目录路径(可选, 走 schema 建模)
+    use_llm: bool = True
+
+
+@app.post("/api/ontology/build", dependencies=[Depends(require_key)])
+def ontology_build(req: OntologyBuildReq):
+    """按 kb 建本体: 复用 run.setup 建模, 产出 nt+lex, 更新 kbs.json, 失效缓存。
+
+    支持单表(csv_path)或多表(data_dir)。建模成功后该 kb 立即可被 /api/ask 问答。
+    """
+    start = time.time()
+    kb = (req.kb or "").strip()
+    if not kb or kb.startswith(".") or any(c in kb for c in ("/", "\\", "..")):
+        return _err_env(4001, "非法 kb 名", start)
+    src = req.csv_path or req.data_dir
+    if not src:
+        return _err_env(4001, "需提供 csv_path(单表) 或 data_dir(多表)", start)
+    # 安全加固(架构师审计 P0-2): 数据源必须限定在 codes/data 或 codes/output 白名单内,
+    # 拒绝绝对路径和 .. 穿越, 防止任意文件读取(/etc/passwd/.env/.ssh 等)。
+    data_root = os.path.realpath(os.path.join(ROOT, "data"))
+    out_root = os.path.realpath(os.path.join(ROOT, "output"))
+    src_abs = src if os.path.isabs(src) else os.path.realpath(os.path.join(ROOT, src))
+    if not (os.path.realpath(src_abs).startswith(data_root + os.sep) or
+            os.path.realpath(src_abs).startswith(out_root + os.sep)):
+        return _err_env(4001, f"数据源必须在 data/ 或 output/ 内(防路径穿越): {src}", start)
+    if not os.path.exists(src_abs):
+        return _err_env(4001, f"数据源不存在: {src}", start)
+    try:
+        import run as run_mod
+        nt, lex = run_mod.setup(src_abs, table=kb, use_llm=req.use_llm)
+    except Exception as e:
+        logger.warning(f"API内部错误[建本体失败]: {e}")
+        return _err_env(5001, "建本体失败(内部错误已记录)", start)
+    if not nt or not lex:
+        return _err_env(5001, "建本体失败: 未产出 nt 或 lexicon", start)
+    # 更新 kbs.json: 注册该 kb 的 nt/lexicon(相对路径), 使 /api/ask 可感知
+    nt_rel = os.path.relpath(nt, ROOT).replace("\\", "/")
+    lex_rel = os.path.relpath(lex, ROOT).replace("\\", "/")
+    try:
+        _update_kbs(kb, nt_rel, lex_rel)
+    except Exception as e:
+        logger.warning(f"kbs.json 更新失败: {e}")
+    # 失效该 kb 缓存, 下次 /api/ask 重新加载新本体
+    _kb_ctx_cache.pop(kb, None)
+    _KB_INDEX_CACHE.pop(f"bm25_{kb}", None)
+    _KB_INDEX_CACHE.pop(f"vec_{kb}", None)
+    return _ok_env({"kb": kb, "nt": nt_rel, "lexicon": lex_rel,
+                    "status": "built", "ask_ready": True}, start)
+
+
+def _update_kbs(kb, nt_rel, lex_rel):
+    """把 kb 的 nt/lexicon 写回 kbs.json(幂等)。"""
+    data = json.load(open(KBS_FILE, encoding="utf-8"))
+    kbs = data.setdefault("kbs", {})
+    entry = kbs.get(kb, {})
+    entry["nt"] = nt_rel
+    entry["lexicon"] = os.path.basename(lex_rel)
+    entry.setdefault("data_dir", "data")
+    kbs[kb] = entry
+    with open(KBS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    global KBS
+    KBS = _load_kbs()
+
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # 安全加固(架构师审计 P0-1): fail-closed 鉴权 + 默认仅本机可访问。
+    # 未配置 ADMIN/READ key 时, 自动生成随机 admin key 打印到 stdout(方便单机首次使用),
+    # 避免无 key 开放或启动即拒绝。对外部署需显式配 key + --host 0.0.0.0 + 反代 TLS。
+    if not (ADMIN_KEY or READ_KEY):
+        import secrets
+        _gen = "FOOD_ADMIN_KEY=" + secrets.token_hex(16)
+        os.environ["FOOD_ADMIN_KEY"] = _gen.split("=", 1)[1]
+        ADMIN_KEY = _gen.split("=", 1)[1]
+        print("=" * 50)
+        print("未配置 API Key, 已自动生成(请复制保存):")
+        print(f"  {_gen}")
+        print("对外开放前请务必设置 FOOD_ADMIN_KEY / FOOD_READ_KEY 环境变量!")
+        print("=" * 50)
+    host = sys.argv[sys.argv.index("--host") + 1] if "--host" in sys.argv else "127.0.0.1"
+    port = int(sys.argv[sys.argv.index("--port") + 1]) if "--port" in sys.argv else 8000
+    # 后台预热 embedding 模型(不阻塞服务启动)
+    threading.Thread(target=_warm_embedding, daemon=True).start()
+    uvicorn.run(app, host=host, port=port)

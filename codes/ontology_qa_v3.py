@@ -33,6 +33,9 @@ import re
 import json
 from collections import defaultdict
 
+# 词典数据收敛到 lexicon.py 唯一数据源（P1-7），仅持有只读引用，消除跨文件重复漂移。
+from lexicon import get_attr_cn_aliases, get_common_zh_status, get_entity_cn2uri
+
 
 # ------------------------------------------------------------------ 词典加载
 
@@ -114,14 +117,8 @@ def _field(rec, canonical, aliases):
 
 # 常见数值/极值字段的中文别名 -> 规范英文字段名（跨行业泛化，非硬编码具体行业）。
 # 词典 attr_cn2en 缺失时兜底，覆盖高频中文口语：保质期/质保/寿命等。
-_ATTR_CN_ALIASES = {
-    "保质期": "expiry_days", "保质": "expiry_days", "保质天数": "expiry_days",
-    "shelf": "expiry_days", "shelflife": "expiry_days",
-    "质保": "warranty", "质保期": "warranty",
-    "价格": "price", "售价": "price", "单价": "price",
-    "功率": "power", "库存": "stock", "数量": "quantity",
-    "温度": "temperature", "振动": "vibration", "压力": "pressure",
-}
+# 数据来源 lexicon.get_attr_cn_aliases()（与原 _ATTR_CN_ALIASES 键值逐一一致）。
+_ATTR_CN_ALIASES = get_attr_cn_aliases()
 
 
 # 通用极值词 -> 目标数值字段中文关键词（跨行业泛化，非硬编码具体行业）。
@@ -198,14 +195,9 @@ def _display_name(rec, aliases, default=""):
     return default
 
 
-# 内置中文状态词 → 英文值兜底（当词典缺失中文映射时，覆盖高频运维词汇）
-_COMMON_ZH_STATUS = {
-    "运行中": "running", "运行": "running", "正常": "running", "工作中": "running",
-    "停止": "stopped", "停机": "stopped", "空闲": "idle", "待机": "idle",
-    "故障": "alarm", "报警": "alarm", "异常": "alarm",
-    "维护": "maintenance", "保养": "maintenance", "维修": "maintenance",
-    "离线": "offline",
-}
+# 内置中文状态词 → 英文值兜底（当词典缺失中文映射时，覆盖高频运维词汇）。
+# 数据来源 lexicon.get_common_zh_status()（与原 _COMMON_ZH_STATUS 键值逐一一致）。
+_COMMON_ZH_STATUS = get_common_zh_status()
 
 
 def _find_enum(dict_data, q, which):
@@ -332,7 +324,7 @@ def answer(q, data, D):
         if "多少" in q:
             return "有 %d %s的%s" % (len(nm), st_cn, ty_cn)
         if "列出" in q:
-            return "列出所有%s的%<仓库内路径>" % (st_cn, ty_cn, _fmt_names(nm)) if nm else "无%s的%s" % (st_cn, ty_cn)
+            return "列出所有%s的%s:\n%s" % (st_cn, ty_cn, _fmt_names(nm)) if nm else "无%s的%s" % (st_cn, ty_cn)
         return "%s的%s共 %d" % (st_cn, ty_cn, len(nm))
 
     # ---- 区域关系 ----
@@ -350,10 +342,6 @@ def answer(q, data, D):
         return "%s区域的记录(%d):\n%s" % (zo_cn, len(nm), _fmt_names(nm))
 
     attr_en, attr_cn = _find_attr(D, q)
-    # 通用属性识别到的模板
-    if attr_en:
-        # 数量: 多少[属性] (有多少台空压机 -> 类型词先; 这里处理属性值)
-        pass
 
     # ---- 过滤计数: 属性=N 的数量 (机器故障标签=1 的数量) ----
     # 必须排在状态/类型词模板之前: 属性中文名可能含状态词(如"故障"),
@@ -375,11 +363,8 @@ def answer(q, data, D):
     # 从而不误伤"有多少台空压机"(空压机是 deviceType 值, 走下方类型模板)。
     # 优先用建库时 data profiling 生成的 entity_cn2en {中文实体名: 表名}（测线/炮点/项目/船…），
     # 兜底保留原硬编码映射（兼容旧词典）。
-    _ENTITY_CN2URI = {
-        "设备": "equipment", "产品": "product", "客户": "customer",
-        "批次": "batch", "原料": "raw_material", "原材料": "raw_material",
-        "销售": "sale", "质检": "qc",
-    }
+    # 数据来源 lexicon.get_entity_cn2uri()（与原 _ENTITY_CN2URI 键值逐一一致）。
+    _ENTITY_CN2URI = get_entity_cn2uri()
     _entity_map = dict(_ENTITY_CN2URI)
     _entity_map.update(D.get("entity_cn2en", {}) or {})
     # 计数量词：按实体词选择合适量词（测线→条 / 船→艘 / 项目→个 / 设备→台），缺省"个"

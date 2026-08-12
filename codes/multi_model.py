@@ -95,6 +95,8 @@ _ENTITY_STEM_CN = {
     "customer": "客户", "customers": "客户",
     "raw_material": "原料", "raw_materials": "原料", "sale": "销售", "sales": "销售",
     "qc": "质检", "team": "班组", "dock": "船坞", "dock_yard": "船坞",
+    "device": "设备", "devices": "设备", "machine": "机器", "machines": "机器",
+    "ai4i": "设备", "record": "记录", "records": "记录", "data": "数据",
 }
 
 # 数值属性名 -> 中文名（data profiling 自动识别数值列后，给中文极值词）。
