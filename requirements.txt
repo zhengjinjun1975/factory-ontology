@@ -1,0 +1,28 @@
+# ─────────────────────────────────────────────────────────────
+# factory-ontology-kit 核心依赖（API 服务 + 规则引擎 + GraphRAG）
+# 安装：pip install -r requirements.txt
+# 对应代码 import 出处见各条注释，便于维护。
+# ─────────────────────────────────────────────────────────────
+
+# API 框架：路由/请求模型/校验/自动文档
+fastapi>=0.110
+
+# ASGI 服务器：启动 api_server 应用
+uvicorn[standard]>=0.29
+
+# 数据模型：api_server.py 中的 AskReq 等 Pydantic 模型
+pydantic>=2.0
+
+# 数据库驱动（可选数据导入用，见 requirements-optional.txt）
+# 默认核心不装，保持镜像精简；需要 MySQL/Postgres 导入时再装。
+# pymysql / psycopg2 见 codes/db_loader.py
+
+# ── 由代码实际 import 核对而来 ──────────────────────────────
+# requests：codes/model_llm.py、codes/agents/lexicon_agent.py 调用外部 LLM 词典接口
+requests>=2.31
+
+# python-multipart：api_server.py 中 UploadFile/File/Form 文件上传解析依赖
+python-multipart>=0.0.9
+
+# httpx：fastapi.testclient.TestClient（tests/ 与 e2e 用）底层传输，测试必需
+httpx>=0.27

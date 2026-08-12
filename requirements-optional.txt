@@ -1,0 +1,32 @@
+# ─────────────────────────────────────────────────────────────
+# 可选依赖（按需安装，非核心）
+# 安装：pip install -r requirements-optional.txt
+# 说明：这些依赖体积较大或仅在特定功能下用到，
+#       默认不随核心安装以保持镜像精简。
+# ─────────────────────────────────────────────────────────────
+
+# 知识库文档解析（codes/knowledge/ingest.py）：
+#  PDF 解析（import fitz 即 pymupdf）
+pymupdf>=1.24
+#  表格 PDF 提取（import pdfplumber）
+pdfplumber>=0.11
+#  Word 文档解析（import docx）
+python-docx>=1.1
+
+# Excel 数据导入（codes/data_loader.py，import openpyxl）
+openpyxl>=3.1
+
+# 数据库驱动（codes/db_loader.py）：
+#  MySQL 导入
+pymysql>=1.1
+#  PostgreSQL 导入
+psycopg2-binary>=2.9
+
+# 语音助手（codes/voice_assistant.py）：
+#  本地/云语音识别（import faster_whisper）
+faster-whisper>=1.0
+#  语音合成（import edge_tts）
+edge-tts>=6.1
+#  麦克风采集 + 数值运算（import sounddevice / numpy）
+sounddevice>=0.4
+numpy>=1.24

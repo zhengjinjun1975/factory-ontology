@@ -1,0 +1,8 @@
+# ─────────────────────────────────────────────────────────────
+# 开发 / 测试依赖
+# 安装：pip install -r requirements-dev.txt
+# ─────────────────────────────────────────────────────────────
+-r requirements.txt
+
+# 测试框架：运行 codes/tests/（cd codes && python -m pytest tests/ -q）
+pytest>=8.0
