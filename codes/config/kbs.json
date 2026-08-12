@@ -213,6 +213,18 @@
       "nt": "output/tp3p_db.nt",
       "lexicon": "lexicon_tp3p_db.json",
       "data_dir": "data"
+    },
+    "huaneng": {
+      "data_dir": "data_huaneng",
+      "lexicon": "lexicon_huaneng.json",
+      "nt": "output/huaneng.nt",
+      "examples": [
+        "有多少台发电机组",
+        "运行中的机组有哪些",
+        "容量最大的发电机组",
+        "燃料有哪些",
+        "客户总数"
+      ]
     }
   }
 }
