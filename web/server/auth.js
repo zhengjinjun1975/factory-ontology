@@ -159,6 +159,6 @@ export function seedUsersIfEmpty() {
   // 预置两个演示企业用户：
   //  - admin / admin123：已 onboard，绑定额外阀 kb=valve（复用现成 data_valve 示例，登录即见企业系统）
   //  - demo  / demo123：新企业未配置，用于演示引导 onboarding
-  createUser({ username: 'admin', password: 'admin123', enterpriseName: '华信精密制造', logo: '🏭', industry: '阀门制造', kb: 'valve', onboarded: true });
-  createUser({ username: 'demo', password: 'demo123', enterpriseName: '新希望企业', logo: '🌱', industry: '', kb: 'ent_demo', onboarded: false });
+  createUser({ username: 'admin', password: 'admin123', enterpriseName: '示例制造公司', logo: '🏭', industry: '阀门制造', kb: 'valve', onboarded: true });
+  createUser({ username: 'demo', password: 'demo123', enterpriseName: '示例企业B', logo: '🌱', industry: '', kb: 'ent_demo', onboarded: false });
 }
