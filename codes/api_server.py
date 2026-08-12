@@ -1187,6 +1187,12 @@ def ontology_build(req: OntologyBuildReq):
         _update_kbs(kb, nt_rel, lex_rel)
     except Exception as e:
         logger.warning(f"kbs.json 更新失败: {e}")
+    # 建模成功 → 把该 kb 设为当前激活(写 web_state.json, 前端 getCurrentKb 优先读取),
+    # 让"建哪个激活哪个"真正通(直接调 API 建模也切激活, 不依赖前端显式 setCurrentKb)
+    try:
+        _set_active_kb(kb, nt_rel, lex_rel)
+    except Exception as e:
+        logger.warning(f"web_state.json 激活 kb 更新失败: {e}")
     # 失效该 kb 缓存, 下次 /api/ask 重新加载新本体
     _kb_ctx_cache.pop(kb, None)
     _KB_INDEX_CACHE.pop(f"bm25_{kb}", None)
@@ -1208,6 +1214,31 @@ def _update_kbs(kb, nt_rel, lex_rel):
         json.dump(data, f, ensure_ascii=False, indent=2)
     global KBS
     KBS = _load_kbs()
+
+
+def _set_active_kb(kb, nt_rel, lex_rel):
+    """把 kb 设为当前激活, 持久化到 web/web_state.json(前端 getCurrentKb 优先读取该文件)。
+
+    '建哪个激活哪个': 建模成功后把激活 kb 同步到前端状态, 使界面/查询/看板跟随新本体。
+    保留原 web_state 其他字段(table/nt/lexicon), 仅更新 kb 字段; 文件缺失则新建。
+    """
+    web_state_path = os.path.join(os.path.dirname(ROOT), "web", "web_state.json")
+    state = {}
+    if os.path.exists(web_state_path):
+        try:
+            state = json.load(open(web_state_path, encoding="utf-8")) or {}
+        except Exception:
+            state = {}
+    state["kb"] = kb
+    if nt_rel:
+        state["nt"] = nt_rel
+    if lex_rel:
+        state["lexicon"] = lex_rel
+    state.setdefault("table", kb)
+    os.makedirs(os.path.dirname(web_state_path), exist_ok=True)
+    with open(web_state_path, "w", encoding="utf-8") as f:
+        json.dump(state, f, ensure_ascii=False, indent=2)
+    logger.info("已把激活 kb 持久化为 '%s' -> %s", kb, web_state_path)
 
 
 if __name__ == "__main__":
