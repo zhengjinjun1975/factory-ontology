@@ -157,12 +157,21 @@ def admin_page():
 
 
 @app.get("/api/ontology/structure")
-def ontology_structure():
+def ontology_structure(kb: str = Query("", description="知识库名")):
     """本体建模视图数据：类 + Is-A 类别层级(subClassOf) + 对象属性关系 + 实例数。
-    优先读深化本体(含 subClassOf 类别层级), 回退当前活动本体。"""
+    按 kb 隔离（不串台）；优先读深化本体(含 subClassOf), 回退该 kb 本体。"""
     from ontology_qa_v3 import parse_nt
-    deep_nt = os.path.join(ROOT, "output", "food_deep.nt")
-    nt_file = deep_nt if os.path.exists(deep_nt) else FOOD_NT
+    if not kb:
+        kb = "food"
+    kbc = KBS.get(kb) or {}
+    nt_path = kbc.get("nt", f"output/{kb}.nt")
+    nt_file = os.path.join(ROOT, nt_path)
+    # 深化本体优先(同 kb 的 _deep 变体)
+    deep_nt = os.path.join(ROOT, "output", f"{kb}_deep.nt")
+    if os.path.exists(deep_nt):
+        nt_file = deep_nt
+    if not os.path.exists(nt_file):
+        return {"ok": False, "error": f"kb '{kb}' 本体不存在: {nt_file}"}
     triples = parse_nt(nt_file)
     classes, subcls, objprops = [], [], []
     seen = set()
@@ -178,7 +187,7 @@ def ontology_structure():
         elif "ObjectProperty" in str(o):
             nm = s.split("#")[-1].strip("<>")
             if nm not in objprops: objprops.append(nm)
-    return {"ok": True, "classes": sorted(classes), "subclass_of": sorted(subcls),
+    return {"ok": True, "kb": kb, "classes": sorted(classes), "subclass_of": sorted(subcls),
             "object_properties": sorted(objprops), "instance_total": len(graph),
             "nt_file": os.path.basename(nt_file)}
 
@@ -767,13 +776,25 @@ def scan(code: str = Query(..., description="溯源码，如 P003-B005 或 B001"
 
 
 @app.get("/api/stats", dependencies=[Depends(require_key)])
-def stats():
-    """知识库统计。"""
-    n_products = sum(1 for k in graph if gr.tail(k).startswith("Food_products_P"))
-    n_batches = sum(1 for k in graph if gr.tail(k).startswith("Food_batches_B"))
-    n_raw = sum(1 for k in graph if gr.tail(k).startswith("Food_raw_materials_RM"))
-    return {"ok": True, "products": n_products, "batches": n_batches,
-            "raw_materials": n_raw, "nodes": len(graph), "edges": sum(len(v) for v in graph.values())}
+def stats(kb: str = Query("", description="知识库名")):
+    """知识库统计（按 kb 隔离，不串台）。"""
+    if not kb:
+        kb = KBS.get("_default", "") or "food"
+    ctx = _get_kb_ctx(kb)
+    if not ctx:
+        return {"ok": False, "error": f"kb '{kb}' 未建模或加载失败"}
+    g = ctx["graph"]
+    # 用 QDATA(实例字典)统计实例：key 形如 <Entity>_<field>_<ID>
+    qd = ctx.get("QDATA") or {}
+    inst_count = {}
+    for k in qd:
+        local = str(k).split("/")[-1]
+        m = re.match(r"^([A-Za-z_]+?)_[A-Za-z0-9_]+$", local)
+        if m:
+            cls = m.group(1)
+            inst_count[cls] = inst_count.get(cls, 0) + 1
+    return {"ok": True, "entities": inst_count, "entity_count": sum(inst_count.values()),
+            "nodes": len(g), "edges": sum(len(v) for v in g.values())}
 
 
 # ════════════════════════════════════════════════════════════════════════
