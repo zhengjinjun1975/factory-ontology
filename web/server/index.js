@@ -4,7 +4,7 @@ import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, graphOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, evalBenchmark, knowledgeList, assetsList, knowledgeIngest, knowledgeDelete, knowledgeQuery } from './ontology.js';
+import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, graphOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, evalBenchmark, knowledgeList, assetsList, assetsSnapshot, assetsRollback, knowledgeIngest, knowledgeDelete, knowledgeQuery } from './ontology.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
@@ -411,6 +411,46 @@ const server = createServer(async (req, res) => {
     try {
       const kb = new URL(req.url, 'http://x').searchParams.get('kb') || '';
       const result = await assetsList(kb);
+      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 资产快照（转发后端 /api/assets/snapshot）──
+  if (req.method === 'POST' && url === '/api/ontology/assets-snapshot') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const { kb, changelog } = body;
+      if (!kb || typeof kb !== 'string') {
+        res.writeHead(400, { 'Content-Type': 'application/json;charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: 'kb 必填' }));
+        return;
+      }
+      const result = await assetsSnapshot(kb, changelog);
+      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 资产回滚（转发后端 /api/assets/rollback）──
+  if (req.method === 'POST' && url === '/api/ontology/assets-rollback') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const { kb, version } = body;
+      if (!kb || typeof kb !== 'string' || !version || typeof version !== 'string') {
+        res.writeHead(400, { 'Content-Type': 'application/json;charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: 'kb 和 version 必填' }));
+        return;
+      }
+      const result = await assetsRollback(kb, version);
       res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
       res.end(JSON.stringify(result));
     } catch (err) {
