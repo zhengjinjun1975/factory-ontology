@@ -1277,9 +1277,17 @@ def ontology_build(req: OntologyBuildReq):
     data_root = os.path.realpath(os.path.join(ROOT, "data"))
     out_root = os.path.realpath(os.path.join(ROOT, "output"))
     src_abs = src if os.path.isabs(src) else os.path.realpath(os.path.join(ROOT, src))
-    if not (os.path.realpath(src_abs).startswith(data_root + os.sep) or
-            os.path.realpath(src_abs).startswith(out_root + os.sep)):
-        return _err_env(4001, f"数据源必须在 data/ 或 output/ 内(防路径穿越): {src}", start)
+    # 白名单: 接受 codes 下 data 开头的一级目录(data/data_valve/data_chem...)、data/ 内、output/ 内。
+    # 拒绝绝对路径到 codes 外 / .. 穿越。
+    _rp = os.path.realpath(src_abs)
+    try:
+        _rel = os.path.relpath(_rp, ROOT)
+        _top = _rel.split(os.sep)[0]
+        _ok = _rp.startswith(out_root + os.sep) or (not _rel.startswith("..") and (_top == "data" or _top.startswith("data") or _top == "output"))
+    except Exception:
+        _ok = False
+    if not _ok:
+        return _err_env(4001, f"数据源必须在 data*/ 或 output/ 内(防路径穿越): {src}", start)
     if not os.path.exists(src_abs):
         return _err_env(4001, f"数据源不存在: {src}", start)
     try:
