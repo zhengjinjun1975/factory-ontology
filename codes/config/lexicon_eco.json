@@ -9,17 +9,21 @@
     "进度": "progress",
     "项目名": "projectName",
     "地区": "region",
-    "状态": "status"
+    "状态": "status",
+    "项目名称": "projectName",
+    "投资金额": "investmentWan",
+    "投资金额万": "investmentWan",
+    "区域": "region"
   },
   "attr_en2cn": {
     "capacityT": "容量t",
     "deviceName": "设备名称",
     "deviceType": "设备类型",
     "facility": "设施",
-    "investmentWan": "投资万元",
+    "investmentWan": "投资金额",
     "progress": "进度",
-    "projectName": "项目名",
-    "region": "地区",
+    "projectName": "项目名称",
+    "region": "区域",
     "status": "状态"
   },
   "status_cn2en": {},
@@ -45,5 +49,11 @@
     "载重": "tonnageDwt"
   },
   "field_aliases": {},
-  "value_fields": []
+  "value_fields": [],
+  "entity_cn2en": {
+    "设备": "Eco_equipment",
+    "项目": "Eco_projects",
+    "环保项目": "Eco_projects",
+    "设施": "Eco_equipment"
+  }
 }

@@ -12,18 +12,21 @@
     "船东": "owner",
     "进度%": "progressPct",
     "状态": "status",
-    "载重吨": "tonnageDwt",
+    "载重吨": "liftingCapacityT",
     "船名": "vesselName",
-    "船厂": "yard"
+    "船厂": "yard",
+    "合同额": "contractAmountWan",
+    "合同额万": "contractAmountWan",
+    "订单日期": "orderDate"
   },
   "attr_en2cn": {
     "buildStatus": "建造状态",
-    "contractAmountWan": "合同额万元",
+    "contractAmountWan": "合同额",
     "deliveryDate": "交付日期",
     "deviceName": "设备名称",
     "deviceType": "设备类型",
     "hullNo": "船体号",
-    "liftingCapacityT": "起重能力t",
+    "liftingCapacityT": "载重吨",
     "orderDate": "下单日期",
     "owner": "船东",
     "progressPct": "进度%",
@@ -55,5 +58,12 @@
     "载重": "tonnageDwt"
   },
   "field_aliases": {},
-  "value_fields": []
+  "value_fields": [],
+  "entity_cn2en": {
+    "设备": "Ship_equipment",
+    "订单": "Ship_orders",
+    "船舶订单": "Ship_orders",
+    "船": "Ship_vessels",
+    "船舶": "Ship_vessels"
+  }
 }

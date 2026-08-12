@@ -410,6 +410,19 @@ def answer(q, data, D):
         if ty_en:
             matched = [(n, d) for n, d in data.items() if _field(d, "deviceType", aliases) == ty_en]
             return "列出所有%s:\n%s" % (ty_cn, _fmt_names(names(matched))) if matched else "无%s" % ty_cn
+        # 实体实例列表: "项目有哪些/订单有哪些/有哪些船" → 枚举 entity_cn2en 对应类的实例
+        if ("有哪些" in q or "哪些" in q) and not st_en and not ty_en:
+            emap = dict(get_entity_cn2uri()); emap.update(D.get("entity_cn2en", {}) or {})
+            for cn in sorted(emap, key=len, reverse=True):
+                if cn in q:
+                    uri_sub = emap[cn].lower()
+                    ents = sorted({k for k in data if uri_sub in k.lower()})
+                    if ents:
+                        names_list = [(_display_name(data[e], aliases, default=e.split('#')[-1])) for e in ents]
+                        names_list = [n for n in names_list if n]
+                        if names_list:
+                            return "%s有：\n%s" % (cn, "、".join(names_list[:20]))
+                        return "%s共 %d 个" % (cn, len(ents))
 
     # ---- TopN (属性最高/最低的N个) ----
     if attr_en and re.search(r'\d+\s*[台个条]', q) and _EXTREME.search(q):
