@@ -18,6 +18,9 @@ import sys
 import os
 from collections import defaultdict, deque
 
+# 词典数据收敛到 lexicon.py 唯一数据源（P1-7），仅持有只读引用，消除跨文件重复漂移。
+from lexicon import get_synonym_groups, get_unit_aliases
+
 
 def parse_nt(nt_file):
     """解析 N-Triples，返回 (s,p,o) 三元组列表。"""
@@ -35,40 +38,11 @@ def _is_entity(v):
 
 
 # ── 检索容错：值同义词扩展（真实工业数据噪声容错）──
-# 材质/单位/类型的别名→规范组，检索时把查询词展开成同义组扩大匹配
-_SYNONYM_GROUPS = {
-    "不锈钢": ["不锈钢", "304", "316", "cf8", "cf8m", "cf3", "1cr18ni9ti"],
-    "碳钢": ["碳钢", "wcb", "a105", "20钢", "20"],
-    "合金钢": ["合金钢", "wc6", "wc9", "15crmo", "10cr2mo1"],
-    "球墨铸铁": ["球墨铸铁", "qt450", "qt400"],
-    "灰铸铁": ["灰铸铁", "ht200", "ht250"],
-    "铜": ["铜", "铜合金", "h62", "h59"],
-    "法兰": ["法兰", "flange"],
-    "电动": ["电动", "电装", "z9"],
-    "气动": ["气动", "q6"],
-    "不锈钢304": ["不锈钢304", "304", "cf8"],
-    "不锈钢316": ["不锈钢316", "316", "cf8m"],
-}
-# 单位归一：同一物理量多单位（psi/MPa/bar），统一到 MPa 再检索
-_UNIT_ALIASES = {
-    "mpa": ["mpa", "兆帕"], "bar": ["bar", "巴"],
-    "psi": ["psi", "磅"],
-}
-
-
-def _expand_synonyms(text: str) -> str:
-    """把查询里的同义词展开成匹配模式：'不锈钢' → '(不锈钢|304|316|cf8|cf8m|1cr18ni9ti)'。
-
-    极简：用正则从同义词组生成捕获组，加到 value_index 子串匹配。失败静默返回原文本。
-    """
-    import re as _re
-    low = text.lower()
-    for cn, group in _SYNONYM_GROUPS.items():
-        if cn in low:
-            # 把同义词组拼成正则替代，优先匹配原始词再补同义词
-            escaped = [_re.escape(g) for g in group]
-            text += "|" + "|".join(escaped)
-    return text
+# 材质/单位/类型的别名→规范组，检索时把查询词展开成同义组扩大匹配。
+# 数据来源 lexicon.get_synonym_groups()（与原 _SYNONYM_GROUPS 键值逐一一致）。
+_SYNONYM_GROUPS = get_synonym_groups()
+# 单位归一：同一物理量多单位（psi/MPa/bar），统一到 MPa 再检索。
+_UNIT_ALIASES = get_unit_aliases()
 
 
 def _cn_segments(text: str) -> list:
