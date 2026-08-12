@@ -37,15 +37,71 @@ def extract_text(path):
         return None
 
 
+_rapid_ocr = None  # RapidOCR 实例缓存（惰性初始化，复用避免每次重载模型）
+
+
+def _get_rapid_ocr():
+    """惰性获取 RapidOCR 单例。缺库/初始化失败返回 None（不抛异常）。"""
+    global _rapid_ocr
+    if _rapid_ocr is not None:
+        return _rapid_ocr
+    try:
+        from rapidocr_onnxruntime import RapidOCR
+        _rapid_ocr = RapidOCR()  # 首次初始化，之后复用
+        return _rapid_ocr
+    except Exception:
+        return None
+
+
+def _ocr_page_image(page, dpi=150):
+    """把 PDF 页渲染为图片，用 RapidOCR 识别，返回拼接文本。失败返回 None。"""
+    try:
+        ocr = _get_rapid_ocr()
+        if ocr is None:
+            return None
+        # 渲染为高分辨率位图（dpi=150，兼顾识别率与速度）
+        pix = page.get_pixmap(dpi=dpi)
+        img_bytes = pix.tobytes("png")
+        # RapidOCR 1.4.4 为可调用对象：ocr(img_bytes) -> (result, elapsed)
+        result, _elapsed = ocr(img_bytes)
+        if not result:
+            return None
+        # RapidOCR 1.4.4 返回形如 [[box, text_str, conf], ...]，直接取索引1的文本
+        lines = []
+        for item in result or []:
+            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                txt = item[1]
+                if isinstance(txt, (list, tuple)):
+                    # 兼容部分版本 [(text, conf), ...] 结构
+                    txt = txt[0] if txt else ""
+                if txt:
+                    lines.append(str(txt))
+        return "\n".join(lines)
+    except Exception:
+        return None
+
+
 def _extract_pdf(path):
-    """PDF → 文本。优先 pymupdf(fitz)，其次 pdfplumber。"""
+    """PDF → 文本。优先 pymupdf(fitz)，其次 pdfplumber。
+
+    若某页文本层为空（扫描版/图片型 PDF），自动用 RapidOCR 识别该页图片，
+    文本层 + OCR 结果合并为该页内容。OCR 缺失或失败时优雅降级回原逻辑。
+    """
     try:
         import fitz  # pymupdf
-        text = ""
+        text_parts = []
         with fitz.open(path) as doc:
             for page in doc:
-                text += page.get_text() + "\n"
-        return text
+                layer_text = page.get_text()  # 文本层
+                if layer_text and layer_text.strip():
+                    # 有文本层：直接用，不 OCR
+                    text_parts.append(layer_text)
+                else:
+                    # 扫描页：文本层为空，走 OCR 识别图片
+                    ocr_text = _ocr_page_image(page)
+                    if ocr_text:
+                        text_parts.append(ocr_text)
+        return "\n".join(p for p in text_parts if p and p.strip())
     except ImportError:
         pass
     except Exception:
