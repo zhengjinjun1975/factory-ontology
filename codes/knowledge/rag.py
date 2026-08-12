@@ -25,7 +25,11 @@ def _retrieve(store, question, base=None, model=None, top_k=5):
     try:
         if _embed is None:
             return [], None
-        qv = _embed(question, base=base, model=model)
+        # 仅当显式传入 base/model 才覆盖 vector_retrieval 的默认值
+        # (OLLAMA_BASE / EMBED_MODEL)；base/model 为 None 时不传该参数，
+        # 避免把默认值覆写为 None 导致 base.rstrip() 崩溃、检索永远返回空。
+        kw = {k: v for k, v in [("base", base), ("model", model)] if v}
+        qv = _embed(question, **kw)
         if not qv:
             return [], None
         hits = store.search(qv, top_k=top_k)

@@ -31,7 +31,14 @@ def embed_chunks(chunks, base=None, model=None):
         vectors = []
         for c in chunks:
             text = (c.get("text") or "") if isinstance(c, dict) else str(c)
-            vec = embed_text(text, base=base, model=model)
+            # 仅当显式传入 base/model 才覆盖默认值；否则沿用 vector_retrieval 的
+            # OLLAMA_BASE / EMBED_MODEL，避免把默认参数覆写为 None 导致检索失败。
+            kw = {}
+            if base:
+                kw["base"] = base
+            if model:
+                kw["model"] = model
+            vec = embed_text(text, **kw)
             if not vec:
                 return []          # 服务不可用：整体回落，不产出半截结果
             vectors.append(vec)

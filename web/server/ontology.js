@@ -460,9 +460,10 @@ export async function askOntology(question, kb) {
     kb = kb || getCurrentKb();
     const r = await apiFetch('/api/ask', { method: 'POST', body: { kb, question } });
     if (r && r.ok && (r.answer != null || (r.data && r.data.answer != null))) {
-      // 后端 ask 直接返回 {ok, answer, mode, kb}(部分版本套 data 信封, 兼容两者)
+      // 后端 ask 直接返回 {ok, answer, mode, kb, evidence?}(部分版本套 data 信封, 兼容两者)
+      // evidence 为文档 RAG(kb_rag) 的溯源切块[{doc_id,title,chunk,score}], 透传供 SPA 展示
       const d = (r.data && r.data.answer != null) ? r.data : r;
-      return { ok: true, answer: String(d.answer).trim(), mode: d.mode, kb: d.kb || kb };
+      return { ok: true, answer: String(d.answer).trim(), mode: d.mode, kb: d.kb || kb, evidence: d.evidence || null };
     }
     if (r && r.offline) {
       // 降级: 后端不可达, 回退现有 run.py CLI(单库, 保持前端可用)
@@ -586,6 +587,44 @@ export async function assetsList(kb) {
     const q = new URLSearchParams({ kb }).toString();
     const r = await apiFetch(`/api/assets/list?${q}`);
     return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '后端资产读取失败' };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+/**
+ * 资产：转发后端 POST /api/assets/snapshot （为某 kb 创建语义资产快照）
+ * 复用 apiFetch（自动带 X-API-Key 头）。后端返回 {ok, data:{version, hash, kb}}。
+ * @param {string} [kb] 知识库名, 缺省用当前激活 kb
+ * @param {string} [changelog] 快照说明（仅前端展示用，后端契约忽略该字段）
+ * @returns {Promise<{ok, data?, error?}>}
+ */
+export async function assetsSnapshot(kb, changelog) {
+  try {
+    kb = kb || getCurrentKb();
+    // 后端 AssetSnapshotReq 只契约 kb，changelog 仅随请求带上（前端留痕），后端忽略
+    const body = { kb };
+    if (changelog !== undefined && changelog !== null && String(changelog).trim() !== '') body.changelog = String(changelog).trim();
+    const r = await apiFetch('/api/assets/snapshot', { method: 'POST', body });
+    return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '后端快照失败' };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+/**
+ * 资产：转发后端 POST /api/assets/rollback （回滚某 kb 到指定版本并重载内存本体）
+ * 复用 apiFetch（自动带 X-API-Key 头）。后端返回 {ok, data:{active_version, kb}}。
+ * @param {string} [kb] 知识库名, 缺省用当前激活 kb
+ * @param {string} version 要回滚到的版本号（manifest 中的 key）
+ * @returns {Promise<{ok, data?, error?}>}
+ */
+export async function assetsRollback(kb, version) {
+  try {
+    kb = kb || getCurrentKb();
+    if (!version) return { ok: false, error: 'version 必填' };
+    const r = await apiFetch('/api/assets/rollback', { method: 'POST', body: { kb, version } });
+    return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '后端回滚失败' };
   } catch (e) {
     return { ok: false, error: String(e.message || e) };
   }

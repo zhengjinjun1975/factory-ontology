@@ -576,6 +576,25 @@ def ask(req: AskReq):
                     "kb": ctx["kb"]}
     except Exception:
         pass
+    # 3.75 文档知识库 RAG 兜底: 本体/图/混合检索都答不上时, 检索该 kb 已入库的
+    #      说明书/规范/PDF 文档知识, 返回带溯源的答案(让知识库不再是"孤岛")。
+    #      全程 try/except, 检索失败/无有效答案则降级到原 miss, 绝不抛异常。
+    try:
+        from knowledge.rag import answer as _rag_answer
+        from knowledge.store import KnowledgeStore
+        _kbdir = _kb_dir(ctx["kb"])
+        if _kbdir is not None:
+            _store = KnowledgeStore(_kbdir)
+            _res = _rag_answer(None, req.question, _store, top_k=5)
+            _ans = (_res or {}).get("answer", "") or ""
+            _ev = (_res or {}).get("evidence", []) or []
+            # 判定"有效答案": 非空、非错误占位符、且文档片段确实覆盖了问题
+            _invalid = not _ans.strip() or _ans.startswith("[") or "片段未覆盖" in _ans
+            if not _invalid and _ev:
+                return {"ok": True, "mode": "kb_rag", "answer": _ans,
+                        "evidence": _ev, "kb": ctx["kb"]}
+    except Exception:
+        pass
     # 4. 答不上: 从 KB 配置读示例引导(去硬编码)
     examples = KBS.get(ctx["kb"], {}).get("examples", ["乳制品的数量", "原味酸奶是什么"])
     guide = "\n".join(f"· {e}" for e in examples[:5])
