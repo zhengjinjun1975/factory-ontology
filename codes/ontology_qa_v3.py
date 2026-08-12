@@ -368,14 +368,14 @@ def answer(q, data, D):
     _entity_map = dict(_ENTITY_CN2URI)
     _entity_map.update(D.get("entity_cn2en", {}) or {})
     # 计数量词：按实体词选择合适量词（测线→条 / 船→艘 / 项目→个 / 设备→台），缺省"个"
-    _MEASURE = {"设备": "台", "测线": "条", "线": "条", "船": "艘", "产品": "个",
-                "项目": "个", "订单": "个", "批次": "批", "客户": "家", "炮点": "个", "质检": "个"}
+    _MEASURE = {"设备": "台", "测线": "条", "线": "条", "船": "艘", "产品": "个", "书": "本",
+                "图书": "本", "项目": "个", "订单": "个", "批次": "批", "客户": "家", "炮点": "个", "质检": "个"}
     for cn in sorted(_entity_map, key=len, reverse=True):
-        if (re.search(r'多少[台个条艘]?' + cn, q)          # 有多少台设备 / 有多少艘船
+        if (re.search(r'多少[台个条艘本]?' + cn, q)          # 有多少台设备 / 有多少本书
                 or re.search(cn + r'(总数|共有多少|有多少|共多少)', q)  # 设备总数 / 炮点总数
                 or re.search(r'共\s*多少\s*' + cn, q)):   # 共多少设备
             uri_sub = _entity_map[cn]
-            n = sum(1 for k in data if uri_sub in k.lower())
+            n = sum(1 for k in data if uri_sub.lower() in k.lower())
             if "总数" in q:
                 return "%s总数 %d" % (cn, n)
             return "有 %d %s%s" % (n, _MEASURE.get(cn, "个"), cn)
@@ -396,7 +396,12 @@ def answer(q, data, D):
         return "%s(%d):\n%s" % (ty_cn, len(nm), _fmt_names(nm)) if nm else "无%s" % ty_cn
 
     # ---- 列出 / 有哪些 / 信息 ----
-    if "列出" in q or "哪些" in q or "有哪些" in q or "信息" in q or "详情" in q:
+    if "列出" in q or "哪些" in q or "有哪些" in q or "信息" in q or "详情" in q or ("类型" in q and "多少" not in q):
+        # 问"XX类型/有哪些类型"且无具体值时 → 枚举该 type 的值(图书类型等)
+        if "类型" in q and "哪些" not in q and "列出" not in q and "的" not in q:
+            ty_vals = sorted({str(d.get("deviceType") or d.get("category") or "") for d in data.values()} - {""})
+            if ty_vals:
+                return "类型有：%s" % "、".join(ty_vals)
         st_en, st_cn = _find_enum(D, q, "status")
         if st_en:
             matched = [(n, d) for n, d in data.items() if _field(d, "status", aliases) == st_en]

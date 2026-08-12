@@ -1,29 +1,64 @@
 {
   "description": "图书库存领域示例词典",
   "attr_cn2en": {
-    "书名": "book_name",
+    "书名": "bookName",
+    "图书类型": "category",
     "分类": "category",
+    "出版社": "publisher",
     "价格": "price",
     "库存": "stock",
     "借出": "borrowed"
   },
   "attr_en2cn": {
-    "book_name": "书名",
+    "bookName": "书名",
     "category": "分类",
+    "publisher": "出版社",
     "price": "价格",
     "stock": "库存",
     "borrowed": "借出"
   },
-  "status_cn2en": {"借出": "1", "在馆": "0"},
+  "status_cn2en": {
+    "借出": "1",
+    "在馆": "0"
+  },
   "type_cn2en": {
-    "计算机": "计算机", "科幻": "科幻", "历史": "历史", "物理": "物理",
-    "文学": "文学", "科技": "科技"
+    "计算机": "计算机",
+    "科幻": "科幻",
+    "历史": "历史",
+    "物理": "物理",
+    "文学": "文学",
+    "科技": "科技",
+    "工具书": "工具书"
   },
   "field_aliases": {
-    "deviceName": ["book_name", "书名"],
-    "status": ["borrowed"],
-    "deviceType": ["category"],
-    "location": []
+    "bookName": [
+      "书名",
+      "图书",
+      "书",
+      "书籍"
+    ],
+    "category": [
+      "分类",
+      "图书类型",
+      "类型"
+    ],
+    "publisher": [
+      "出版社"
+    ],
+    "price": [
+      "价格",
+      "定价"
+    ],
+    "stock": [
+      "库存",
+      "数量"
+    ]
   },
-  "value_fields": []
+  "value_fields": [],
+  "entity_cn2en": {
+    "书": "Library_inventory",
+    "图书": "Library_inventory",
+    "库存": "Library_inventory",
+    "书籍": "Library_inventory"
+  }
 }
