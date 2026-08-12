@@ -910,6 +910,9 @@ async def knowledge_ingest(file: UploadFile = File(...),
             doc = extract_text(tmp)
             if not doc:
                 return _err_env(4001, "文档解析失败(缺解析库或内容为空), 未入库", start)
+            # 用用户上传的原始文件名(去扩展名)作为标题, 便于辨识/删除,
+            # 避免 extract_text 默认用时间戳临时文件名(如 {time_ns()})做 title。
+            doc["title"] = os.path.splitext(fname)[0]
             chunks = chunk_text(doc["raw_text"])
             if not chunks:
                 return _err_env(4001, "文档切块为空, 未入库", start)
