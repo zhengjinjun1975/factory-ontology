@@ -6,11 +6,10 @@
   // 成功信封 benchmark: {ok:true, data:{kb, questions_n, hits, score(0.0-1.0)}, elapsed_s}
   // 成功信封 isolate:   {ok:true, data:{kb, questions_n, answers:[{q, answer, hit}]}}
   // 失败信封：{ok:false, error:{code, message}}
-  import { onMount } from 'svelte';
-  import { fetchKbs } from '../lib/api.js';
+  // 单企业收敛：kb 由父级（App.svelte）注入 currentKb（当前登录企业唯一 kb），面板内无 kb 切换/轮询。
 
-  // kb 初始 = 当前激活 kb，跟随本体切换（参考 KnowledgePanel onMount+轮询模式），不复用硬编码 food
-  let kb = $state('');             // 知识库标识
+  let { kb = '' } = $props();      // 当前企业唯一 kb（只读 prop，跟随登录企业）
+
   let result = $state(null);       // {kb, questions_n, hits, score}（benchmark 模式）
   let elapsed = $state(null);      // 耗时秒（benchmark）
   let loading = $state(false);
@@ -34,32 +33,9 @@
     pct >= 80 ? '命中表现良好' : pct >= 60 ? '命中表现中等' : '命中偏低，建议补充词典/示例'
   );
 
-  // 跟随当前激活 kb：读后端 getCurrentKb（/api/ontology/kbs → current），切换本体后评测面板自动跟随
-  async function fetchCurrentKb() {
-    try {
-      const res = await fetchKbs();
-      if (res && res.ok && res.current) return String(res.current);
-    } catch (e) { /* 后端未就绪时忽略 */ }
-    return '';
-  }
-
-  let followTimer = null;
-
-  onMount(async () => {
-    const cur = await fetchCurrentKb();
-    if (cur) kb = cur;
-    // 实时跟随当前激活 kb：切换本体（头部下拉）后评测面板自动跟随刷新
-    followTimer = setInterval(async () => {
-      const cur = await fetchCurrentKb();
-      if (cur && cur !== kb) kb = cur;
-    }, 2000);
-    return () => { if (followTimer) clearInterval(followTimer); };
-  });
-
   async function run() {
     const k = (kb || '').trim();
-    if (!k) { error = '知识库为空，请先选择知识库'; return; }
-    kb = k;
+    if (!k) { error = '当前企业知识库为空，请先建模'; return; }
     loading = true; error = ''; ran = false; result = null;
     try {
       const resp = await fetch('/api/ontology/eval-benchmark?kb=' + encodeURIComponent(k));
@@ -85,10 +61,9 @@
 
   async function runIsolate() {
     const k = (kb || '').trim();
-    if (!k) { isoError = '知识库为空，请先选择知识库'; return; }
+    if (!k) { isoError = '当前企业知识库为空，请先建模'; return; }
     const qs = parseQuestions(isoQuestions);
     if (qs.length === 0) { isoError = '请输入至少一个自定义问题（多个用逗号分隔）'; return; }
-    kb = k;
     isoLoading = true; isoError = ''; isoResult = null;
     try {
       const resp = await fetch('/api/ontology/eval-isolate', {
@@ -117,23 +92,13 @@
 </script>
 
 <div class="eval">
-  <!-- ─── 顶部：kb 选择 + 模式切换 + 运行 ─── -->
+  <!-- ─── 顶部：当前企业知识库 + 模式切换 + 运行 ─── -->
   <div class="eval-top">
-    <label class="eval-kb">
-      <span class="eval-kb-label">知识库</span>
-      <input
-        type="text"
-        placeholder="如 valve"
-        value={kb}
-        oninput={(e) => kb = e.target.value}
-        onkeydown={(e) => { if (e.key === 'Enter' && !loading && !isoLoading) { mode === 'benchmark' ? run() : runIsolate(); } }}
-      />
-    </label>
     <div class="eval-modes">
       <button class="mode-btn" class:mode-on={mode === 'benchmark'} onclick={() => switchMode('benchmark')}>基线评测</button>
       <button class="mode-btn" class:mode-on={mode === 'isolate'} onclick={() => switchMode('isolate')}>自定义问题</button>
     </div>
-    <span class="eval-hint">评测跟随当前激活知识库（切换本体后自动跟随）</span>
+    <span class="eval-hint">评测跟随当前企业知识库「{kb || '—'}」</span>
   </div>
 
   {#if mode === 'benchmark'}

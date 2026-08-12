@@ -1,8 +1,11 @@
 <script>
   // DashboardPanel — 数据可视化面板（设备类型分布 / 状态分布 / 产线统计）
   // 纯 CSS 条形图，零图表依赖
-  import { onMount } from 'svelte';
+  // 单企业收敛：kb 由父级（App.svelte）注入 currentKb（当前登录企业唯一 kb），
+  // kb prop 变化时 $effect 自动重新加载（看板跟随当前企业）。
   import { fetchStats } from '../lib/api.js';
+
+  let { kb = '' } = $props();    // 当前企业唯一 kb（只读 prop，跟随登录企业）
 
   let stats = $state(null);
   let loading = $state(true);
@@ -35,7 +38,7 @@
   async function load() {
     loading = true; error = ''; empty = false;
     try {
-      const res = await fetchStats();
+      const res = await fetchStats(kb);
       if (res.ok && res.stats) {
         stats = res.stats;
       } else if (res.ok && res.empty) {
@@ -50,7 +53,8 @@
     }
   }
 
-  onMount(load);
+  // 初始 + kb prop 变化（切换/重置后）→ 重新加载当前企业统计
+  $effect(() => { load(); });
 </script>
 
 <div class="dash">

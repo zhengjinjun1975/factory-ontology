@@ -719,21 +719,39 @@ export async function assetsRollback(kb, version) {
 /**
  * 聚合统计（从当前建模的本体 .nt 计算设备分布）供前端可视化
  * 数据源：优先读 Web 应用自己的 web_state（Web 建模的），fallback 套件 current.json
+ * 多用户单企业：支持显式传入 kb，按该 kb 从注册表读本体（优先于全局 web_state）。
  * 空态：无建模数据(.nt 不存在/为空)时返回 empty:true 而非 error，前端显示"尚未建模"
+ * @param {string} [kb] 目标知识库(kb 名)；缺省按原逻辑(web_state/current.json)
  * @returns {Promise<{ok, stats?, empty?, error?}>}
  */
-export async function statsOntology() {
+export async function statsOntology(kb) {
   try {
-    // 优先读 Web 应用自己的状态（防套件 current.json 被测试覆盖）
+    // 多用户单企业：显式 kb 时优先从 kbs.json 注册表读该 kb 本体（数据隔离）
+    if (kb) {
+      const kbs = loadKbs();
+      const kbc = kbs[kb];
+      const nt = kbc && kbc.nt ? kbc.nt : null;
+      if (!nt) return { ok: true, stats: null, empty: true };
+      const ntPath = join(KIT, nt);
+      if (!existsSync(ntPath) || statSync(ntPath).size === 0) {
+        return { ok: true, stats: null, empty: true };
+      }
+      const r = await run(PY, ['ontology_stats.py', ntPath], KIT);
+      if (!r.ok) return { ok: false, error: r.error || '统计失败' };
+      const stats = JSON.parse(r.output);
+      if (!stats || !stats.total_devices) return { ok: true, stats: null, empty: true };
+      return { ok: true, stats };
+    }
+    // 原逻辑：优先读 Web 应用自己的状态（防套件 current.json 被测试覆盖）
     const web = loadWebState();
     let nt = null;
     if (web && web.nt) {
       nt = web.nt;
     } else {
       // 多租户: 按当前激活 kb 从注册表读本体(与后端 /api/ask 对齐)
-      const kb = getCurrentKb();
+      const curKb = getCurrentKb();
       const kbs = loadKbs();
-      if (kbs[kb] && kbs[kb].nt) nt = kbs[kb].nt;
+      if (kbs[curKb] && kbs[curKb].nt) nt = kbs[curKb].nt;
       if (!nt) {
         try {
           const cur = JSON.parse(readFileSync(join(KIT, 'current.json'), 'utf-8'));
@@ -760,11 +778,12 @@ export async function statsOntology() {
 /**
  * 产线属性查询（多表 join：产线→设备）
  * @param {string} lineId 如 L1
+ * @param {string} [kb] 目标知识库(kb 名)，缺省按原逻辑
  * @returns {Promise<{ok, line?, error?}>}
  */
-export async function lineInfo(lineId) {
+export async function lineInfo(lineId, kb) {
   try {
-    const r = await statsOntology();
+    const r = await statsOntology(kb);
     if (!r.ok) return r;
     const line = (r.stats.line_stats || []).find(l => l.line === lineId);
     if (!line) return { ok: false, error: `未找到产线 ${lineId}` };
@@ -776,22 +795,35 @@ export async function lineInfo(lineId) {
 
 /**
  * 模型结构（本体 schema：类/数据属性/对象属性/实例数），供前端画结构图
- * 根据 current.json 读取当前建模的本体和词典（动态，建模什么就显示什么）
+ * 多用户单企业：支持显式传入 kb，按该 kb 从注册表读本体/词典。
+ * @param {string} [kb] 目标知识库(kb 名)；缺省按原逻辑(web_state/current.json)
  * @returns {Promise<{ok, schema?, error?}>}
  */
-export async function schemaOntology() {
+export async function schemaOntology(kb) {
   try {
-    // 优先读 Web 应用自己的状态（防套件 current.json 被测试覆盖）
+    // 多用户单企业：显式 kb 时从 kbs.json 读该 kb 本体（数据隔离）
+    if (kb) {
+      const kbs = loadKbs();
+      const kbc = kbs[kb];
+      const nt = kbc && kbc.nt ? kbc.nt : null;
+      const lex = kbc && kbc.lexicon ? 'config/' + kbc.lexicon : null;
+      if (!nt) return { ok: true, schema: null, empty: true };
+      const r = await run(PY, ['ontology_schema_info.py', join(KIT, nt)], KIT);
+      if (!r.ok) return { ok: false, error: r.error || '模型结构解析失败' };
+      const schema = JSON.parse(r.output);
+      return { ok: true, schema };
+    }
+    // 原逻辑：优先读 Web 应用自己的状态（防套件 current.json 被测试覆盖）
     const web = loadWebState();
     let nt, lex;
     if (web && web.nt) {
       nt = web.nt; lex = web.lexicon || 'config/lexicon_equipment.json';
     } else {
       // 多租户: 按当前激活 kb 从注册表读本体/词典(与后端建模对齐)
-      const kb = getCurrentKb();
+      const curKb = getCurrentKb();
       const kbs = loadKbs();
-      if (kbs[kb] && kbs[kb].nt) {
-        nt = kbs[kb].nt; lex = kbs[kb].lexicon || 'config/lexicon_equipment.json';
+      if (kbs[curKb] && kbs[curKb].nt) {
+        nt = kbs[curKb].nt; lex = kbs[curKb].lexicon || 'config/lexicon_equipment.json';
       } else {
         const cur = JSON.parse(readFileSync(join(KIT, 'current.json'), 'utf-8'));
         nt = cur.nt || 'output/equipment.nt';
@@ -1025,4 +1057,44 @@ export async function saveModels(cfg) {
   } catch (e) {
     return { ok: false, error: String(e.message || e) };
   }
+}
+
+/**
+ * 重置指定 kb 的企业数据（清空本体/词典/知识库/资产），用于"换企业重新 onboarding"。
+ * 从 kbs.json 注册表移除该 kb，删除 output/<kb>.nt、config/lexicon_<kb>.json 及 data/<kb> 目录。
+ * 后端 api_server 的 kb 数据目录为 codes/data/<kb>（隔离知识库/资产/本体中间态），一并清理。
+ * @param {string} kb 要重置的知识库名
+ * @returns {{ok, error?}}
+ */
+export function resetKb(kb) {
+  const name = String(kb || '').trim();
+  if (!name || name === 'food') return { ok: false, error: '非法知识库名' };
+  // 从 kbs.json 注册表移除
+  try {
+    const data = JSON.parse(readFileSync(KBS_FILE, 'utf-8'));
+    if (data.kbs && data.kbs[name]) {
+      delete data.kbs[name];
+      atomicWriteJson(KBS_FILE, data);
+    }
+  } catch (e) { /* 注册表不可写则忽略 */ }
+  // 清理本体/词典文件
+  const targets = [
+    join(KIT, 'output', `${name}.nt`),
+    join(KIT, 'config', `lexicon_${name}.json`),
+  ];
+  for (const t of targets) {
+    try { if (existsSync(t)) rmSync(t, { force: true }); } catch (e) { /* 忽略 */ }
+  }
+  // 清理后端数据目录 codes/data/<kb>（知识库/资产/隔离数据）
+  const dataDir = join(KIT, 'data', name);
+  try { if (existsSync(dataDir)) rmSync(dataDir, { recursive: true, force: true }); } catch (e) { /* 忽略 */ }
+  // 若当前激活 kb 是被重置的，重置前端激活状态回退
+  try {
+    const web = loadWebState();
+    if (web && web.kb === name) {
+      web.kb = '';
+      saveWebState(web);
+    }
+  } catch (e) { /* 忽略 */ }
+  return { ok: true };
 }

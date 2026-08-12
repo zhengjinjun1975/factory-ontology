@@ -3,11 +3,10 @@
   // 调前端 server 转发的 /api/ontology/assets-list?kb= 获取某知识库的语义资产版本清单
   // 后端 data = { kb, versions:[{version, hash, created, assets:{lexicon,ontology,knowledge}}], active_version }
   // 支持：创建快照（POST assets-snapshot）+ 回滚到历史版本（POST assets-rollback）
-  // 跟随当前激活 kb：与"本体中心、知识库配合、建哪个检索哪个"一致，不复用硬编码 food。
-  import { onMount } from 'svelte';
-  import { fetchKbs } from '../lib/api.js';
+  // 单企业收敛：kb 由父级（App.svelte）注入 currentKb（当前登录企业唯一 kb），面板内无 kb 切换/轮询，
+  // 加载/快照/回滚全部使用该当前企业 kb；kb prop 变化时 $effect 自动重新加载（面板跟随当前企业）。
 
-  let kb = $state('');           // 知识库名（初始跟随当前激活 kb，见 onMount）
+  let { kb = '' } = $props();    // 当前企业唯一 kb（只读 prop，跟随登录企业）
   let versions = $state([]);     // 版本链 [{version, hash, created, assets}]
   let activeVersion = $state(''); // 当前激活版本
   let curKb = $state('');
@@ -41,33 +40,16 @@
     return String(err);
   };
 
-  // 跟随当前激活 kb：读后端 getCurrentKb（/api/ontology/kbs → current），
-  // 加载/快照/回滚全部使用该当前 kb，不复用硬编码 food。
-  async function fetchCurrentKb() {
-    try {
-      const res = await fetchKbs();
-      if (res && res.ok && res.current) return String(res.current);
-    } catch (e) { /* 后端未就绪时忽略 */ }
-    return '';
-  }
-
-  let followTimer = null;
-
-  onMount(async () => {
-    const cur = await fetchCurrentKb();
-    if (cur) kb = cur;
-    await load();
-    // 实时跟随当前激活 kb：切换本体（头部下拉）后资产面板自动跟随刷新
-    followTimer = setInterval(async () => {
-      const cur = await fetchCurrentKb();
-      if (cur && cur !== kb) { kb = cur; await load(); }
-    }, 2000);
-    return () => { if (followTimer) clearInterval(followTimer); };
+  // 跟随当前激活 kb 的注释与轮询已移除：单企业收敛，kb 由父级注入。
+  // kb prop 变化（切换/重置后当前企业 kb 更新）→ 自动重新加载该企业资产版本
+  $effect(() => {
+    const name = kb;
+    if (name) load();
   });
 
   async function load() {
     const kbName = kb.trim();
-    if (!kbName) { error = '请输入知识库名称'; return; }
+    if (!kbName) { error = '当前企业知识库为空，请先建模'; return; }
     loading = true; error = ''; empty = false; loaded = false;
     try {
       const res = await fetch('/api/ontology/assets-list?kb=' + encodeURIComponent(kbName));
@@ -92,7 +74,7 @@
   // 创建快照：POST assets-snapshot → 刷新列表
   async function createSnapshot() {
     const kbName = kb.trim();
-    if (!kbName) { error = '请输入知识库名称'; return; }
+    if (!kbName) { error = '当前企业知识库为空，请先建模'; return; }
     if (!curKb && !loaded) return; // 未加载时不允许（需先加载确认 kb 有效）
     if (opBusy) return;
     opBusy = true; opMsg = ''; error = '';
@@ -122,7 +104,7 @@
     if (opBusy) return;
     if (!confirm(`确认回滚到版本「${v.version}」？\n系统将把词典/本体/知识库替换为该版本，并立即生效。`)) return;
     const kbName = kb.trim();
-    if (!kbName) { error = '请输入知识库名称'; return; }
+    if (!kbName) { error = '当前企业知识库为空，请先建模'; return; }
     opBusy = true; opMsg = ''; error = '';
     try {
       const res = await fetch('/api/ontology/assets-rollback', {
@@ -169,20 +151,10 @@
 </script>
 
 <div class="asset">
-  <!-- 顶部：kb 选择 + 加载 -->
+  <!-- 当前企业知识库标签 -->
   <div class="asset-toolbar">
-    <label class="kb-label" for="asset-kb">知识库</label>
-    <input
-      id="asset-kb"
-      class="kb-input"
-      type="text"
-      placeholder="当前激活知识库（自动跟随本体切换）"
-      bind:value={kb}
-      onkeydown={(e) => { if (e.key === 'Enter') load(); }}
-    />
-    <button class="btn-load" onclick={load} disabled={loading || opBusy}>
-      {loading ? '⏳ 加载中…' : '加载'}
-    </button>
+    <span class="kb-label">当前企业知识库</span>
+    <span class="kb-tag" title="跟随当前登录企业，不可切换">{kb || '—'}</span>
   </div>
 
   {#if loading}
@@ -278,6 +250,11 @@
   /* 顶部工具条 */
   .asset-toolbar { display: flex; align-items: center; gap: 8px; }
   .kb-label { font-size: 12px; color: #334155; font-weight: 600; white-space: nowrap; }
+  .kb-tag {
+    display: inline-flex; align-items: center;
+    padding: 4px 12px; font-size: 12px; font-weight: 600; color: #2563eb;
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px;
+  }
   .kb-input {
     flex: 1; max-width: 260px;
     padding: 6px 10px; font-size: 13px; color: #1e293b;

@@ -4,7 +4,8 @@ import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, graphOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, evalBenchmark, evalIsolate, knowledgeList, assetsList, assetsSnapshot, assetsRollback, knowledgeIngest, knowledgeDelete, knowledgeQuery, getEnterprise, saveEnterprise } from './ontology.js';
+import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, graphOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, evalBenchmark, evalIsolate, knowledgeList, assetsList, assetsSnapshot, assetsRollback, knowledgeIngest, knowledgeDelete, knowledgeQuery, getEnterprise, saveEnterprise, resetKb } from './ontology.js';
+import { login as authLogin, logout as authLogout, me as authMe, createUser, updateUser, seedUsersIfEmpty } from './auth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
@@ -53,7 +54,85 @@ function readRawBody(req, max = 60 * 1024 * 1024) {
 const server = createServer(async (req, res) => {
   const url = req.url.split('?')[0];
 
-  // ── API: 上传建模 ──
+  // ── 启动时种子企业用户（仅当 users.json 为空）──
+  seedUsersIfEmpty();
+
+  // ═══ 鉴权辅助 ═══
+  // 从 Authorization: Bearer <token> 或 X-Auth-Token 头取会话 token
+  function getToken() {
+    const ah = req.headers['authorization'] || '';
+    const m = ah.match(/^Bearer\s+(.+)$/i);
+    if (m) return m[1].trim();
+    return String(req.headers['x-auth-token'] || '').trim();
+  }
+  // 校验会话，返回公开用户；未登录/失效返回 null 并写 401
+  function requireAuth() {
+    const user = authMe(getToken());
+    if (!user.ok) {
+      res.writeHead(401, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: user.error, unauthenticated: true }));
+      return null;
+    }
+    return user.user;
+  }
+  const writeErr = (code, obj) => {
+    res.writeHead(code, { 'Content-Type': 'application/json;charset=utf-8' });
+    res.end(JSON.stringify(obj));
+  };
+
+  // ── API: 用户登录 ──
+  if (req.method === 'POST' && url === '/api/auth/login') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const { username, password } = body;
+      if (!username || !password) { writeErr(400, { ok: false, error: '用户名和密码必填' }); return; }
+      const result = authLogin(username, password);
+      if (!result.ok) { writeErr(401, { ok: false, error: result.error }); return; }
+      res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify(result));
+    } catch (err) { writeErr(500, { ok: false, error: String(err.message || err) }); }
+    return;
+  }
+
+  // ── API: 企业用户注册（新建企业 → 引导 onboarding）──
+  if (req.method === 'POST' && url === '/api/auth/register') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const { username, password, enterpriseName, logo, industry } = body;
+      const result = createUser({ username, password, enterpriseName, logo, industry });
+      if (!result.ok) { writeErr(400, { ok: false, error: result.error }); return; }
+      // 注册成功后自动登录
+      const loginResult = authLogin(username, password);
+      res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify(loginResult.ok ? { ok: true, token: loginResult.token, user: result.user } : { ok: true, user: result.user }));
+    } catch (err) { writeErr(500, { ok: false, error: String(err.message || err) }); }
+    return;
+  }
+
+  // ── API: 会话信息（me）/ 退出登录 ──
+  if (req.method === 'GET' && url === '/api/auth/me') {
+    const user = requireAuth(); if (!user) return;
+    res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
+    res.end(JSON.stringify({ ok: true, user }));
+    return;
+  }
+  if (req.method === 'POST' && url === '/api/auth/logout') {
+    authLogout(getToken());
+    res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
+    res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+
+  // ═══ 鉴权门禁：以下全部业务端点需登录 ═══
+  const isAuthPath = url.startsWith('/api/auth/');
+  if (!isAuthPath && (url.startsWith('/api/ontology/') || url.startsWith('/api/enterprise/') || url === '/api/enterprise' || url.startsWith('/api/eval/'))) {
+    const user = requireAuth(); if (!user) return;
+    // 单企业收敛：把当前登录用户的 kb 设为会话默认激活（各功能跟随该企业本体）
+    if (user.kb) { try { setCurrentKb(user.kb); } catch (e) { /* 忽略 */ } }
+    req.user = user;
+  }
+
+  // ── API: 企业设置（读/存）—— 改为按当前登录企业用户返回（单企业唯一性）──
   if (req.method === 'POST' && url === '/api/ontology/setup') {
     try {
       const body = JSON.parse((await readBody(req)) || '{}');
@@ -138,30 +217,81 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  // ── API: 企业设置（读）──
+  // ── API: 企业设置（读）—— 按当前登录企业用户返回（单企业唯一性）──
   if (req.method === 'GET' && url === '/api/ontology/enterprise') {
+    const user = req.user;
+    const data = {
+      name: (user && user.enterpriseName) || '',
+      logo: (user && user.logo) || '',
+      industry: (user && user.industry) || '',
+      kb: (user && user.kb) || '',
+      onboarded: !!(user && user.onboarded),
+      hasConfig: !!(user && (user.enterpriseName || user.logo || user.industry)),
+    };
     res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
-    res.end(JSON.stringify(getEnterprise()));
+    res.end(JSON.stringify({ ok: true, data }));
     return;
   }
-  // ── API: 企业设置（存：企业名/logo/行业，原子写回 enterprise.json）──
+  // ── API: 企业设置（存：企业名/logo/行业，写回当前登录用户）──
   if (req.method === 'POST' && url === '/api/ontology/enterprise') {
     try {
       const body = JSON.parse((await readBody(req)) || '{}');
-      const result = saveEnterprise(body);
-      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8' });
-      res.end(JSON.stringify(result));
-    } catch (err) {
-      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
-      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
-    }
+      const user = req.user;
+      const result = updateUser(user.username, {
+        enterpriseName: body.name, logo: body.logo, industry: body.industry,
+      });
+      if (!result.ok) { writeErr(500, result); return; }
+      const d = result.user;
+      res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: true, data: d }));
+    } catch (err) { writeErr(500, { ok: false, error: String(err.message || err) }); }
     return;
   }
 
+  // ── API: 企业重置（清空当前企业数据 → 重新 onboarding）──
+  if (req.method === 'POST' && url === '/api/enterprise/reset') {
+    try {
+      const user = req.user;
+      if (!user || !user.kb) { writeErr(400, { ok: false, error: '无企业数据可重置' }); return; }
+      const r = resetKb(user.kb);
+      if (!r.ok) { writeErr(500, r); return; }
+      // 重置企业字段为未配置 + onboarded=false → 前端进入引导 onboarding
+      const upd = updateUser(user.username, { enterpriseName: '', logo: '', industry: '', onboarded: false });
+      res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: true, data: upd.ok ? upd.user : null, reset: r }));
+    } catch (err) { writeErr(500, { ok: false, error: String(err.message || err) }); }
+    return;
+  }
+
+  // ── API: 引导 onboarding 完成（确认企业 + 选行业 + 建本体后标记已配置解锁功能）──
+  if (req.method === 'POST' && url === '/api/enterprise/onboard') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const user = req.user;
+      const upd = updateUser(user.username, {
+        enterpriseName: body.name, logo: body.logo, industry: body.industry,
+        kb: body.kb || user.kb, onboarded: true,
+      });
+      if (!upd.ok) { writeErr(500, upd); return; }
+      if (upd.user.kb) { try { setCurrentKb(upd.user.kb); } catch (e) { /* 忽略 */ } }
+      res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: true, data: upd.user }));
+    } catch (err) { writeErr(500, { ok: false, error: String(err.message || err) }); }
+    return;
+  }
+
+  // ── API: 上传建模 ──
+
   // ── API: 多租户知识库列表 + 当前激活 kb ──
+  // 单企业收敛：仅返回当前登录用户绑定的唯一 kb（不再暴露其它企业数据）
   if (req.method === 'GET' && url === '/api/ontology/kbs') {
+    const user = req.user;
+    const all = listKbs();
+    const userKb = (user && user.kb) || '';
+    // 只保留当前用户的企业 kb
+    const kbs = (Array.isArray(all.kbs) ? all.kbs : []).filter(k => !userKb || k.key === userKb);
     res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
-    res.end(JSON.stringify(listKbs()));
+    res.end(JSON.stringify({ ok: true, kbs, current: userKb || all.current }));
     return;
   }
   // ── API: 切换当前激活 kb(多租户) ──
@@ -270,7 +400,8 @@ const server = createServer(async (req, res) => {
   // ── API: 模型结构（可视化）──
   if (req.method === 'GET' && url === '/api/ontology/schema') {
     try {
-      const result = await schemaOntology();
+      const kb = new URL(req.url, 'http://x').searchParams.get('kb') || (req.user && req.user.kb) || '';
+      const result = await schemaOntology(kb);
       res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
       res.end(JSON.stringify(result));
     } catch (err) {
@@ -328,7 +459,8 @@ const server = createServer(async (req, res) => {
   // ── API: 聚合统计（可视化）──
   if (req.method === 'GET' && url === '/api/ontology/stats') {
     try {
-      const result = await statsOntology();
+      const kb = new URL(req.url, 'http://x').searchParams.get('kb') || (req.user && req.user.kb) || '';
+      const result = await statsOntology(kb);
       res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8' });
       res.end(JSON.stringify(result));
     } catch (err) {
@@ -517,7 +649,8 @@ const server = createServer(async (req, res) => {
   if (req.method === 'GET' && url.startsWith('/api/ontology/line/')) {
     try {
       const lineId = decodeURIComponent(url.split('/').pop());
-      const result = await lineInfo(lineId);
+      const kb = new URL(req.url, 'http://x').searchParams.get('kb') || (req.user && req.user.kb) || '';
+      const result = await lineInfo(lineId, kb);
       res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8' });
       res.end(JSON.stringify(result));
     } catch (err) {

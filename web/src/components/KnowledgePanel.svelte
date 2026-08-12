@@ -1,13 +1,12 @@
 <script>
   // KnowledgePanel — 知识库管理面板（上传 / 删除 / 查看内容 / 列表）
-  // 选择 kb → 加载文档列表；支持上传文档(multipart)、每行删除/查看切块内容。
-  import { onMount } from 'svelte';
-  import { fetchKbs } from '../lib/api.js';
+  // 单企业收敛：kb 由父级（App.svelte）注入 currentKb（当前登录企业唯一 kb），面板内无 kb 切换/轮询，
+  // 上传/加载/删除全部使用该当前企业 kb；kb prop 变化时 $effect 自动重新加载（面板跟随当前企业）。
 
   const JSON_HEADERS = { 'Content-Type': 'application/json' };
   const ALLOWED_EXT = ['.pdf', '.doc', '.docx', '.txt'];
 
-  let kb = $state('');        // 知识库名（初始跟随当前激活 kb，见 onMount）
+  let { kb = '' } = $props();    // 当前企业唯一 kb（只读 prop，跟随登录企业）
   let docs = $state([]);          // [{doc_id,title,chunks,ingested_at}]
   let loading = $state(false);
   let loaded = $state(false);     // 是否已成功加载过一次（区分未加载空态 vs 真正空态）
@@ -73,9 +72,11 @@
     }
   }
 
-  function onKeydown(e) {
-    if (e.key === 'Enter') { e.preventDefault(); load(); }
-  }
+  // kb prop 变化（切换/重置后当前企业 kb 更新）→ 自动重新加载该企业文档列表
+  $effect(() => {
+    const name = kb;
+    if (name) load();
+  });
 
   // ── 上传 ──
   function onFilePick(e) {
@@ -170,30 +171,7 @@
     }
   }
 
-  // 跟随当前激活 kb：与"本体中心、知识库配合、建哪个检索哪个"一致。
-  // 不复用硬编码 food，而是读后端 getCurrentKb（/api/ontology/kbs → current），
-  // 上传/加载/删除全部使用该当前 kb。
-  async function fetchCurrentKb() {
-    try {
-      const res = await fetchKbs();
-      if (res && res.ok && res.current) return String(res.current);
-    } catch (e) { /* 后端未就绪时忽略 */ }
-    return '';
-  }
-
-  let followTimer = null;
-
-  onMount(async () => {
-    const cur = await fetchCurrentKb();
-    if (cur) kb = cur;
-    await load();
-    // 实时跟随当前激活 kb：切换本体（头部下拉）后知识库面板自动跟随刷新
-    followTimer = setInterval(async () => {
-      const cur = await fetchCurrentKb();
-      if (cur && cur !== kb) { kb = cur; await load(); }
-    }, 2000);
-    return () => { if (followTimer) clearInterval(followTimer); };
-  });
+  // 跟随当前激活 kb 的注释与轮询已移除：单企业收敛，kb 由父级注入，无需内部获取/轮询。
 </script>
 
 <div class="kp">
@@ -201,20 +179,10 @@
     <div class="kp-notice {notice.type === 'ok' ? 'ok' : 'err'}">{notice.type === 'ok' ? '✅ ' : '⚠️ '}{notice.text}</div>
   {/if}
 
-  <!-- 顶部：kb 选择 + 加载 + 上传 -->
+  <!-- 当前企业知识库标签 -->
   <div class="kb-bar">
-    <span class="kb-label">知识库</span>
-    <input
-      class="kb-input"
-      type="text"
-      bind:value={kb}
-      onkeydown={onKeydown}
-      placeholder="当前激活知识库（自动跟随本体切换）"
-    />
-    <button class="kb-load" onclick={load} disabled={loading}>
-      <span class="btn-icon">{loading ? '⏳' : '↻'}</span>
-      {loading ? '加载中…' : '加载'}
-    </button>
+    <span class="kb-label">当前企业知识库</span>
+    <span class="kb-tag" title="跟随当前登录企业，不可切换">{kb || '—'}</span>
   </div>
 
   <!-- 上传区 -->
@@ -312,6 +280,11 @@
 
   .kb-bar { display: flex; align-items: center; gap: 8px; }
   .kb-label { font-size: 12px; font-weight: 700; color: #1e293b; }
+  .kb-tag {
+    display: inline-flex; align-items: center;
+    padding: 4px 12px; font-size: 12px; font-weight: 600; color: #2563eb;
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px;
+  }
   .kb-input {
     flex: 1; max-width: 280px;
     padding: 6px 10px; font-size: 13px; color: #1e293b;

@@ -1,7 +1,7 @@
 <script>
   // 工厂智能体 · 本体问答 — 独立 Web 应用（工业软件浅色风格）
   import { onMount } from 'svelte';
-  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, setModel, getModels, saveModels, fetchVersion, browseFiles, readDataFile, fetchExample, fetchKbs, setKb, fetchEnterprise, saveEnterprise } from './lib/api.js';
+  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, setModel, getModels, saveModels, fetchVersion, browseFiles, readDataFile, fetchExample, fetchKbs, setKb, fetchEnterprise, saveEnterprise, authLogin, authRegister, authMe, authLogout, onboardEnterprise, resetEnterprise, getToken, setToken } from './lib/api.js';
   import DashboardPanel from './components/DashboardPanel.svelte';
   import ModelGraph from './components/ModelGraph.svelte';
   import WelcomeModel from './components/WelcomeModel.svelte';
@@ -9,6 +9,154 @@
   import EvalPanel from './components/EvalPanel.svelte';
   import KnowledgePanel from './components/KnowledgePanel.svelte';
   import AssetPanel from './components/AssetPanel.svelte';
+
+  // ─── 企业用户登录态 ───
+  let user = $state(null);        // {username, enterpriseName, logo, industry, kb, onboarded}
+  let authLoading = $state(true); // 启动时校验会话中
+  let loginMode = $state('login'); // login | register
+  let loginUser = $state('');     // 登录表单
+  let loginPass = $state('');
+  let loginErr = $state('');
+  let loginBusy = $state(false);
+
+  // 是否已登录
+  const isAuthed = $derived(!!user);
+  // 是否已引导配置（未配置 → 引导 onboarding）
+  const needsOnboard = $derived(!!user && !user.onboarded);
+  // 单企业收敛：当前企业唯一 kb = 登录用户的 kb
+  const currentKb = $derived((user && user.kb) || '');
+
+  // 登录
+  async function doLogin() {
+    if (loginBusy) return;
+    const u = loginUser.trim(), p = loginPass;
+    if (!u || !p) { loginErr = '请输入用户名和密码'; return; }
+    loginBusy = true; loginErr = '';
+    try {
+      const res = await authLogin(u, p);
+      if (!res.ok) { loginErr = res.error || '登录失败'; }
+      else { await loadSessionUser(); }
+    } catch (e) { loginErr = String(e && e.message ? e.message : e); }
+    finally { loginBusy = false; }
+  }
+  // 注册企业用户
+  async function doRegister() {
+    if (loginBusy) return;
+    const u = loginUser.trim(), p = loginPass;
+    if (!u || !p) { loginErr = '请输入用户名和密码'; return; }
+    loginBusy = true; loginErr = '';
+    try {
+      const res = await authRegister({ username: u, password: p });
+      if (!res.ok) { loginErr = res.error || '注册失败'; }
+      else { await loadSessionUser(); }
+    } catch (e) { loginErr = String(e && e.message ? e.message : e); }
+    finally { loginBusy = false; }
+  }
+  // 退出登录
+  async function doLogout() {
+    await authLogout();
+    user = null; loginUser = ''; loginPass = ''; loginErr = '';
+    activeTab = 'model'; answer = ''; analysis = null; modelResult = null;
+  }
+  // 从会话读取当前用户
+  async function loadSessionUser() {
+    try {
+      const res = await authMe();
+      if (res.ok && res.user) {
+        user = res.user;
+        return true;
+      }
+      user = null;
+    } catch (e) { user = null; }
+    return false;
+  }
+
+  // ─── 引导 onboarding（新企业未配置时）───
+  // 步骤: 1 确认企业(名/logo/行业) → 2 选行业示例建本体 → 3 完成解锁
+  let onboardStep = $state(1);          // 1 企业信息 | 2 建本体 | 3 完成
+  let onboardForm = $state({ name: '', logo: '', industry: '' });
+  let onboardIndustry = $state('data_valve');   // 选中的行业示例目录
+  let onboardBusy = $state(false);
+  let onboardErr = $state('');
+
+  // 进入 onboarding 时预填当前用户企业信息
+  function initOnboard() {
+    onboardForm = { name: (user && user.enterpriseName) || '', logo: (user && user.logo) || '🏭', industry: (user && user.industry) || '' };
+    onboardStep = 1; onboardErr = '';
+  }
+
+  // 步骤1：保存企业信息（确认企业名/logo/行业）
+  async function onboardSaveEnterprise() {
+    if (onboardBusy) return;
+    const name = onboardForm.name.trim();
+    if (!name) { onboardErr = '请输入企业名称'; return; }
+    onboardBusy = true; onboardErr = '';
+    try {
+      const res = await saveEnterprise({ name, logo: onboardForm.logo, industry: onboardForm.industry });
+      if (res && res.ok && res.data) {
+        user = { ...user, enterpriseName: res.data.name, logo: res.data.logo, industry: res.data.industry };
+        onboardStep = 2;
+      } else {
+        onboardErr = (res && res.error) || '保存失败';
+      }
+    } catch (e) { onboardErr = String(e && e.message ? e.message : e); }
+    finally { onboardBusy = false; }
+  }
+
+  // 步骤2：选行业示例 → 建本体到当前企业 kb（单企业唯一）
+  async function onboardBuild() {
+    if (onboardBusy) return;
+    onboardBusy = true; onboardErr = '';
+    setStatus('info', '正在为当前企业建本体…');
+    try {
+      const ind = INDUSTRIES.find(i => i.dir === onboardIndustry);
+      const tables = INDUSTRY_TABLES[onboardIndustry] || INDUSTRY_TABLES.data_valve;
+      const files = [];
+      for (const t of tables) {
+        const r = await fetchExample(`${onboardIndustry}/${t}.csv`);
+        if (!r.ok || r.content == null) { onboardErr = `读取示例失败：${t}`; onboardBusy = false; return; }
+        files.push({ name: `${t}.csv`, content: r.content });
+      }
+      // 建本体到当前企业 kb（复用后端多租户 build）
+      const res = await setupOntologyMulti(files, currentKb);
+      if (!res.ok) { onboardErr = (res && res.error) || '建本体失败'; }
+      else {
+        modelResult = { table: res.table, attrs: res.attrs || [], tables: files.length, ts: Date.now() };
+        status = 'ready';
+        // 完成 onboarding：标记已配置解锁功能
+        const ob = await onboardEnterprise({ name: (user && user.enterpriseName) || '', logo: (user && user.logo) || '', industry: (user && user.industry) || '', kb: currentKb });
+        if (ob.ok && ob.data) user = ob.data;
+        await loadKbs();
+        onboardStep = 3;
+      }
+    } catch (e) { onboardErr = String(e && e.message ? e.message : e); }
+    finally { onboardBusy = false; }
+  }
+
+  // 完成 onboarding → 解锁进入系统
+  function onboardFinish() {
+    user = { ...user, onboarded: true };
+    activeTab = 'model';
+  }
+
+  // 企业重置：清空当前企业数据 → 重新 onboarding
+  let resetOpen = $state(false);
+  let resetBusy = $state(false);
+  async function doResetEnterprise() {
+    if (resetBusy) return;
+    resetBusy = true;
+    try {
+      const res = await resetEnterprise();
+      if (res && res.ok && res.data) {
+        user = res.data;   // 变为未配置 → 前端进入引导 onboarding
+        initOnboard();
+        setStatus('ok', '企业数据已重置，请重新引导配置');
+      } else {
+        setStatus('err', (res && res.error) || '重置失败');
+      }
+    } catch (e) { setStatus('err', String(e && e.message ? e.message : e)); }
+    finally { resetBusy = false; resetOpen = false; }
+  }
 
   // ─── 状态 ───
   let activeTab = $state('model');   // model | query | dashboard | eval | knowledge | assets
@@ -74,13 +222,11 @@
   let statusMsg = $state('等待数据导入');
   let statusType = $state('info');   // info | ok | err
   let answerBox = $state(null);
-  // 多租户 kb 切换：已注册知识库列表 + 当前激活 kb（中文名显示）
-  let kbList = $state([]);        // [{key, name, icon, examples}]
-  let currentKb = $state('');     // 当前激活 kb key
+  // 单企业收敛：不保留可切换的多 kb 列表，只跟随登录企业唯一 kb。
+  let kbList = $state([]);        // 仅含当前企业 kb（[{key, name, icon, examples}]）
   let kbsLoaded = $state(false);
 
-  // ─── 企业设置（企业级品牌：企业名/logo/行业，后端持久化）───
-  let enterprise = $state({ name: '', logo: '', industry: '', hasConfig: false });
+  // ─── 企业设置（单企业：品牌来自登录用户 enterpriseName/logo/industry）───
   let entOpen = $state(false);              // 企业设置面板开关
   let entForm = $state({ name: '', logo: '', industry: '' });  // 编辑态表单
   let entBusy = $state(false);
@@ -93,23 +239,23 @@
 
   // logo 是否图片（dataURL/URL/相对路径）→ 渲染 <img>；否则按 emoji 文本渲染
   const isImgLogo = (l) => !!l && /^(data:image\/|https?:\/\/|\/)/i.test(l);
-  // 顶部品牌名：企业设置后显示"企业名 · 本体问答"，未设置回退"工厂智能体 · 本体问答"
-  const brandName = $derived(enterprise.name ? `${enterprise.name} · 本体问答` : '工厂智能体 · 本体问答');
-  const brandLogo = $derived(enterprise.logo || '🏭');
+  // 顶部品牌名/logo：来自登录企业用户（单企业唯一）
+  const brandName = $derived(user && user.enterpriseName ? `${user.enterpriseName} · 本体问答` : '工厂智能体 · 本体问答');
+  const brandLogo = $derived((user && user.logo) || '🏭');
 
-  // 从后端读取企业配置（onMount 时调用）
+  // 从后端读取企业配置（onMount 时调用）—— 现在来自 /api/auth/me 的 user
   async function loadEnterprise() {
     try {
       const res = await fetchEnterprise();
       if (res && res.ok && res.data) {
-        enterprise = res.data;
-        entForm = { name: res.data.name || '', logo: res.data.logo || '', industry: res.data.industry || '' };
+        const d = res.data;
+        entForm = { name: d.name || '', logo: d.logo || '', industry: d.industry || '' };
       }
     } catch (e) { /* 后端不可达则回退默认 */ }
   }
 
   function openEnterprise() {
-    entForm = { name: enterprise.name || '', logo: enterprise.logo || '', industry: enterprise.industry || '' };
+    entForm = { name: (user && user.enterpriseName) || '', logo: (user && user.logo) || '', industry: (user && user.industry) || '' };
     entErr = ''; entOk = '';
     entOpen = true;
   }
@@ -121,19 +267,24 @@
     entErr = '';
   }
   // 上传本地图片作 logo（转 base64 dataURL，前端预览 + 后端存储）
-  function onLogoUpload(e) {
+  // form=目标表单（entForm 或 onboardForm），errSetter=错误提示写入函数
+  function uploadLogo(e, form, errSetter) {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
     if (!/^image\/(png|jpe?g|gif|webp|svg\+xml)$/i.test(f.type)) {
-      entErr = '仅支持图片文件（png/jpg/gif/webp/svg）';
+      errSetter('仅支持图片文件（png/jpg/gif/webp/svg）');
       e.target.value = ''; return;
     }
-    if (f.size > 1024 * 1024) { entErr = '图片过大，请控制在 1MB 以内'; e.target.value = ''; return; }
+    if (f.size > 1024 * 1024) { errSetter('图片过大，请控制在 1MB 以内'); e.target.value = ''; return; }
     const reader = new FileReader();
-    reader.onload = () => { entForm.logo = String(reader.result); entErr = ''; };
+    reader.onload = () => { form.logo = String(reader.result); errSetter(''); };
     reader.readAsDataURL(f);
     e.target.value = '';
   }
+  // 企业设置弹窗 → entForm/entErr
+  const onLogoUpload = (e) => uploadLogo(e, entForm, (m) => (entErr = m));
+  // onboarding 引导 → onboardForm/onboardErr
+  const onOnboardLogoUpload = (e) => uploadLogo(e, onboardForm, (m) => (onboardErr = m));
   function clearLogo() { entForm.logo = ''; }
 
   // 保存企业设置 → 后端持久化 → 顶部品牌即时跟随
@@ -145,7 +296,7 @@
     try {
       const res = await saveEnterprise({ name, logo: entForm.logo, industry: entForm.industry });
       if (res && res.ok && res.data) {
-        enterprise = res.data;
+        user = { ...user, enterpriseName: res.data.name, logo: res.data.logo, industry: res.data.industry };
         entOk = '已保存，顶部品牌已更新';
         setStatus('ok', `企业信息已更新：${res.data.name}`);
       } else {
@@ -203,18 +354,16 @@
     activeTab = tab;
   }
 
-  // ─── 多租户 kb 加载与切换 ───
-  // 从后端 /api/ontology/kbs 读取已注册知识库 + 当前激活 kb，中文名显示。
+  // ─── 单企业 kb 加载（无切换）───
+  // 从后端读取当前企业唯一 kb（/api/ontology/kbs → 只含登录企业 kb），供查询示例问题。
   async function loadKbs() {
     try {
       const res = await fetchKbs();
       if (res && res.ok && Array.isArray(res.kbs)) {
         kbList = res.kbs;
-        currentKb = (res.current && res.kbs.some(k => k.key === res.current)) ? res.current : (res.kbs[0] && res.kbs[0].key) || '';
         kbsLoaded = true;
-        // 跟随激活 kb 的品牌/示例问题（不锁死 food）
         const cur = kbList.find(k => k.key === currentKb);
-        if (cur) setStatus('info', `已切换知识库：${cur.icon} ${cur.name}`);
+        if (cur) setStatus('info', `${cur.icon} ${cur.name} 已就绪`);
         // 已注册 kb 可直接查询（无需先本地建模），放行查询输入
         if (status === 'idle') { status = 'ready'; }
         return true;
@@ -223,37 +372,17 @@
     return false;
   }
 
-  // 切换 kb：setCurrentKb(选中) → 刷新查询/看板/本体图
-  async function switchKb(e) {
-    const key = e.target.value;
-    if (!key || key === currentKb) return;
-    const prev = currentKb;
-    currentKb = key;
-    try {
-      const res = await setKb(key);   // 后端 setCurrentKb 持久化到 web_state
-      if (!(res && res.ok)) {
-        currentKb = prev;
-        setStatus('err', '知识库切换失败');
-        return;
-      }
-      const cur = kbList.find(k => k.key === key);
-      setStatus('ok', `已切换知识库：${cur ? cur.icon + ' ' + cur.name : key}`);
-      // 清空上一次查询/分析结果，强制刷新看板/本体图到新 kb
-      answer = ''; answerHTML = null; evidence = null; analysis = null;
-      modelResult = modelResult ? { ...modelResult, ts: Date.now() } : modelResult;
-    } catch (err) {
-      currentKb = prev;
-      setStatus('err', formatError(null, err));
-    }
-  }
-
-  function onKbChange(e) { switchKb(e); }
-
   // ─── 模型配置加载与切换 ───
   onMount(async () => {
-    // 多租户：先加载已注册知识库 + 当前激活 kb（决定查询/看板/本体图检索哪个）
+    // 单企业：先校验登录会话（未登录/失效 → 跳登录页）
+    await loadSessionUser();
+    if (!user) { authLoading = false; return; }
+    authLoading = false;
+    // 新企业未配置 → 初始化引导 onboarding
+    if (needsOnboard) initOnboard();
+    // 加载当前企业唯一 kb（决定查询/看板/本体图检索哪个）
     await loadKbs();
-    // 企业设置：读取后端持久化的企业名/logo/行业，顶部品牌跟随
+    // 企业设置：读取登录企业用户的信息（顶部品牌跟随）
     await loadEnterprise();
     try {
       const res = await getModels();
@@ -288,8 +417,8 @@
         }
         files.push({ name: `${t}.csv`, content: r.content });
       }
-      // 目标 kb 用该行业注册名（chem/machining/ship 等），建模成功即切换对应本体
-      const res = await setupOntologyMulti(files, ind ? ind.kb : undefined);
+      // 单企业收敛：建模目标始终为当前登录企业的唯一 kb（currentKb），不切到行业注册名
+      const res = await setupOntologyMulti(files, currentKb);
       if (!res.ok) {
         setStatus('err', formatError(res, null) || '建模失败');
       } else {
@@ -586,6 +715,112 @@
 </script>
 
 <div class="app">
+  {#if authLoading}
+    <!-- 启动校验会话中 -->
+    <div class="auth-loading">
+      <span class="load-dot"></span><span class="load-dot"></span><span class="load-dot"></span>
+      正在校验登录…
+    </div>
+  {:else if !isAuthed}
+    <!-- ═══ 登录页 ═══ -->
+    <div class="login-page">
+      <div class="login-card">
+        <div class="login-logo">🏭</div>
+        <h1 class="login-title">工厂本体问答</h1>
+        <p class="login-sub">企业用户登录 · 每个企业专属系统</p>
+        <div class="login-tabs">
+          <button class="login-tab" class:on={loginMode === 'login'} onclick={() => { loginMode = 'login'; loginErr = ''; }}>登录</button>
+          <button class="login-tab" class:on={loginMode === 'register'} onclick={() => { loginMode = 'register'; loginErr = ''; }}>注册企业</button>
+        </div>
+        <input class="login-input" type="text" placeholder="用户名" bind:value={loginUser} onkeydown={(e) => { if (e.key === 'Enter') loginMode === 'login' ? doLogin() : doRegister(); }} />
+        <input class="login-input" type="password" placeholder="密码" bind:value={loginPass} onkeydown={(e) => { if (e.key === 'Enter') loginMode === 'login' ? doLogin() : doRegister(); }} />
+        {#if loginErr}<div class="login-err">✗ {loginErr}</div>{/if}
+        <button class="login-btn" onclick={loginMode === 'login' ? doLogin : doRegister} disabled={loginBusy}>
+          {loginBusy ? '请稍候…' : (loginMode === 'login' ? '登 录' : '注册并登录')}
+        </button>
+        <p class="login-hint">{loginMode === 'login' ? '演示账号：admin / admin123' : '注册后自动创建企业空间，进入引导配置'}</p>
+      </div>
+    </div>
+  {:else if needsOnboard}
+    <!-- ═══ 引导 onboarding（新企业未配置）═══ -->
+    <div class="onboard-page">
+      <div class="onboard-card">
+        <div class="onboard-progress">
+          <span class="ob-step" class:done={onboardStep >= 1} class:cur={onboardStep === 1}>1 确认企业</span>
+          <span class="ob-arrow">→</span>
+          <span class="ob-step" class:done={onboardStep >= 2} class:cur={onboardStep === 2}>2 建本体</span>
+          <span class="ob-arrow">→</span>
+          <span class="ob-step" class:done={onboardStep >= 3} class:cur={onboardStep === 3}>3 完成</span>
+        </div>
+
+        {#if onboardStep === 1}
+          <h2 class="onboard-title">🏢 确认企业信息</h2>
+          <p class="onboard-sub">填写企业名称、选择 Logo 与所属行业，用于品牌展示与本体建模。</p>
+          <div class="ent-logo-row">
+            {#if isImgLogo(onboardForm.logo)}
+              <img class="ent-logo-preview" src={onboardForm.logo} alt="企业logo" />
+            {:else}
+              <span class="ent-logo-preview ent-logo-emoji">{onboardForm.logo || '🏭'}</span>
+            {/if}
+            <div class="ent-logo-actions">
+              <span class="form-label">企业 Logo</span>
+              <div class="ent-logo-btns">
+                <label class="ent-upload">
+                  <input type="file" accept="image/*" onchange={onOnboardLogoUpload} />
+                  📤 上传图片
+                </label>
+                <button class="ent-mini" onclick={() => (onboardForm.logo = '')}>清除</button>
+              </div>
+            </div>
+          </div>
+          <div class="ent-emoji-wrap">
+            <span class="form-label">或选择 Logo（emoji）</span>
+            <div class="ent-emoji-grid">
+              {#each LOGO_EMOJIS as em}
+                <button class="ent-emoji" class:sel={onboardForm.logo === em} onclick={() => { onboardForm.logo = em; onboardErr = ''; }}>{em}</button>
+              {/each}
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">企业名称</label>
+            <input class="db-input" placeholder="如：华信精密制造" bind:value={onboardForm.name} />
+          </div>
+          <div class="form-group">
+            <label class="form-label">所属行业</label>
+            <select class="db-input" bind:value={onboardForm.industry}>
+              <option value="">请选择行业</option>
+              {#each INDUSTRY_OPTIONS as ind}
+                <option value={ind}>{ind}</option>
+              {/each}
+            </select>
+          </div>
+          {#if onboardErr}<div class="login-err">✗ {onboardErr}</div>{/if}
+          <button class="login-btn" onclick={onboardSaveEnterprise} disabled={onboardBusy}>
+            {onboardBusy ? '保存中…' : '下一步：选择行业并建本体 →'}
+          </button>
+        {:else if onboardStep === 2}
+          <h2 class="onboard-title">🧪 选择行业示例建本体</h2>
+          <p class="onboard-sub">为「{user && user.enterpriseName}」选择所属行业，系统将用该行业示例数据为您的企业建本体（唯一知识库）。</p>
+          <div class="onboard-industries">
+            {#each INDUSTRIES as ind}
+              <button class="ob-industry" class:sel={onboardIndustry === ind.dir} onclick={() => { onboardIndustry = ind.dir; onboardErr = ''; }}>
+                <span class="ob-ind-icon">{ind.icon}</span>
+                <span class="ob-ind-name">{ind.name}</span>
+              </button>
+            {/each}
+          </div>
+          {#if onboardErr}<div class="login-err">✗ {onboardErr}</div>{/if}
+          <button class="login-btn" onclick={onboardBuild} disabled={onboardBusy}>
+            {onboardBusy ? '正在建本体…' : '为当前企业建本体 🚀'}
+          </button>
+        {:else}
+          <h2 class="onboard-title">🎉 配置完成</h2>
+          <p class="onboard-sub">「{user && user.enterpriseName}」的本体已建好，问答 / 知识库 / 评测 / 资产 / 看板 / 模型图功能已解锁。</p>
+          <button class="login-btn" onclick={onboardFinish}>进入系统 →</button>
+        {/if}
+      </div>
+    </div>
+  {:else}
   <!-- ═══ 顶部工具栏 ═══ -->
   <header class="toolbar">
     <div class="toolbar-left">
@@ -600,18 +835,11 @@
       </div>
     </div>
     <div class="toolbar-right">
-      <button class="ent-btn" onclick={openEnterprise} title="企业设置">
-        <span class="btn-icon">⚙️</span> 企业设置
-      </button>
       {#if kbsLoaded && kbList.length > 0}
-        <label class="model-select kb-select">
-          <span class="model-label">知识库</span>
-          <select value={currentKb} onchange={onKbChange}>
-            {#each kbList as kb}
-              <option value={kb.key}>{kb.icon} {kb.name}</option>
-            {/each}
-          </select>
-        </label>
+        <span class="cur-kb-tag" title="当前企业知识库">
+          <span class="kb-tag-icon">{kbList.find(k => k.key === currentKb)?.icon || '🗂️'}</span>
+          {kbList.find(k => k.key === currentKb)?.name || currentKb}
+        </span>
       {/if}
       {#if modelList.length > 0}
         <label class="model-select">
@@ -627,6 +855,15 @@
         <span class="status-dot"></span>
         <span class="status-text">{statusMsg}</span>
       </span>
+      <button class="ent-btn" onclick={openEnterprise} title="企业设置">
+        <span class="btn-icon">⚙️</span> 企业设置
+      </button>
+      <button class="ent-btn" onclick={() => (resetOpen = true)} title="重置当前企业数据" style="border-color:#fca5a5;color:#dc2626;">
+        <span class="btn-icon">🔄</span> 重置企业
+      </button>
+      <button class="ent-btn" onclick={doLogout} title="退出登录">
+        <span class="btn-icon">🚪</span> 退出
+      </button>
     </div>
   </header>
 
@@ -984,7 +1221,7 @@
     <section class="pane pane-full">
       <div class="pane-title">数据看板</div>
       <div class="dashboard-body">
-        <DashboardPanel />
+        <DashboardPanel kb={currentKb} />
       </div>
     </section>
     {:else if activeTab === 'eval'}
@@ -992,7 +1229,7 @@
     <section class="pane pane-full">
       <div class="pane-title">评测基线</div>
       <div class="dashboard-body">
-        <EvalPanel />
+        <EvalPanel kb={currentKb} />
       </div>
     </section>
     {:else if activeTab === 'knowledge'}
@@ -1000,7 +1237,7 @@
     <section class="pane pane-full">
       <div class="pane-title">知识库管理</div>
       <div class="dashboard-body">
-        <KnowledgePanel />
+        <KnowledgePanel kb={currentKb} />
       </div>
     </section>
     {:else if activeTab === 'assets'}
@@ -1008,7 +1245,7 @@
     <section class="pane pane-full">
       <div class="pane-title">资产版本</div>
       <div class="dashboard-body">
-        <AssetPanel />
+        <AssetPanel kb={currentKb} />
       </div>
     </section>
     {/if}
@@ -1078,10 +1315,35 @@
   </div>
   {/if}
 
+  <!-- ═══ 企业重置确认弹窗 ═══ -->
+  {#if resetOpen}
+  <div class="ent-overlay" onclick={(e) => { if (e.target === e.currentTarget) resetOpen = false; }}>
+    <div class="ent-modal reset-modal" role="dialog" aria-modal="true" aria-label="重置企业">
+      <div class="ent-head">
+        <span class="card-icon">🔄</span>
+        <span class="ent-title">重置企业数据</span>
+        <button class="ent-close" onclick={() => (resetOpen = false)} aria-label="关闭">✕</button>
+      </div>
+      <div class="ent-body">
+        <p class="reset-warn">确认重置「{(user && user.enterpriseName) || '当前企业'}」的全部数据？</p>
+        <p class="reset-desc">将清空本企业的本体、知识库、资产与设置，随后重新进入引导配置（onboarding）。此操作不可恢复。</p>
+        {#if resetBusy}<div class="ent-err">正在重置…</div>{/if}
+      </div>
+      <div class="ent-foot">
+        <button class="btn-action btn-default" onclick={() => (resetOpen = false)} disabled={resetBusy}>取消</button>
+        <button class="btn-action btn-danger" onclick={doResetEnterprise} disabled={resetBusy}>
+          {resetBusy ? '重置中…' : '确认重置'}
+        </button>
+      </div>
+    </div>
+  </div>
+  {/if}
+
   <footer class="statusbar">
-    <span class="sb-left">{enterprise.name ? `${enterprise.name} · 本体问答系统` : '工厂智能体 · 本体问答系统'}</span>
+    <span class="sb-left">{(user && user.enterpriseName) ? `${user.enterpriseName} · 本体问答系统` : '工厂智能体 · 本体问答系统'}</span>
     <span class="sb-right">数据本地处理 ｜ 运行时：Node.js + Python</span>
   </footer>
+  {/if}
 </div>
 
 <style>
@@ -1574,6 +1836,11 @@
     padding: 13px 16px; background: #f8fafc;
     border-top: 1px solid #eef1f6;
   }
+  .reset-modal { max-width: 420px; }
+  .reset-warn { font-size: 14px; font-weight: 700; color: #1e293b; }
+  .reset-desc { font-size: 12px; color: #64748b; line-height: 1.7; }
+  .btn-danger { background: #dc2626; }
+  .btn-danger:hover:not(:disabled) { background: #b91c1c; }
 
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }

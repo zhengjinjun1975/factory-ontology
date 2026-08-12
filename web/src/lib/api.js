@@ -1,15 +1,36 @@
 // api.js — 前端 API 封装（fetchRetry：429/5xx 指数退避重试，上限 3 次）
 const MAX_RETRIES = 3;
+const TOKEN_KEY = 'factory_enterprise_token';
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// 会话 token 读写（localStorage）
+export function getToken() {
+  try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; }
+}
+export function setToken(t) {
+  try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch (e) { /* 忽略 */ }
+}
+// 附加鉴权头（Authorization: Bearer）供所有业务请求
+function authHeaders(headers = {}) {
+  const t = getToken();
+  if (t) headers['Authorization'] = 'Bearer ' + t;
+  return headers;
+}
 
 // 429/5xx 自动重试：指数退避(1s,2s,4s)+抖动，上限 MAX_RETRIES 次；其余状态直接返回。
 async function fetchRetry(url, options = {}) {
   let lastErr = null;
+  const opts = { ...options, headers: authHeaders({ ...(options.headers || {}) }) };
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const resp = await fetch(url, options);
+      const resp = await fetch(url, opts);
       const retriable = resp.status === 429 || resp.status >= 500;
+      if (resp.status === 401) {
+        // 会话失效 → 返回统一 unauthenticated 标记，前端跳登录页
+        try { const d = await resp.json(); return { ok: false, status: 401, ...d, unauthenticated: true }; }
+        catch (e) { return { ok: false, status: 401, unauthenticated: true, error: '未登录或会话已失效' }; }
+      }
       if (!retriable || attempt === MAX_RETRIES) {
         try {
           return await resp.json();
@@ -30,6 +51,33 @@ async function fetchRetry(url, options = {}) {
 }
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
+
+// ── 企业用户登录/注册/会话 ──
+export async function authLogin(username, password) {
+  const res = await fetchRetry('/api/auth/login', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ username, password }) });
+  if (res && res.ok && res.token) setToken(res.token);
+  return res;
+}
+export async function authRegister(cfg) {
+  const res = await fetchRetry('/api/auth/register', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(cfg) });
+  if (res && res.ok && res.token) setToken(res.token);
+  return res;
+}
+export async function authMe() {
+  return fetchRetry('/api/auth/me', { cache: 'no-store' });
+}
+export async function authLogout() {
+  try { await fetchRetry('/api/auth/logout', { method: 'POST', headers: JSON_HEADERS, body: '{}' }); } catch (e) { /* 忽略 */ }
+  setToken('');
+}
+// 引导 onboarding 完成（确认企业 + 选行业 + 建本体后标记解锁）
+export async function onboardEnterprise(cfg) {
+  return fetchRetry('/api/enterprise/onboard', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(cfg) });
+}
+// 企业重置（清空当前企业数据 → 重新 onboarding）
+export async function resetEnterprise() {
+  return fetchRetry('/api/enterprise/reset', { method: 'POST', headers: JSON_HEADERS, body: '{}' });
+}
 
 export async function setupOntology(csvName, csvContent) {
   return fetchRetry('/api/ontology/setup', {
@@ -78,16 +126,19 @@ export async function setKb(kb) {
   });
 }
 
-export async function fetchStats() {
-  return fetchRetry('/api/ontology/stats');
+export async function fetchStats(kb) {
+  const q = kb ? `?kb=${encodeURIComponent(kb)}` : '';
+  return fetchRetry(`/api/ontology/stats${q}`);
 }
 
-export async function fetchLine(lineId) {
-  return fetchRetry(`/api/ontology/line/${encodeURIComponent(lineId)}`);
+export async function fetchLine(lineId, kb) {
+  const q = kb ? `?kb=${encodeURIComponent(kb)}` : '';
+  return fetchRetry(`/api/ontology/line/${encodeURIComponent(lineId)}${q}`);
 }
 
-export async function fetchSchema() {
-  return fetchRetry('/api/ontology/schema', { cache: 'no-store' });
+export async function fetchSchema(kb) {
+  const q = kb ? `?kb=${encodeURIComponent(kb)}` : '';
+  return fetchRetry(`/api/ontology/schema${q}`, { cache: 'no-store' });
 }
 
 // 模型结构图（图结构 nodes/edges）：/api/ontology/graph → 后端本体实例图，供 ECharts 力导向图渲染
