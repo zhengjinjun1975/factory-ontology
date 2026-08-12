@@ -266,8 +266,17 @@ python valve_demo.py
 - [泛化方法论](docs/泛化方法论.md)：schema 驱动建模 + 本体驱动混合检索 + 本体约束，多领域 benchmark 实证
 - [交付方法论](docs/交付方法论.md) / [交付白皮书](docs/交付白皮书.md)：现场落地方法
 - [部署](docs/部署.md)：小型企业部署指南（API + APP + 语音）
+- [新机器部署验收](docs/新机器部署验收.md)：全新机器逐项走通「部署→配置→启动→建模→问答→评测→知识库→资产」的验收清单（新用户/CI 用）
 - [开源调研](docs/开源调研.md)：本体/知识图谱开源生态调研
 - [合规](docs/合规.md)：溯源合规与召回场景
+- 贡献规范见 [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## 一键启动
+
+```bash
+./start.sh     # Linux / macOS / Git-Bash：装依赖 → 构建 Web → 启动 api_server
+start.bat      # Windows
+```
 
 ## 贡献指南
 
