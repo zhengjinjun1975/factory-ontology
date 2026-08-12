@@ -162,7 +162,8 @@ function readLexiconAttrs(lexPath) {
 // Web 上传支持的文本格式(文本可直接传输; 二进制 sqlite/xlsx 走命令行 codes/ 套件)
 const TEXT_EXT = ['.csv', '.json'];
 // 示例数据目录（相对套件 codes/），供前端免手选文件直接体验
-const EXAMPLE_DIRS = ['data_valve', 'data'];
+const EXAMPLE_DIRS = ['data_valve', 'data_chem', 'data_machining', 'data_precision',
+  'data_bellows', 'data_eco', 'data_ship', 'data_seismic', 'data_food_co', 'data'];
 
 /**
  * 扫描套件示例数据目录，返回示例文件列表
@@ -188,13 +189,15 @@ export function listExamples() {
 }
 
 /**
- * 读取指定示例文件内容（安全：只允许 data_valve/ 或 data/ 下，防目录穿越）
- * @param {string} relPath 相对套件 codes/ 的路径，如 data_valve/valve_equipment.csv
+ * 读取指定示例文件内容（安全：只允许九大行业示例目录 + data 下，防目录穿越）
+ * @param {string} relPath 相对套件 codes/ 的路径，如 data_chem/chem_equipment.csv
  * @returns {{ok, content?, name?, size?, error?}}
  */
 export function readExample(relPath) {
-  const p = String(relPath || '').replace(/^[\\/]+/, '').replace(/\\/g, '/');
-  if (!/^(data_valve|data)\/[^/]+$/.test(p)) return { ok: false, error: '非法示例路径' };
+  const p = String(relPath || '').replace(/^[\\\\/]+/, '').replace(/\\\\/g, '/');
+  // 白名单放开到九大行业示例目录(data_chem/data_machining/data_precision/data_bellows/
+  // data_eco/data_ship/data_seismic/data_food_co/data_valve) + 通用 data/, 拒绝其它目录防穿越
+  if (!/^(data_valve|data_chem|data_machining|data_precision|data_bellows|data_eco|data_ship|data_seismic|data_food_co|data)\/[^/]+$/.test(p)) return { ok: false, error: '非法示例路径' };
   const fp = join(KIT, p);
   try {
     const content = readFileSync(fp, 'utf-8');
@@ -498,6 +501,30 @@ export async function evalBenchmark(kb) {
     const q = new URLSearchParams({ kb }).toString();
     const r = await apiFetch(`/api/eval/benchmark?${q}`, { timeout: 60000 });
     return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '后端评测失败' };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+/**
+ * 隔离评测：转发后端 POST /api/eval/isolate（自定义问题集，只问答不打分）。
+ * 复用 apiFetch（自动带 X-API-Key 头）。后端返回 {ok, data:{kb, questions_n, answers:[{q, answer, hit}]}}。
+ * @param {string} [kb] 知识库名, 缺省用当前激活 kb
+ * @param {string[]} [questions] 自定义问题列表(非空字符串数组)
+ * @returns {Promise<{ok, data?, error?}>}
+ */
+export async function evalIsolate(kb, questions) {
+  try {
+    kb = kb || getCurrentKb();
+    const list = (Array.isArray(questions) ? questions : [])
+      .map(q => String(q || '').trim()).filter(Boolean);
+    if (list.length === 0) return { ok: false, error: '未提供自定义问题集' };
+    const r = await apiFetch('/api/eval/isolate', {
+      method: 'POST',
+      body: { kb, questions: list },
+      timeout: 120000,
+    });
+    return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '后端隔离评测失败' };
   } catch (e) {
     return { ok: false, error: String(e.message || e) };
   }

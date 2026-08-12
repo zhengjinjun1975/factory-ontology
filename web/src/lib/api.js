@@ -39,11 +39,11 @@ export async function setupOntology(csvName, csvContent) {
   });
 }
 
-export async function setupOntologyMulti(files) {
+export async function setupOntologyMulti(files, kb) {
   return fetchRetry('/api/ontology/setup-multi', {
     method: 'POST',
     headers: JSON_HEADERS,
-    body: JSON.stringify({ files }),
+    body: JSON.stringify({ files, kb }),
   });
 }
 
@@ -133,6 +133,15 @@ export async function fetchVersion() {
 
 export async function fetchExamples() {
   return fetchRetry('/api/ontology/examples');
+}
+
+// 隔离评测（自定义问题集）：转发到前端 server /api/ontology/eval-isolate
+export async function evalIsolate(kb, questions) {
+  return fetchRetry('/api/ontology/eval-isolate', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ kb, questions }),
+  });
 }
 
 export async function fetchExample(path) {

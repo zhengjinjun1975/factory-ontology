@@ -24,6 +24,31 @@
   let localFiles = $state([]);       // [{name, content}] 本地选择文件
   let localBusy = $state(false);
   let defaultBusy = $state(false);   // 默认示例建模中
+  // 九大行业示例：目录 → 建模目标 kb + 展示名 + 表清单
+  const INDUSTRIES = [
+    { dir: 'data_valve',     kb: 'valve',     name: '阀门制造', icon: '🔧' },
+    { dir: 'data_chem',      kb: 'chem',      name: '化工企业', icon: '🧪' },
+    { dir: 'data_machining', kb: 'machining', name: '机械加工', icon: '⚙️' },
+    { dir: 'data_precision', kb: 'precision', name: '精密加工', icon: '🔩' },
+    { dir: 'data_bellows',   kb: 'bellows',   name: '波纹管',   icon: '🌀' },
+    { dir: 'data_eco',       kb: 'eco',       name: '环保工程', icon: '♻️' },
+    { dir: 'data_ship',      kb: 'ship',      name: '造船',     icon: '🚢' },
+    { dir: 'data_seismic',   kb: 'seismic',   name: '地震勘探', icon: '🌍' },
+    { dir: 'data_food_co',   kb: 'food_co',   name: '食品溯源', icon: '🥛' },
+  ];
+  // 各行业示例表文件（data_<行业> 目录下的 CSV，读取后多表建模）
+  const INDUSTRY_TABLES = {
+    data_valve: ['valve_products', 'valve_equipment', 'valve_customers', 'valve_batches', 'valve_raw_materials', 'valve_sales'],
+    data_chem: ['chem_products', 'chem_equipment', 'chem_raw_materials', 'chem_batches'],
+    data_machining: ['mach_products', 'mach_equipment', 'mach_customers', 'mach_sales'],
+    data_precision: ['pre_products', 'pre_equipment'],
+    data_bellows: ['bell_products', 'bell_equipment'],
+    data_eco: ['eco_projects', 'eco_equipment'],
+    data_ship: ['ship_vessels', 'ship_orders', 'ship_equipment'],
+    data_seismic: ['seis_teams', 'seis_lines', 'seis_shots', 'seis_equipment'],
+    data_food_co: ['food_products', 'food_batches', 'food_equipment', 'food_raw_materials', 'food_batch_ingredient', 'food_qc'],
+  };
+  let defaultIndustry = $state('data_valve'); // 当前选中的行业示例
   // 数据库接入
   let dbOpen = $state(false);
   let dbBusy = $state(false);
@@ -162,30 +187,34 @@
     } catch (e) { /* 忽略 */ }
   });
 
-  // ─── 用默认示例数据建模（data_valve 一键）───
+  // ─── 用行业示例数据建模（可选九大行业，默认 data_valve 一键）───
   async function doDefaultExample() {
     if (defaultBusy) return;
+    const dir = defaultIndustry || 'data_valve';
+    const ind = INDUSTRIES.find(i => i.dir === dir);
     defaultBusy = true;
-    setStatus('info', '正在读取默认示例（data_valve）…');
+    setStatus('info', `正在读取${ind ? ind.name : dir}示例数据…`);
     try {
-      const tables = ['valve_products', 'valve_equipment', 'valve_customers',
-                      'valve_batches', 'valve_raw_materials', 'valve_sales'];
+      const tables = INDUSTRY_TABLES[dir] || INDUSTRY_TABLES.data_valve;
       const files = [];
       for (const t of tables) {
-        const r = await fetchExample(`data_valve/${t}.csv`);
+        const r = await fetchExample(`${dir}/${t}.csv`);
         if (!r.ok || r.content == null) {
           setStatus('err', formatError(r, null) || `读取示例失败：${t}`);
           defaultBusy = false; return;
         }
         files.push({ name: `${t}.csv`, content: r.content });
       }
-      const res = await setupOntologyMulti(files);
+      // 目标 kb 用该行业注册名（chem/machining/ship 等），建模成功即切换对应本体
+      const res = await setupOntologyMulti(files, ind ? ind.kb : undefined);
       if (!res.ok) {
         setStatus('err', formatError(res, null) || '建模失败');
       } else {
         modelResult = { table: res.table, attrs: res.attrs || [], ts: Date.now() };
         status = 'ready';
-        setStatus('ok', `默认示例建模完成：${res.table}，共 ${(res.attrs || []).length} 张表`);
+        setStatus('ok', `${ind ? ind.name + '示例' : '示例'}建模完成：${res.table}，共 ${(res.attrs || []).length} 张表`);
+        // 建模成功 → 刷新 kb 列表与当前激活，使头部下拉/查询/评测跟随到新本体
+        await loadKbs();
       }
     } catch (err) {
       setStatus('err', formatError(null, err));
@@ -554,10 +583,20 @@
             {localBusy ? '建模进行中…' : `确认并建模（${localFiles.length} 个文件）`}
           </button>
         {/if}
-        <button class="example-link" onclick={doDefaultExample} disabled={defaultBusy} style="margin-top:8px">
-          <span class="btn-icon">{defaultBusy ? '⏳' : '▸'}</span>
-          {defaultBusy ? '示例建模中…' : '使用示例数据（data_valve）'}
-        </button>
+        <div class="ind-select-row">
+          <label class="ind-select">
+            <span class="ind-label">行业示例</span>
+            <select bind:value={defaultIndustry} disabled={defaultBusy}>
+              {#each INDUSTRIES as ind}
+                <option value={ind.dir}>{ind.icon} {ind.name}</option>
+              {/each}
+            </select>
+          </label>
+          <button class="example-link" onclick={doDefaultExample} disabled={defaultBusy}>
+            <span class="btn-icon">{defaultBusy ? '⏳' : '▸'}</span>
+            {defaultBusy ? '示例建模中…' : '使用示例数据建模'}
+          </button>
+        </div>
       </div>
 
       {#if modelResult}
@@ -1093,6 +1132,14 @@
   }
   .example-link:hover:not(:disabled) { color: #2563eb; text-decoration: underline; }
   .example-link:disabled { color: #94a3b8; cursor: not-allowed; }
+  .ind-select-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .ind-select { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #64748b; }
+  .ind-label { font-weight: 600; white-space: nowrap; }
+  .ind-select select {
+    background: #fff; border: 1px solid #cbd5e1; border-radius: 4px;
+    padding: 5px 8px; font-size: 12px; color: #1e293b; cursor: pointer; outline: none;
+  }
+  .ind-select select:focus { border-color: #3b82f6; }
   .btn-icon { font-size: 14px; }
 
   /* ─── 字段表 ─── */
