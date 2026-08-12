@@ -5,9 +5,12 @@
   import DashboardPanel from './components/DashboardPanel.svelte';
   import ModelGraph from './components/ModelGraph.svelte';
   import AnalysisResult from './components/AnalysisResult.svelte';
+  import EvalPanel from './components/EvalPanel.svelte';
+  import KnowledgePanel from './components/KnowledgePanel.svelte';
+  import AssetPanel from './components/AssetPanel.svelte';
 
   // ─── 状态 ───
-  let activeTab = $state('model');   // model | query | dashboard
+  let activeTab = $state('model');   // model | query | dashboard | eval | knowledge | assets
   // ─── 文件浏览框（学习 solo-agent-kit /api/browse，默认 data_valve 示例目录）───
   let browseDir = $state('data_valve');    // 当前目录（相对 codes/）
   let browseParent = $state('');           // 上级目录（空=根）
@@ -453,6 +456,15 @@
     <button class="tab" class:active={activeTab === 'dashboard'} onclick={() => switchTab('dashboard')}>
       <span class="tab-icon">📈</span> 数据看板
     </button>
+    <button class="tab" class:active={activeTab === 'eval'} onclick={() => switchTab('eval')}>
+      <span class="tab-icon">🧪</span> 评测
+    </button>
+    <button class="tab" class:active={activeTab === 'knowledge'} onclick={() => switchTab('knowledge')}>
+      <span class="tab-icon">📚</span> 知识库
+    </button>
+    <button class="tab" class:active={activeTab === 'assets'} onclick={() => switchTab('assets')}>
+      <span class="tab-icon">🗂️</span> 资产
+    </button>
   </nav>
 
   <!-- ═══ 主区域 ═══ -->
@@ -719,6 +731,30 @@
       <div class="pane-title">数据看板</div>
       <div class="dashboard-body">
         <DashboardPanel />
+      </div>
+    </section>
+    {:else if activeTab === 'eval'}
+    <!-- ─── 评测（问答命中率基线）─── -->
+    <section class="pane pane-full">
+      <div class="pane-title">评测基线</div>
+      <div class="dashboard-body">
+        <EvalPanel />
+      </div>
+    </section>
+    {:else if activeTab === 'knowledge'}
+    <!-- ─── 知识库管理（文档列表）─── -->
+    <section class="pane pane-full">
+      <div class="pane-title">知识库管理</div>
+      <div class="dashboard-body">
+        <KnowledgePanel />
+      </div>
+    </section>
+    {:else if activeTab === 'assets'}
+    <!-- ─── 资产版本（版本链）─── -->
+    <section class="pane pane-full">
+      <div class="pane-title">资产版本</div>
+      <div class="dashboard-body">
+        <AssetPanel />
       </div>
     </section>
     {/if}
