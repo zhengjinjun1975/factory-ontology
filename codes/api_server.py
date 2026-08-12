@@ -976,6 +976,9 @@ class KnowledgeDeleteReq(BaseModel):
 
 class AssetSnapshotReq(BaseModel):
     kb: str = "food"
+    label: str = ""          # 版本标签(如 "交付基线"/"词典补词")
+    changelog: str = ""      # 变更说明
+    created_by: str = "human"  # 触发方: human/review/loop
 
 
 class AssetRollbackReq(BaseModel):

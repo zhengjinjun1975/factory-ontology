@@ -783,7 +783,7 @@
           </div>
           <div class="form-group">
             <label class="form-label">企业名称</label>
-            <input class="db-input" placeholder="如：华信精密制造" bind:value={onboardForm.name} />
+            <input class="db-input" placeholder="如：示例制造公司" bind:value={onboardForm.name} />
           </div>
           <div class="form-group">
             <label class="form-label">所属行业</label>
@@ -1291,7 +1291,7 @@
         </div>
         <div class="form-group">
           <label class="form-label" for="ent-name">企业名称</label>
-          <input id="ent-name" class="db-input" placeholder="请输入企业名称（如：华信精密制造）" bind:value={entForm.name} />
+          <input id="ent-name" class="db-input" placeholder="请输入企业名称（如：示例制造公司）" bind:value={entForm.name} />
         </div>
         <div class="form-group">
           <label class="form-label" for="ent-industry">所属行业</label>

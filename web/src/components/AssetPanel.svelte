@@ -7,6 +7,13 @@
   // 加载/快照/回滚全部使用该当前企业 kb；kb prop 变化时 $effect 自动重新加载（面板跟随当前企业）。
 
   let { kb = '' } = $props();    // 当前企业唯一 kb（只读 prop，跟随登录企业）
+  import { getToken } from '../lib/api.js';
+  const authedFetch = (url, opts = {}) => {
+    const h = { ...(opts.headers || {}) };
+    const t = getToken();
+    if (t) h['Authorization'] = 'Bearer ' + t;
+    return fetch(url, { ...opts, headers: h });
+  };
   let versions = $state([]);     // 版本链 [{version, hash, created, assets}]
   let activeVersion = $state(''); // 当前激活版本
   let curKb = $state('');
@@ -52,7 +59,7 @@
     if (!kbName) { error = '当前企业知识库为空，请先建模'; return; }
     loading = true; error = ''; empty = false; loaded = false;
     try {
-      const res = await fetch('/api/ontology/assets-list?kb=' + encodeURIComponent(kbName));
+      const res = await authedFetch('/api/ontology/assets-list?kb=' + encodeURIComponent(kbName));
       const json = await res.json().catch(() => null);
       if (!json || !json.ok || !json.data) {
         error = (json && json.error) || '资产版本加载失败';
@@ -79,7 +86,7 @@
     if (opBusy) return;
     opBusy = true; opMsg = ''; error = '';
     try {
-      const res = await fetch('/api/ontology/assets-snapshot', {
+      const res = await authedFetch('/api/ontology/assets-snapshot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ kb: kbName, changelog: changelog.trim() }),
@@ -107,7 +114,7 @@
     if (!kbName) { error = '当前企业知识库为空，请先建模'; return; }
     opBusy = true; opMsg = ''; error = '';
     try {
-      const res = await fetch('/api/ontology/assets-rollback', {
+      const res = await authedFetch('/api/ontology/assets-rollback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ kb: kbName, version: v.version }),

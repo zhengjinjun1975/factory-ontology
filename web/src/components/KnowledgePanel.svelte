@@ -5,6 +5,13 @@
 
   const JSON_HEADERS = { 'Content-Type': 'application/json' };
   const ALLOWED_EXT = ['.pdf', '.doc', '.docx', '.txt'];
+  import { getToken } from '../lib/api.js';
+  const authedFetch = (url, opts = {}) => {
+    const h = { ...(opts.headers || {}) };
+    const t = getToken();
+    if (t) h['Authorization'] = 'Bearer ' + t;
+    return fetch(url, { ...opts, headers: h });
+  };
 
   let { kb = '' } = $props();    // 当前企业唯一 kb（只读 prop，跟随登录企业）
   let docs = $state([]);          // [{doc_id,title,chunks,ingested_at}]
@@ -48,7 +55,7 @@
     if (!name) { error = '请输入知识库名称'; return; }
     loading = true; error = '';
     try {
-      const resp = await fetch('/api/ontology/knowledge-list?kb=' + encodeURIComponent(name));
+      const resp = await authedFetch('/api/ontology/knowledge-list?kb=' + encodeURIComponent(name));
       const res = await resp.json();
       if (res && res.ok) {
         // 兼容 {data:{docs}} 信封或直接 docs 数组
@@ -102,7 +109,7 @@
       const fd = new FormData();
       fd.append('file', file, file.name);
       fd.append('kb', name);
-      const resp = await fetch('/api/ontology/knowledge-ingest', { method: 'POST', body: fd });
+      const resp = await authedFetch('/api/ontology/knowledge-ingest', { method: 'POST', body: fd });
       const res = await resp.json();
       if (res && res.ok) {
         const d = res.data || {};
@@ -126,7 +133,7 @@
     deletingDoc = d.doc_id;
     flash('', '');
     try {
-      const resp = await fetch('/api/ontology/knowledge-delete', {
+      const resp = await authedFetch('/api/ontology/knowledge-delete', {
         method: 'POST', headers: JSON_HEADERS,
         body: JSON.stringify({ kb: kb.trim(), doc_id: d.doc_id }),
       });
@@ -152,7 +159,7 @@
     viewContent = []; viewError = '';
     viewLoading = true;
     try {
-      const resp = await fetch('/api/ontology/knowledge-query', {
+      const resp = await authedFetch('/api/ontology/knowledge-query', {
         method: 'POST', headers: JSON_HEADERS,
         body: JSON.stringify({ kb: kb.trim(), q: (d.title || d.doc_id) + ' 内容 说明 参数 详情 知识 技术文档', top_k: 20 }),
       });

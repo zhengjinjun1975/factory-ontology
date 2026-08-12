@@ -10,6 +10,8 @@
 
   let { kb = '' } = $props();      // 当前企业唯一 kb（只读 prop，跟随登录企业）
 
+  import { getToken } from '../lib/api.js';
+
   let result = $state(null);       // {kb, questions_n, hits, score}（benchmark 模式）
   let elapsed = $state(null);      // 耗时秒（benchmark）
   let loading = $state(false);
@@ -38,7 +40,7 @@
     if (!k) { error = '当前企业知识库为空，请先建模'; return; }
     loading = true; error = ''; ran = false; result = null;
     try {
-      const resp = await fetch('/api/ontology/eval-benchmark?kb=' + encodeURIComponent(k));
+      const resp = await fetch('/api/ontology/eval-benchmark?kb=' + encodeURIComponent(k), { headers: { 'Authorization': 'Bearer ' + getToken() } });
       const res = await resp.json();
       if (res && res.ok && res.data) {
         result = res.data;
@@ -68,7 +70,7 @@
     try {
       const resp = await fetch('/api/ontology/eval-isolate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
         body: JSON.stringify({ kb: k, questions: qs }),
       });
       const res = await resp.json();
