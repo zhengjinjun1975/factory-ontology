@@ -70,13 +70,15 @@ function readApiKeyConfig() {
  * - 加 X-API-Key 头(环境变量/配置, 非硬编码)
  * - 解析统一信封 {ok, data?, error?, elapsed_s}(ask 直接返回 {ok, answer, mode, kb})
  * - 网络不可达/超时 → 返回 {ok:false, offline:true}, 供调用方降级 run.py CLI
+ * - timeout 按端点配置: 评测/快照/建本体等慢请求传更大值(如 60000), 默认 15000
+ * @param {number} [opts.timeout] 请求超时毫秒数, 默认 15000
  * @returns {Promise<{ok, data?, error?, offline?} & object>}
  */
-async function apiFetch(path, { method = 'GET', body } = {}) {
+async function apiFetch(path, { method = 'GET', body, timeout = 15000 } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (API_KEY) headers['X-API-Key'] = API_KEY;
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 15000);
+  const timer = setTimeout(() => ctrl.abort(), timeout);
   try {
     const resp = await fetch(API_URL + path, {
       method, headers,
@@ -303,6 +305,7 @@ export async function setupOntology(fileName, fileContent, kb) {
     const r = await apiFetch('/api/ontology/build', {
       method: 'POST',
       body: { kb, csv_path: `data/${safeName}` },
+      timeout: 60000,
     });
     if (r && r.ok && r.data) {
       const d = r.data;
@@ -380,6 +383,7 @@ export async function setupOntologyMulti(files, kb) {
     const r = await apiFetch('/api/ontology/build', {
       method: 'POST',
       body: { kb, data_dir: `data/${basename(tmp)}` },
+      timeout: 60000,
     });
     if (r && r.ok && r.data) {
       const d = r.data;
@@ -487,7 +491,7 @@ export async function evalBenchmark(kb) {
   try {
     kb = kb || getCurrentKb();
     const q = new URLSearchParams({ kb }).toString();
-    const r = await apiFetch(`/api/eval/benchmark?${q}`);
+    const r = await apiFetch(`/api/eval/benchmark?${q}`, { timeout: 60000 });
     return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '后端评测失败' };
   } catch (e) {
     return { ok: false, error: String(e.message || e) };
@@ -568,7 +572,7 @@ export async function knowledgeDelete(kb, doc_id) {
 export async function knowledgeQuery(kb, q, top_k = 8) {
   try {
     kb = kb || getCurrentKb();
-    const r = await apiFetch('/api/knowledge/query', { method: 'POST', body: { kb, q, top_k } });
+    const r = await apiFetch('/api/knowledge/query', { method: 'POST', body: { kb, q, top_k }, timeout: 60000 });
     return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '后端检索失败' };
   } catch (e) {
     return { ok: false, error: String(e.message || e) };
@@ -605,7 +609,7 @@ export async function assetsSnapshot(kb, changelog) {
     // 后端 AssetSnapshotReq 只契约 kb，changelog 仅随请求带上（前端留痕），后端忽略
     const body = { kb };
     if (changelog !== undefined && changelog !== null && String(changelog).trim() !== '') body.changelog = String(changelog).trim();
-    const r = await apiFetch('/api/assets/snapshot', { method: 'POST', body });
+    const r = await apiFetch('/api/assets/snapshot', { method: 'POST', body, timeout: 60000 });
     return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '后端快照失败' };
   } catch (e) {
     return { ok: false, error: String(e.message || e) };
