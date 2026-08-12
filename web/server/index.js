@@ -4,7 +4,7 @@ import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile } from './ontology.js';
+import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs } from './ontology.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
@@ -42,13 +42,14 @@ const server = createServer(async (req, res) => {
   if (req.method === 'POST' && url === '/api/ontology/setup') {
     try {
       const body = JSON.parse((await readBody(req)) || '{}');
-      const { csvName, csvContent } = body;
+      const { csvName, csvContent, kb } = body;
       if (!csvName || typeof csvContent !== 'string') {
         res.writeHead(400, { 'Content-Type': 'application/json;charset=utf-8' });
         res.end(JSON.stringify({ ok: false, error: 'csvName 和 csvContent 必填' }));
         return;
       }
-      const result = await setupOntology(csvName, csvContent);
+      // kb 可选: 缺省用当前激活 kb(多租户), 显式传入则切到该 kb 建本体
+      const result = await setupOntology(csvName, csvContent, kb);
       res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8' });
       res.end(JSON.stringify(result));
     } catch (err) {
@@ -62,13 +63,13 @@ const server = createServer(async (req, res) => {
   if (req.method === 'POST' && url === '/api/ontology/setup-multi') {
     try {
       const body = JSON.parse((await readBody(req)) || '{}');
-      const { files } = body;
+      const { files, kb } = body;
       if (!Array.isArray(files) || files.length === 0) {
         res.writeHead(400, { 'Content-Type': 'application/json;charset=utf-8' });
         res.end(JSON.stringify({ ok: false, error: 'files 必填（[{name, content}] 数组）' }));
         return;
       }
-      const result = await setupOntologyMulti(files);
+      const result = await setupOntologyMulti(files, kb);
       res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8' });
       res.end(JSON.stringify(result));
     } catch (err) {
@@ -98,13 +99,14 @@ const server = createServer(async (req, res) => {
   if (req.method === 'POST' && url === '/api/ontology/ask') {
     try {
       const body = JSON.parse((await readBody(req)) || '{}');
-      const { question } = body;
+      const { question, kb } = body;
       if (!question || typeof question !== 'string') {
         res.writeHead(400, { 'Content-Type': 'application/json;charset=utf-8' });
         res.end(JSON.stringify({ ok: false, error: 'question 必填' }));
         return;
       }
-      const result = await askOntology(question);
+      // kb 可选: 缺省用当前激活 kb(多租户问答), 显式传入则问该 kb
+      const result = await askOntology(question, kb);
       res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8' });
       res.end(JSON.stringify(result));
     } catch (err) {
@@ -118,6 +120,32 @@ const server = createServer(async (req, res) => {
   if (url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok', uptime: process.uptime() }));
+    return;
+  }
+
+  // ── API: 多租户知识库列表 + 当前激活 kb ──
+  if (req.method === 'GET' && url === '/api/ontology/kbs') {
+    res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
+    res.end(JSON.stringify(listKbs()));
+    return;
+  }
+  // ── API: 切换当前激活 kb(多租户) ──
+  if (req.method === 'POST' && url === '/api/ontology/kb') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const kb = String(body.kb || '').trim();
+      if (!kb) {
+        res.writeHead(400, { 'Content-Type': 'application/json;charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: 'kb 必填' }));
+        return;
+      }
+      setCurrentKb(kb);
+      res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: true, current: kb }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
     return;
   }
 

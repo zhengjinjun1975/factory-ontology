@@ -49,6 +49,109 @@ function runWithEnv(cmd, args, cwd, env) {
   });
 }
 
+// ── 多租户后端(api_server) REST 客户端 ────────────────────────────────
+// 后端地址与 API Key 从环境变量读取(不硬编码); 不可达时降级 run.py CLI。
+const API_URL = (process.env.API_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
+const API_KEY = String(process.env.API_KEY || readApiKeyConfig() || '').trim();
+// 知识库注册表(kbs.json), 后端多租户共享: 每行业一个隔离数据/本体/词典
+const KBS_FILE = join(KIT, 'config', 'kbs.json');
+
+/** 从 server 侧配置文件读 API Key(可选; 优先级低于环境变量 API_KEY) */
+function readApiKeyConfig() {
+  try {
+    const p = join(__dirname, 'apiserver.config.json');
+    if (existsSync(p)) return (JSON.parse(readFileSync(p, 'utf-8')).apiKey || '').trim();
+  } catch (e) { /* 无配置文件则返回空 */ }
+  return '';
+}
+
+/**
+ * 调 api_server 的统一 REST 封装(Node 原生 fetch):
+ * - 加 X-API-Key 头(环境变量/配置, 非硬编码)
+ * - 解析统一信封 {ok, data?, error?, elapsed_s}(ask 直接返回 {ok, answer, mode, kb})
+ * - 网络不可达/超时 → 返回 {ok:false, offline:true}, 供调用方降级 run.py CLI
+ * @returns {Promise<{ok, data?, error?, offline?} & object>}
+ */
+async function apiFetch(path, { method = 'GET', body } = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (API_KEY) headers['X-API-Key'] = API_KEY;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+  try {
+    const resp = await fetch(API_URL + path, {
+      method, headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    const text = await resp.text();
+    let data = null;
+    try { data = JSON.parse(text); } catch (e) { /* 非 JSON 视为异常 */ }
+    if (!data) return { ok: false, offline: false, error: `后端返回非 JSON (HTTP ${resp.status})` };
+    return data;
+  } catch (e) {
+    // 网络不可达/超时: 置 offline 标志供调用方降级
+    const aborted = e && e.name === 'AbortError';
+    return { ok: false, offline: true, error: aborted ? '后端超时' : String((e && e.message) || e) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ── 多租户当前激活 kb 状态 ─────────────────────────────────────────────
+/** 读知识库注册表 kbs.json, 返回 {kb: 配置} 映射(空则 {}) */
+function loadKbs() {
+  try { return (JSON.parse(readFileSync(KBS_FILE, 'utf-8')).kbs) || {}; } catch (e) { return {}; }
+}
+
+/**
+ * 取当前激活 kb: 优先前端自身状态(web_state.json 记录 Web 建模的 kb),
+ * 否则回退 kbs.json 第一个注册的 kb, 再否则后端默认 'food'。
+ * @returns {string}
+ */
+export function getCurrentKb() {
+  const web = loadWebState();
+  if (web && web.kb) return web.kb;
+  const kbs = loadKbs();
+  const keys = Object.keys(kbs);
+  return keys.length ? keys[0] : 'food';
+}
+
+/** 设置当前激活 kb, 持久化到前端自身状态 */
+export function setCurrentKb(kb) {
+  const safe = String(kb || '').trim();
+  if (!safe) return;
+  const web = loadWebState() || {};
+  web.kb = safe;
+  saveWebState(web);
+}
+
+/**
+ * 返回知识库注册表列表 + 当前激活 kb(供前端展示/切换多租户)
+ * @returns {{ok, kbs?: {key,name,icon,examples,nt,lexicon}[], current?: string}}
+ */
+export function listKbs() {
+  const kbs = loadKbs();
+  const arr = Object.entries(kbs).map(([key, v]) => ({
+    key, name: v.name || key, icon: v.icon || '🗂️',
+    examples: Array.isArray(v.examples) ? v.examples : [],
+    nt: v.nt, lexicon: v.lexicon,
+  }));
+  return { ok: true, kbs: arr, current: getCurrentKb() };
+}
+
+/**
+ * 从词典文件提取字段映射作为 attrs(best-effort, 仅 REST 建本体后展示用)
+ * 词典形如 {attr_en2cn: {field: 中文名}} → [{field, cn}]
+ */
+function readLexiconAttrs(lexPath) {
+  try {
+    if (!lexPath || !existsSync(lexPath)) return [];
+    const d = JSON.parse(readFileSync(lexPath, 'utf-8'));
+    const m = d.attr_en2cn || {};
+    return Object.entries(m).map(([field, cn]) => ({ field, cn: String(cn) }));
+  } catch (e) { return []; }
+}
+
 // Web 上传支持的文本格式(文本可直接传输; 二进制 sqlite/xlsx 走命令行 codes/ 套件)
 const TEXT_EXT = ['.csv', '.json'];
 // 示例数据目录（相对套件 codes/），供前端免手选文件直接体验
@@ -175,15 +278,17 @@ export function readDataFile(relPath) {
 }
 
 /**
- * 上传并建模：把文本格式文件(CSV/JSON)写入套件 data/，调用 run.py setup 生成本体+词典
+ * 上传并建模: 把文本格式文件(CSV/JSON)写入套件 data/, 优先调后端 POST /api/ontology/build
+ * (多租户, 按 kb 建本体+词典, 更新 kbs.json); 后端不可达时降级 run.py setup。
  * @param {string} fileName 文件名 (如 equipment.csv / equipment.json)
  * @param {string} fileContent 文件内容(文本)
+ * @param {string} [kb] 目标知识库(kb 名), 缺省用当前激活 kb
  * @returns {Promise<{ok, table?, attrs?, error?}>}
  */
-export async function setupOntology(fileName, fileContent) {
+export async function setupOntology(fileName, fileContent, kb) {
   try {
     // 安全：只允许文本格式(.csv/.json)，去掉路径分隔符防目录穿越
-    const safeName = fileName.split(/[\\/]/).pop().replace(/[^\w.\-\u4e00-\u9fff]/g, '_');
+    const safeName = fileName.split(/[\\\\/]/).pop().replace(/[^\w.\-\u4e00-\u9fff]/g, '_');
     const ext = safeName.slice(safeName.lastIndexOf('.')).toLowerCase();
     if (!TEXT_EXT.includes(ext)) {
       return { ok: false, error: `仅支持 ${TEXT_EXT.join('/')} 文本格式；二进制 sqlite/xlsx 请在命令行用 codes/ 套件（python run.py setup <文件>）` };
@@ -193,26 +298,44 @@ export async function setupOntology(fileName, fileContent) {
     const filePath = join(dataDir, safeName);
     writeFileSync(filePath, fileContent, 'utf-8');
 
-    const table = safeName.replace(/\.(csv|json)$/i, '');
-    const r = await run(PY, ['run.py', 'setup', filePath], KIT);
-    if (!r.ok) return { ok: false, error: r.error || '建模失败' };
-
-    // 解析词典概要：形如 "  power_kw = 功率" 的行 → 提取 {字段: 中文名}
-    const attrs = [];
-    const lines = r.output.split('\n');
-    let inAttrs = false;
-    for (const line of lines) {
-      if (line.includes('词典概要')) { inAttrs = true; continue; }
-      if (inAttrs && line.includes('=')) {
-        const m = line.match(/\s*(\S+)\s*=\s*(.+)/);
-        if (m) attrs.push({ field: m[1].trim(), cn: m[2].trim() });
-      }
-      // 概要结束：遇到建模完成后的空行或下一段
-      if (inAttrs && !line.trim()) inAttrs = false;
+    kb = kb || getCurrentKb();
+    // 优先走后端 REST 多租户建本体(数据源限定在 codes/data 内, 传相对路径)
+    const r = await apiFetch('/api/ontology/build', {
+      method: 'POST',
+      body: { kb, csv_path: `data/${safeName}` },
+    });
+    if (r && r.ok && r.data) {
+      const d = r.data;
+      const builtKb = d.kb || kb;
+      // 从词典提取字段映射展示; 记录前端激活 kb(多租户问答/统计对齐)
+      const attrs = readLexiconAttrs(d.lexicon ? join(KIT, d.lexicon) : null);
+      setCurrentKb(builtKb);
+      saveWebState({ kb: builtKb, table: builtKb, nt: d.nt, lexicon: d.lexicon });
+      return { ok: true, table: builtKb, attrs, output: JSON.stringify(r, null, 2).slice(-2000) };
     }
-    // 记录 Web 应用自己的状态（防 current.json 被覆盖）
-    saveWebState({ table, nt: `output/${table}_deep.nt`, lexicon: `config/lexicon_${table}.json` });
-    return { ok: true, table, attrs, output: r.output.slice(-2000) };
+    if (r && r.offline) {
+      // 降级: 后端不可达, 回退现有 run.py CLI(单库, 保持前端可用)
+      const cli = await run(PY, ['run.py', 'setup', filePath], KIT);
+      if (!cli.ok) return { ok: false, error: cli.error || '建模失败' };
+
+      // 解析词典概要：形如 "  power_kw = 功率" 的行 → 提取 {字段: 中文名}
+      const attrs = [];
+      const lines = cli.output.split('\n');
+      let inAttrs = false;
+      for (const line of lines) {
+        if (line.includes('词典概要')) { inAttrs = true; continue; }
+        if (inAttrs && line.includes('=')) {
+          const m = line.match(/\s*(\S+)\s*=\s*(.+)/);
+          if (m) attrs.push({ field: m[1].trim(), cn: m[2].trim() });
+        }
+        if (inAttrs && !line.trim()) inAttrs = false;
+      }
+      // 记录 Web 应用自己的状态（防 current.json 被覆盖）
+      const table = safeName.replace(/\.(csv|json)$/i, '');
+      saveWebState({ kb, table, nt: `output/${table}_deep.nt`, lexicon: `config/lexicon_${table}.json` });
+      return { ok: true, table, attrs, output: cli.output.slice(-2000) };
+    }
+    return { ok: false, error: (r && r.error) || '后端建模失败' };
   } catch (e) {
     return { ok: false, error: String(e.message || e) };
   }
@@ -229,7 +352,7 @@ function safeFileName(name) {
  * @param {{name:string, content:string}[]} files 文件数组
  * @returns {Promise<{ok, table?, attrs?, error?}>}
  */
-export async function setupOntologyMulti(files) {
+export async function setupOntologyMulti(files, kb) {
   let tmp = null;
   try {
     if (!Array.isArray(files) || files.length === 0) {
@@ -252,15 +375,33 @@ export async function setupOntologyMulti(files) {
     mkdirSync(tmp, { recursive: true });
     for (const f of cleaned) writeFileSync(join(tmp, f.name), f.content, 'utf-8');
 
-    const table = `factory_multi_${Date.now()}`;
-    const r = await run(PY, ['multi_model.py', tmp, table], KIT);
-    if (!r.ok) return { ok: false, error: r.error || '多文件建模失败' };
-    // 解析输出里的表清单，作为 attrs 供前端展示
-    const m = r.output.match(/表:\s*\[([^\]]*)\]/);
-    const attrs = m ? m[1].split(',').map(s => s.trim().replace(/'/g, '').replace(/"/g, '')).filter(Boolean)
-                    : cleaned.map(f => f.name);
-    saveWebState({ table, nt: `output/${table}.nt` });
-    return { ok: true, table, attrs, output: r.output.slice(-2000) };
+    kb = kb || getCurrentKb();
+    // 优先走后端 REST 多表建模(数据目录限定在 codes/data 内, 传相对路径 data_dir)
+    const r = await apiFetch('/api/ontology/build', {
+      method: 'POST',
+      body: { kb, data_dir: `data/${basename(tmp)}` },
+    });
+    if (r && r.ok && r.data) {
+      const d = r.data;
+      const builtKb = d.kb || kb;
+      const attrs = readLexiconAttrs(d.lexicon ? join(KIT, d.lexicon) : null) ||
+                    cleaned.map(f => f.name);
+      setCurrentKb(builtKb);
+      saveWebState({ kb: builtKb, table: builtKb, nt: d.nt, lexicon: d.lexicon });
+      return { ok: true, table: builtKb, attrs, output: JSON.stringify(r, null, 2).slice(-2000) };
+    }
+    if (r && r.offline) {
+      // 降级: 后端不可达, 回退现有 CLI multi_model.py
+      const table = `factory_multi_${Date.now()}`;
+      const cli = await run(PY, ['multi_model.py', tmp, table], KIT);
+      if (!cli.ok) return { ok: false, error: cli.error || '多文件建模失败' };
+      const m = cli.output.match(/表:\s*\[([^\]]*)\]/);
+      const attrs = m ? m[1].split(',').map(s => s.trim().replace(/'/g, '').replace(/"/g, '')).filter(Boolean)
+                      : cleaned.map(f => f.name);
+      saveWebState({ kb, table, nt: `output/${table}.nt` });
+      return { ok: true, table, attrs, output: cli.output.slice(-2000) };
+    }
+    return { ok: false, error: (r && r.error) || '后端建模失败' };
   } catch (e) {
     return { ok: false, error: String(e.message || e) };
   } finally {
@@ -298,7 +439,7 @@ export async function dbSetup(cfg) {
     const env = { DB_CFG: JSON.stringify({ ...cfg, db_type: dbType, tables }) };
     const r = await runWithEnv(PY, ['db_setup.py', tmp, table], KIT, env);
     if (!r.ok) return { ok: false, error: r.error || '数据库建模失败' };
-    saveWebState({ table, nt: `output/${table}.nt` });
+    saveWebState({ kb: getCurrentKb(), table, nt: `output/${table}.nt` });
     return { ok: true, table, output: r.output.slice(-2000) };
   } catch (e) {
     return { ok: false, error: String(e.message || e) };
@@ -309,14 +450,27 @@ export async function dbSetup(cfg) {
 
 /**
  * 自然语言问答
+ * 优先调后端 POST /api/ask(多租户, 带 kb, 根治串台); 后端不可达时降级 run.py CLI。
  * @param {string} question
- * @returns {Promise<{ok, answer?, error?}>}
+ * @param {string} [kb] 目标知识库(kb 名), 缺省用当前激活 kb
+ * @returns {Promise<{ok, answer?, mode?, kb?, error?}>}
  */
-export async function askOntology(question) {
+export async function askOntology(question, kb) {
   try {
-    const r = await run(PY, ['run.py', 'ask', question], KIT);
-    if (!r.ok) return { ok: false, error: r.error || '问答失败' };
-    return { ok: true, answer: r.output.trim() };
+    kb = kb || getCurrentKb();
+    const r = await apiFetch('/api/ask', { method: 'POST', body: { kb, question } });
+    if (r && r.ok && (r.answer != null || (r.data && r.data.answer != null))) {
+      // 后端 ask 直接返回 {ok, answer, mode, kb}(部分版本套 data 信封, 兼容两者)
+      const d = (r.data && r.data.answer != null) ? r.data : r;
+      return { ok: true, answer: String(d.answer).trim(), mode: d.mode, kb: d.kb || kb };
+    }
+    if (r && r.offline) {
+      // 降级: 后端不可达, 回退现有 run.py CLI(单库, 保持前端可用)
+      const cli = await run(PY, ['run.py', 'ask', question], KIT);
+      if (!cli.ok) return { ok: false, error: cli.error || '问答失败' };
+      return { ok: true, answer: cli.output.trim(), kb };
+    }
+    return { ok: false, error: (r && r.error) || '后端问答失败' };
   } catch (e) {
     return { ok: false, error: String(e.message || e) };
   }
@@ -336,10 +490,16 @@ export async function statsOntology() {
     if (web && web.nt) {
       nt = web.nt;
     } else {
-      try {
-        const cur = JSON.parse(readFileSync(join(KIT, 'current.json'), 'utf-8'));
-        nt = cur.nt;
-      } catch (e) { /* 无 current.json 视为未建模 */ }
+      // 多租户: 按当前激活 kb 从注册表读本体(与后端 /api/ask 对齐)
+      const kb = getCurrentKb();
+      const kbs = loadKbs();
+      if (kbs[kb] && kbs[kb].nt) nt = kbs[kb].nt;
+      if (!nt) {
+        try {
+          const cur = JSON.parse(readFileSync(join(KIT, 'current.json'), 'utf-8'));
+          nt = cur.nt;
+        } catch (e) { /* 无 current.json 视为未建模 */ }
+      }
     }
     if (!nt) return { ok: true, stats: null, empty: true };
     const ntPath = join(KIT, nt);
@@ -387,9 +547,16 @@ export async function schemaOntology() {
     if (web && web.nt) {
       nt = web.nt; lex = web.lexicon || 'config/lexicon_equipment.json';
     } else {
-      const cur = JSON.parse(readFileSync(join(KIT, 'current.json'), 'utf-8'));
-      nt = cur.nt || 'output/equipment.nt';
-      lex = cur.lexicon || 'config/lexicon_equipment.json';
+      // 多租户: 按当前激活 kb 从注册表读本体/词典(与后端建模对齐)
+      const kb = getCurrentKb();
+      const kbs = loadKbs();
+      if (kbs[kb] && kbs[kb].nt) {
+        nt = kbs[kb].nt; lex = kbs[kb].lexicon || 'config/lexicon_equipment.json';
+      } else {
+        const cur = JSON.parse(readFileSync(join(KIT, 'current.json'), 'utf-8'));
+        nt = cur.nt || 'output/equipment.nt';
+        lex = cur.lexicon || 'config/lexicon_equipment.json';
+      }
     }
     const r = await run(PY, ['ontology_schema_info.py', nt], KIT);
     if (!r.ok) return { ok: false, error: r.error || '模型结构解析失败' };
