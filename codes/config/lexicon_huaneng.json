@@ -46,7 +46,9 @@
     "unit类型": "unit_type",
     "capacitymw": "capacity_mw",
     "commissiondate": "commission_date",
-    "manufacturer": "manufacturer"
+    "manufacturer": "manufacturer",
+    "容量": "capacity_mw",
+    "装机容量": "capacity_mw"
   },
   "attr_en2cn": {
     "customer_id": "客户编号",
@@ -88,7 +90,7 @@
     "heat_rate_kj_kwh": "heatratekjkwh",
     "unit_name": "unit名称",
     "unit_type": "unit类型",
-    "capacity_mw": "capacitymw",
+    "capacity_mw": "容量",
     "commission_date": "commissiondate",
     "manufacturer": "manufacturer"
   },
@@ -445,7 +447,9 @@
     "电力燃料": "power_fuel",
     "电力维护": "power_maintenance",
     "电力运营": "power_operation",
-    "电力机组": "power_units"
+    "电力机组": "power_units",
+    "发电机组": "power_units",
+    "机组": "power_units"
   },
   "numeric_fields": {
     "功率": "power_kw",

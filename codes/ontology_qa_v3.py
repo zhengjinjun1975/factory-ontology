@@ -305,6 +305,20 @@ def _is_min(q):
     return any(k in q for k in _EXTREME_MIN)
 
 
+def _entity_subset(q, D, data):
+    """实体消歧: 若问题含 entity_cn2en 的实体词(如"机组"), 返回该实体类的实例子集;
+    否则返回全部。解决"运行中的机组"误匹配到设备(锅炉/发电机)而非机组。"""
+    emap = dict(get_entity_cn2uri())
+    emap.update(D.get("entity_cn2en", {}) or {})
+    for cn in sorted(emap, key=len, reverse=True):
+        if cn and cn in q:
+            uri_sub = emap[cn].lower()
+            sub = {k: d for k, d in data.items() if uri_sub in k.lower()}
+            if sub:
+                return sub
+    return data
+
+
 def answer(q, data, D):
     """词典 D 驱动的通用问答。"""
     aliases = D.get("field_aliases", {})
@@ -383,15 +397,18 @@ def answer(q, data, D):
     # ---- 数量: 状态/类型/区域 ----
     st_en, st_cn = _find_enum(D, q, "status")
     if st_en and ("多少" in q or "数量" in q):
-        n = sum(1 for d in data.values() if _field(d, "status", aliases) == st_en)
+        sub = _entity_subset(q, D, data)  # 实体消歧: 只在该实体类实例中过滤
+        n = sum(1 for d in sub.values() if _field(d, "status", aliases) == st_en)
         return "有 %d %s的" % (n, st_cn)
     ty_en, ty_cn = _find_enum(D, q, "type")
     if ty_en and ("多少" in q or "数量" in q):
-        n = sum(1 for d in data.values() if _field(d, "deviceType", aliases) == ty_en)
+        sub = _entity_subset(q, D, data)
+        n = sum(1 for d in sub.values() if _field(d, "deviceType", aliases) == ty_en)
         return "有 %d %s" % (n, ty_cn)
     # 类型词 + 的：按类型过滤计数/列出（"大气治理的项目" / "油轮的" 等，非"多少"式）
     if ty_en and "的" in q:
-        matched = [(n, d) for n, d in data.items() if _field(d, "deviceType", aliases) == ty_en]
+        sub = _entity_subset(q, D, data)
+        matched = [(n, d) for n, d in sub.items() if _field(d, "deviceType", aliases) == ty_en]
         nm = names(matched)
         return "%s(%d):\n%s" % (ty_cn, len(nm), _fmt_names(nm)) if nm else "无%s" % ty_cn
 
@@ -404,7 +421,8 @@ def answer(q, data, D):
                 return "类型有：%s" % "、".join(ty_vals)
         st_en, st_cn = _find_enum(D, q, "status")
         if st_en:
-            matched = [(n, d) for n, d in data.items() if _field(d, "status", aliases) == st_en]
+            sub = _entity_subset(q, D, data)  # 实体消歧
+            matched = [(n, d) for n, d in sub.items() if _field(d, "status", aliases) == st_en]
             return "列出所有%s:\n%s" % (st_cn, _fmt_names(names(matched))) if matched else "无%s" % st_cn
         ty_en, ty_cn = _find_enum(D, q, "type")
         if ty_en:
