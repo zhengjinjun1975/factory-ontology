@@ -543,11 +543,92 @@ def app_config():
     }
 
 
+# ── 蓝图契约辅助: engines 记录 + evidence 归一化 + LLM 润色/兜底 ─────────────
+# 对齐蓝图 L243: /api/ask 返回 {answer, structured?, evidence:[{entity,attr,value,source,score}],
+#   engines:[rule/graph/vector/bm25/doc]}。evidence 空数组 = 纯 LLM 兜底(无依据)。
+# 注: 为兼容既有调用/前端, 保留顶层 ok/mode/answer/kb 键, 新增 engines/structured/no_basis。
+
+
+def _norm_rule_evidence(raw_ev):
+    """把规则引擎证据(evidence.py 的 {rule, entities:[{name,prop,value}]})归一化为蓝图数组。
+
+    返回 (evidence_list, structured):
+      evidence_list: [{entity, attr, value, source:"rule", score:1.0}]
+      structured:    原始结构化结果 {rule, entities}(若可提取)
+    """
+    if not isinstance(raw_ev, dict):
+        return [], None
+    ents = raw_ev.get("entities") or []
+    ev = [{"entity": e.get("name"), "attr": e.get("prop"), "value": e.get("value"),
+           "source": "rule", "score": 1.0} for e in ents if isinstance(e, dict)]
+    structured = {"rule": raw_ev.get("rule"), "entities": ents} if ents else None
+    return ev, structured
+
+
+def _norm_doc_evidence(ev_list):
+    """把知识库 RAG 的 evidence([{doc_id,title,chunk,score}])归一化为蓝图数组(引擎=doc)。"""
+    out = []
+    for e in (ev_list or []):
+        if not isinstance(e, dict):
+            continue
+        out.append({"entity": e.get("title") or e.get("doc_id"),
+                    "attr": "chunk", "value": e.get("chunk", ""),
+                    "source": "doc", "score": e.get("score")})
+    return out
+
+
+def _polish_rule_answer(question, raw_answer):
+    """规则查数 + LLM 润色: 把确定性查数结果(如"有 10 台设备")润色成带上下文的自然语言。
+
+    保留确定性事实与数字(不改数), 只提升表达。LLM 失败时回退原答案, 绝不丢事实。
+    """
+    try:
+        from model_llm import llm_generate
+        prompt = (
+            "你是严谨的数据问答助手。下面的答案来自确定性的知识库查询, 事实与数字必须原样保留。\n"
+            "请把它改写为自然、带上下文的通顺中文回答(可补充'当前知识库中/根据设备台账等'衔接语), "
+            "但绝不允许新增、删减或篡改任何数字与事实。\n"
+            f"用户问题: {question}\n确定性查询结果: {raw_answer}\n"
+            "请只输出润色后的回答, 不要解释。"
+        )
+        polished = llm_generate(prompt, temperature=0.2, max_tokens=300)
+        if polished and not polished.startswith("["):
+            return polished.strip()
+    except Exception:
+        pass
+    return raw_answer
+
+
+def _llm_fallback_answer(question, kb):
+    """LLM 兜底: 全部检索答不上时, 生成理解性回答。evidence 空数组 = 无依据。
+
+    问题与知识库无关/LLM 不可用时, 返回 None 交给上层走引导, 避免编造。
+    """
+    try:
+        from model_llm import llm_generate
+        kb_name = KBS.get(kb, {}).get("name", "知识库")
+        prompt = (
+            f"你是'{kb_name}'的知识库问答助手。针对用户的问题, 若知识库无法检索到确凿依据, "
+            "请诚实说明当前知识库中没有找到相关数据, 并给出基于常识的谨慎、不编造具体数字的回答; "
+            "若问题本身与知识库领域完全无关, 请明确表示无法回答。\n"
+            f"用户问题: {question}"
+        )
+        ans = llm_generate(prompt, temperature=0.4, max_tokens=300)
+        if ans and not ans.startswith("["):
+            return ans.strip()
+    except Exception:
+        pass
+    return None
+
+
 @app.post("/api/ask", dependencies=[Depends(require_key)])
 def ask(req: AskReq):
-    """自然语言问答：规则引擎 → 逻辑推理桥(确定性) → GraphRAG → 引导。返回答案+证据(可解释)。
+    """自然语言问答(对齐蓝图融合检索): 规则→逻辑→图谱→BM25→向量(RRF)→知识库doc→LLM兜底。
 
-    多租户: 按 req.kb 惰性加载对应知识库(根治串台); kb 缺省用 FOOD_KB 兼容旧调用。
+    返回(兼容旧字段 + 蓝图字段):
+      {ok, mode, answer, evidence:[{entity,attr,value,source,score}],
+       engines:[rule/graph/vector/bm25/doc], structured?, no_basis, kb}
+    融合链每步命中即记录 engines; 全部答不上时 LLM 兜底, evidence 空数组 + no_basis=True。
     """
     ctx = _get_kb_ctx(req.kb)
     if ctx is None:
@@ -556,49 +637,60 @@ def ask(req: AskReq):
                 "message": f"知识库 '{kb}' 无效或数据缺失(未注册/本体或词典不存在)"}}
     D, QDATA, graph = ctx["D"], ctx["QDATA"], ctx["graph"]
     FOOD_NT, FOOD_LEX = ctx["nt_file"], ctx["lex_file"]
-    # 1. 规则引擎(确定性, 结构化查询)
-    ans = v3.answer(req.question, QDATA, D)
+    q = req.question
+    # 1. 规则引擎(确定性, 结构化查询) + LLM 润色
+    ans = v3.answer(q, QDATA, D)
     if ans != "暂不支持该问题":
         try:
             import evidence
-            ev = evidence.extract_evidence(req.question, QDATA, D, ans)
+            raw_ev = evidence.extract_evidence(q, QDATA, D, ans)
         except Exception:
-            ev = {}
-        return {"ok": True, "mode": "rule", "answer": ans, "evidence": ev, "kb": ctx["kb"]}
+            raw_ev = {}
+        ev, structured = _norm_rule_evidence(raw_ev)
+        polished = _polish_rule_answer(q, ans)
+        return {"ok": True, "mode": "rule", "answer": polished,
+                "evidence": ev, "engines": ["rule"], "structured": structured,
+                "no_basis": not ev, "kb": ctx["kb"]}
     # 2. 逻辑推理桥(LLM转逻辑查询→确定性执行, 借鉴KAG; 覆盖更多开放式问题而不失确定性)
     try:
         import logical_qa
-        lres = logical_qa.answer(req.question, QDATA, D)
+        lres = logical_qa.answer(q, QDATA, D)
         if lres:
             lans, lmode = lres
             try:
                 import evidence
-                ev = evidence.extract_evidence(req.question, QDATA, D, lans)
+                raw_ev = evidence.extract_evidence(q, QDATA, D, lans)
             except Exception:
-                ev = {}
-            return {"ok": True, "mode": "logical", "answer": lans, "evidence": ev, "kb": ctx["kb"]}
+                raw_ev = {}
+            ev, structured = _norm_rule_evidence(raw_ev)
+            polished = _polish_rule_answer(q, lans)
+            return {"ok": True, "mode": "logical", "answer": polished,
+                    "evidence": ev, "engines": ["rule"], "structured": structured,
+                    "no_basis": not ev, "kb": ctx["kb"]}
     except Exception:
         pass  # 逻辑桥不可用则跳过
-    # 3. GraphRAG(LLM 兜底)
-    gans, gctx = gr.answer_graph(req.question, FOOD_NT, depth=2, max_nodes=40, lexicon=D)
+    # 3. GraphRAG(LLM 基于图子图作答)
+    gans, gctx = gr.answer_graph(q, FOOD_NT, depth=2, max_nodes=40, lexicon=D)
     if not gans.startswith("[图检索]"):
-        return {"ok": True, "mode": "graphrag", "answer": gans, "context": gctx[:2000], "kb": ctx["kb"]}
-    # 3.5 混合检索(BM25 稀疏 + 向量语义, 提升模糊/同义/口语化查询召回)
-    # 本体中心、知识库配合: hybrid 只是"召回相关实体"的占位答案, 不直接 return。
-    # 先暂存 fused 命中, 继续尝试知识库 RAG 配合(L606 逻辑); 知识库能答则返回 kb_rag,
-    # 知识库无有效答案才回落到 hybrid 占位(带 hits), 保证用户拿到真答案。
+        # 图检索有子图依据: evidence 记录图上下文溯源(来源=graph)
+        g_ev = [{"entity": None, "attr": "context", "value": gctx[:1000],
+                 "source": "graph", "score": 1.0}] if gctx.strip() else []
+        return {"ok": True, "mode": "graphrag", "answer": gans, "context": gctx[:2000],
+                "evidence": g_ev, "engines": ["graph"], "structured": None,
+                "no_basis": not g_ev, "kb": ctx["kb"]}
+    # 3.5 混合检索(BM25 稀疏 + 向量语义, RRF 融合): 先暂存命中, 继续走知识库 doc 配合
     hybrid_payload = None
+    hit_engines = []
     try:
         from bm25_retrieval import BM25Index
         from vector_retrieval import VectorIndex
-        # 多租户: 每个 kb 独立索引缓存
         bm_key, vec_key = f"bm25_{ctx['kb']}", f"vec_{ctx['kb']}"
         if bm_key not in _KB_INDEX_CACHE:
             _KB_INDEX_CACHE[bm_key] = BM25Index.from_graph(graph)
         if vec_key not in _KB_INDEX_CACHE:
             _KB_INDEX_CACHE[vec_key] = VectorIndex.from_graph(graph, lexicon=D)
-        bm_hits = _KB_INDEX_CACHE[bm_key].search(req.question, top_k=3, min_score=4.0)
-        vec_hits = _KB_INDEX_CACHE[vec_key].search(req.question, top_k=5, min_score=0.60)
+        bm_hits = _KB_INDEX_CACHE[bm_key].search(q, top_k=3, min_score=4.0)
+        vec_hits = _KB_INDEX_CACHE[vec_key].search(q, top_k=5, min_score=0.60)
         seen, fused = set(), []
         for h in (bm_hits + vec_hits):
             ent = h["entity"]
@@ -606,41 +698,53 @@ def ask(req: AskReq):
                 seen.add(ent)
                 fused.append(h)
         if fused:
+            # 记录实际命中的引擎: bm25 / vector
+            if bm_hits:
+                hit_engines.append("bm25")
+            if vec_hits:
+                hit_engines.append("vector")
             ents = "、".join(h["entity"] for h in fused)
-            # 只暂存, 不 return; 留给知识库 RAG 优先回答(知识库配合)
+            ev = [{"entity": h["entity"], "attr": None, "value": h.get("value", ""),
+                   "source": h.get("source", "hybrid"), "score": h.get("score")}
+                  for h in fused[:5]]
             hybrid_payload = {"ok": True, "mode": "hybrid",
                               "answer": f"（混合检索）找到相关实体: {ents}",
-                              "hits": fused[:5], "bm25_hits": bm_hits[:3], "vector_hits": vec_hits[:5],
-                              "kb": ctx["kb"]}
+                              "evidence": ev, "engines": hit_engines,
+                              "structured": None, "no_basis": not ev, "kb": ctx["kb"]}
     except Exception:
         pass
-    # 3.75 文档知识库 RAG 配合: 本体/图答不上时, 检索该 kb 已入库的
-    #      说明书/规范/PDF 文档知识, 返回带溯源的答案(让知识库不再是"孤岛")。
-    #      优先于 hybrid 占位: 只要知识库有有效答案+evidence 就返回 kb_rag。
-    #      全程 try/except, 检索失败/无有效答案则降级到 hybrid 或原 miss, 绝不抛异常。
+    # 3.75 文档知识库 RAG(doc 融合引擎): 本体/图答不上时, 检索该 kb 已入库文档
+    #      说明书/规范/PDF 文档知识, 返回带溯源的答案。优先于 hybrid 占位。
     try:
         from knowledge.rag import answer as _rag_answer
         from knowledge.store import KnowledgeStore
         _kbdir = _kb_dir(ctx["kb"])
         if _kbdir is not None:
             _store = KnowledgeStore(_kbdir)
-            _res = _rag_answer(None, req.question, _store, top_k=5)
+            _res = _rag_answer(None, q, _store, top_k=5)
             _ans = (_res or {}).get("answer", "") or ""
             _ev = (_res or {}).get("evidence", []) or []
-            # 判定"有效答案": 非空、非错误占位符、且文档片段确实覆盖了问题
             _invalid = not _ans.strip() or _ans.startswith("[") or "片段未覆盖" in _ans
             if not _invalid and _ev:
                 return {"ok": True, "mode": "kb_rag", "answer": _ans,
-                        "evidence": _ev, "kb": ctx["kb"]}
+                        "evidence": _norm_doc_evidence(_ev), "engines": ["doc"],
+                        "structured": None, "no_basis": False, "kb": ctx["kb"]}
     except Exception:
         pass
     # 知识库无有效答案: 若本体 hybrid 命中了相关实体, 回落返回 hybrid 占位(带 hits)
     if hybrid_payload is not None:
         return hybrid_payload
-    # 4. 答不上: 从 KB 配置读示例引导(去硬编码)
+    # 4. LLM 兜底: 全部检索答不上 → LLM 生成理解性回答, evidence 空数组(无依据)
+    fallback = _llm_fallback_answer(q, ctx["kb"])
+    if fallback:
+        return {"ok": True, "mode": "miss", "answer": fallback,
+                "evidence": [], "engines": [], "structured": None,
+                "no_basis": True, "kb": ctx["kb"]}
+    # 4.5 兜底失败(LLM 不可用/问题无关): 从 KB 配置读示例引导(去硬编码)
     examples = KBS.get(ctx["kb"], {}).get("examples", ["乳制品的数量", "原味酸奶是什么"])
     guide = "\n".join(f"· {e}" for e in examples[:5])
     return {"ok": True, "mode": "miss", "answer": f"抱歉，暂未理解该问题。\n可试试问：\n{guide}",
+            "evidence": [], "engines": [], "structured": None, "no_basis": True,
             "kb": ctx["kb"]}
 
 
