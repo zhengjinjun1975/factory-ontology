@@ -2,11 +2,12 @@
   // KnowledgePanel — 知识库管理面板（上传 / 删除 / 查看内容 / 列表）
   // 选择 kb → 加载文档列表；支持上传文档(multipart)、每行删除/查看切块内容。
   import { onMount } from 'svelte';
+  import { fetchKbs } from '../lib/api.js';
 
   const JSON_HEADERS = { 'Content-Type': 'application/json' };
   const ALLOWED_EXT = ['.pdf', '.doc', '.docx', '.txt'];
 
-  let kb = $state('food');        // 知识库名（默认与后端一致）
+  let kb = $state('');        // 知识库名（初始跟随当前激活 kb，见 onMount）
   let docs = $state([]);          // [{doc_id,title,chunks,ingested_at}]
   let loading = $state(false);
   let loaded = $state(false);     // 是否已成功加载过一次（区分未加载空态 vs 真正空态）
@@ -169,7 +170,30 @@
     }
   }
 
-  onMount(load);
+  // 跟随当前激活 kb：与"本体中心、知识库配合、建哪个检索哪个"一致。
+  // 不复用硬编码 food，而是读后端 getCurrentKb（/api/ontology/kbs → current），
+  // 上传/加载/删除全部使用该当前 kb。
+  async function fetchCurrentKb() {
+    try {
+      const res = await fetchKbs();
+      if (res && res.ok && res.current) return String(res.current);
+    } catch (e) { /* 后端未就绪时忽略 */ }
+    return '';
+  }
+
+  let followTimer = null;
+
+  onMount(async () => {
+    const cur = await fetchCurrentKb();
+    if (cur) kb = cur;
+    await load();
+    // 实时跟随当前激活 kb：切换本体（头部下拉）后知识库面板自动跟随刷新
+    followTimer = setInterval(async () => {
+      const cur = await fetchCurrentKb();
+      if (cur && cur !== kb) { kb = cur; await load(); }
+    }, 2000);
+    return () => { if (followTimer) clearInterval(followTimer); };
+  });
 </script>
 
 <div class="kp">
@@ -185,7 +209,7 @@
       type="text"
       bind:value={kb}
       onkeydown={onKeydown}
-      placeholder="输入知识库名称，如 food"
+      placeholder="当前激活知识库（自动跟随本体切换）"
     />
     <button class="kb-load" onclick={load} disabled={loading}>
       <span class="btn-icon">{loading ? '⏳' : '↻'}</span>
