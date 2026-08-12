@@ -4,6 +4,7 @@
   import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, setModel, getModels, saveModels, fetchVersion, browseFiles, readDataFile, fetchExample, fetchKbs, setKb } from './lib/api.js';
   import DashboardPanel from './components/DashboardPanel.svelte';
   import ModelGraph from './components/ModelGraph.svelte';
+  import WelcomeModel from './components/WelcomeModel.svelte';
   import AnalysisResult from './components/AnalysisResult.svelte';
   import EvalPanel from './components/EvalPanel.svelte';
   import KnowledgePanel from './components/KnowledgePanel.svelte';
@@ -188,9 +189,10 @@
   });
 
   // ─── 用行业示例数据建模（可选九大行业，默认 data_valve 一键）───
-  async function doDefaultExample() {
+  async function doDefaultExample(dirArg) {
     if (defaultBusy) return;
-    const dir = defaultIndustry || 'data_valve';
+    const dir = dirArg || defaultIndustry || 'data_valve';
+    defaultIndustry = dir;   // 同步左侧行业下拉（点击欢迎页示例时跟随）
     const ind = INDUSTRIES.find(i => i.dir === dir);
     defaultBusy = true;
     setStatus('info', `正在读取${ind ? ind.name : dir}示例数据…`);
@@ -764,7 +766,8 @@
           <!-- refreshKey=ts：重新建模 ts 变 → ModelGraph 的 $effect 触发重新加载；kb=当前激活知识库，本体图跟随该 kb（非 food） -->
           <ModelGraph refreshKey={modelResult.ts} kb={currentKb} />
         {:else}
-          <div class="graph-empty">上传并建模后，此处展示本体的真实结构（类 / 属性 / 关系）。</div>
+          <!-- 未建模：科幻风格 SVG 企业欢迎页（企业欢迎词 + 建模示例），跟随当前激活 kb -->
+          <WelcomeModel kb={currentKb} kbList={kbList} industries={INDUSTRIES} onModel={(dir) => doDefaultExample(dir)} />
         {/if}
       </div>
     </section>
