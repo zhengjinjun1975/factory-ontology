@@ -367,6 +367,34 @@ class LexiconAgent(BaseAgent):
                 relations_cn2en.setdefault("类型", rel_en)
         return relations_cn2en
 
+    def _build_entity_cn2en(self, field_info, table):
+        """自动生成 entity_cn2en（实体中文词 → 实体类名）。
+
+        从表名/字段名推断实体概念（设备/客户/产品/书/机器/订单/项目/船…），
+        value 用表名（下划线形式，对齐本体类名），供 v3 实体总数/列表查询匹配。
+        """
+        entity_cn2en = {}
+        cn = None
+        low_t = table.lower()
+        for kw, cnw in [("device", "设备"), ("equipment", "设备"), ("machine", "机器"),
+                        ("customer", "客户"), ("product", "产品"), ("book", "书"), ("图书", "书"),
+                        ("order", "订单"), ("project", "项目"), ("vessel", "船"), ("ship", "船")]:
+            if kw in low_t:
+                cn = cnw; break
+        if not cn:
+            for f in field_info:
+                fl = f.lower()
+                for kw, cnw in [("device", "设备"), ("customer", "客户"), ("product", "产品"),
+                                ("book", "书"), ("machine", "机器"), ("name", "记录")]:
+                    if kw in fl:
+                        cn = cnw; break
+                if cn:
+                    break
+        if cn:
+            cls = table  # 表名即实体类名(下划线形式, 对齐本体)
+            entity_cn2en[cn] = cls
+        return entity_cn2en
+
     def _build_full_lexicon(self, field_info, attr_map, enum_map, task):
         """组装完整 lexicon.json。"""
         table = task.get("table_name", "数据")
@@ -374,7 +402,9 @@ class LexiconAgent(BaseAgent):
         status_cn2en, type_cn2en, zone_cn2en = self._build_enum_mapping(field_info, enum_map)
         field_aliases = self._build_field_aliases(field_info)
         relations_cn2en = self._build_relations_cn2en(table)
+        entity_cn2en = self._build_entity_cn2en(field_info, table)
         return {
+            "entity_cn2en": entity_cn2en,
             "status_cn2en": status_cn2en,
             "type_cn2en": type_cn2en,
             "zone_cn2en": zone_cn2en,
