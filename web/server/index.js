@@ -4,7 +4,7 @@ import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs } from './ontology.js';
+import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, evalBenchmark, knowledgeList, assetsList } from './ontology.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
@@ -281,6 +281,66 @@ const server = createServer(async (req, res) => {
     try {
       const result = await statsOntology();
       res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 评测（转发后端 /api/eval/benchmark，SPA 展示层）──
+  if (req.method === 'GET' && url === '/api/ontology/eval-benchmark') {
+    try {
+      const kb = new URL(req.url, 'http://x').searchParams.get('kb') || '';
+      const result = await evalBenchmark(kb);
+      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 知识库列表（转发后端 /api/knowledge/list）──
+  if (req.method === 'GET' && url === '/api/ontology/knowledge-list') {
+    try {
+      const kb = new URL(req.url, 'http://x').searchParams.get('kb') || '';
+      const result = await knowledgeList(kb);
+      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 资产列表（转发后端 /api/assets/list）──
+  if (req.method === 'GET' && url === '/api/ontology/assets-list') {
+    try {
+      const kb = new URL(req.url, 'http://x').searchParams.get('kb') || '';
+      const result = await assetsList(kb);
+      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 评测聚合（一次返回 benchmark + knowledge + assets，供 SPA 单 tab）──
+  if (req.method === 'GET' && url === '/api/ontology/eval') {
+    try {
+      const kb = new URL(req.url, 'http://x').searchParams.get('kb') || '';
+      // 并发拉取三组数据，任一失败不阻断整体（各子块带独立 ok 标志）
+      const [benchmark, knowledge, assets] = await Promise.all([
+        evalBenchmark(kb), knowledgeList(kb), assetsList(kb),
+      ]);
+      const result = { ok: true, kb, eval: benchmark, knowledge, assets };
+      res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
       res.end(JSON.stringify(result));
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });

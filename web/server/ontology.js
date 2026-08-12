@@ -477,6 +477,57 @@ export async function askOntology(question, kb) {
 }
 
 /**
+ * 评测：转发后端 GET /api/eval/benchmark?kb= （多租户按 kb）
+ * 复用 apiFetch（自动带 X-API-Key 头）。后端返回 {ok, data:{questions_n,hits,score}}。
+ * @param {string} [kb] 知识库名, 缺省用当前激活 kb
+ * @returns {Promise<{ok, data?, error?}>}
+ */
+export async function evalBenchmark(kb) {
+  try {
+    kb = kb || getCurrentKb();
+    const q = new URLSearchParams({ kb }).toString();
+    const r = await apiFetch(`/api/eval/benchmark?${q}`);
+    return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '后端评测失败' };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+/**
+ * 知识库：转发后端 GET /api/knowledge/list?kb= （文档清单，供 SPA 展示）
+ * 后端返回 {ok, data:{docs}}。
+ * @param {string} [kb] 知识库名, 缺省用当前激活 kb
+ * @returns {Promise<{ok, data?, error?}>}
+ */
+export async function knowledgeList(kb) {
+  try {
+    kb = kb || getCurrentKb();
+    const q = new URLSearchParams({ kb }).toString();
+    const r = await apiFetch(`/api/knowledge/list?${q}`);
+    return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '后端知识库读取失败' };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+/**
+ * 资产：转发后端 GET /api/assets/list?kb= （版本清单 + 当前激活版本）
+ * 后端返回 {ok, data:{versions, active_version}}。
+ * @param {string} [kb] 知识库名, 缺省用当前激活 kb
+ * @returns {Promise<{ok, data?, error?}>}
+ */
+export async function assetsList(kb) {
+  try {
+    kb = kb || getCurrentKb();
+    const q = new URLSearchParams({ kb }).toString();
+    const r = await apiFetch(`/api/assets/list?${q}`);
+    return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '后端资产读取失败' };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+/**
  * 聚合统计（从当前建模的本体 .nt 计算设备分布）供前端可视化
  * 数据源：优先读 Web 应用自己的 web_state（Web 建模的），fallback 套件 current.json
  * 空态：无建模数据(.nt 不存在/为空)时返回 empty:true 而非 error，前端显示"尚未建模"
