@@ -293,9 +293,9 @@
       if (!res.ok) {
         setStatus('err', formatError(res, null) || '建模失败');
       } else {
-        modelResult = { table: res.table, attrs: res.attrs || [], ts: Date.now() };
+        modelResult = { table: res.table, attrs: res.attrs || [], tables: (ind ? (INDUSTRY_TABLES[dir] || []).length : 0), ts: Date.now() };
         status = 'ready';
-        setStatus('ok', `${ind ? ind.name + '示例' : '示例'}建模完成：${res.table}，共 ${(res.attrs || []).length} 张表`);
+        setStatus('ok', `${ind ? ind.name + '示例' : '示例'}建模完成：${res.table}，共 ${(res.attrs || []).length} 个字段`);
         // 建模成功 → 刷新 kb 列表与当前激活，使头部下拉/查询/评测跟随到新本体
         await loadKbs();
       }
@@ -332,9 +332,9 @@
       if (!res.ok) {
         setStatus('err', formatError(res, null) || '建模失败');
       } else {
-        modelResult = { table: res.table, attrs: res.attrs || [], ts: Date.now() };
+        modelResult = { table: res.table, attrs: res.attrs || [], tables: localFiles.length, ts: Date.now() };
         status = 'ready';
-        setStatus('ok', `建模完成：${res.table}，共 ${(res.attrs || []).length} 张表`);
+        setStatus('ok', `建模完成：${res.table}，共 ${localFiles.length} 张表、${(res.attrs || []).length} 个字段`);
       }
     } catch (err) {
       setStatus('err', formatError(null, err));
@@ -714,14 +714,34 @@
             <span class="card-icon">✅</span>
             <div class="card-titles">
               <div class="card-title">建模结果</div>
-              <div class="card-desc">数据表 {modelResult.table} · {modelResult.attrs.length} 张表</div>
+              <div class="card-desc">知识库 {modelResult.table}</div>
             </div>
           </div>
           <div class="card-body">
+            <div class="model-summary">
+              <span class="sum-tables">共 {modelResult.tables || localFiles.length || 1} 张表</span>
+              <span class="sum-sep">·</span>
+              <span class="sum-fields">{(modelResult.attrs || []).length} 个字段</span>
+              <span class="sum-ok">✓ 建模完成</span>
+            </div>
+            {#if localFiles.length > 0}
+              <div class="model-files">
+                <div class="model-files-title">已建模文件</div>
+                <div class="model-files-list">
+                  {#each localFiles as f}
+                    <span class="model-file-chip">📄 {f.name}</span>
+                  {/each}
+                </div>
+              </div>
+            {/if}
             <div class="attr-chips">
               {#each modelResult.attrs as a}
                 <span class="attr-chip">{typeof a === 'object' && a !== null ? (a.cn || a.field || JSON.stringify(a)) : a}</span>
               {/each}
+            </div>
+            <div class="model-actions">
+              <span class="model-hint">右栏已生成本体结构力导向图，可拖动缩放查看。</span>
+              <button class="btn-action btn-small" onclick={() => switchTab('query')}>💬 进入问答</button>
             </div>
           </div>
         </div>
@@ -1346,6 +1366,24 @@
   }
   .btn-action:hover:not(:disabled) { background: #1d4ed8; }
   .btn-action:disabled { background: #94a3b8; cursor: not-allowed; }
+  .btn-small { padding: 6px 12px; font-size: 12px; border-radius: 4px; }
+
+  /* ─── 建模结果摘要 ─── */
+  .model-summary { display: flex; align-items: center; gap: 8px; padding: 4px 12px 0; font-size: 13px; }
+  .sum-tables { font-weight: 700; color: #1e293b; }
+  .sum-fields { color: #2563eb; font-weight: 600; }
+  .sum-ok { margin-left: auto; color: #16a34a; font-size: 12px; font-weight: 600; }
+  .sum-sep { color: #94a3b8; }
+  .model-files { padding: 8px 12px 0; }
+  .model-files-title { font-size: 11px; color: #64748b; font-weight: 600; margin-bottom: 5px; }
+  .model-files-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .model-file-chip {
+    background: #f8fafc; color: #334155; border: 1px solid #e2e8f0;
+    border-radius: 3px; padding: 2px 8px; font-size: 11px;
+    font-family: 'Consolas', monospace;
+  }
+  .model-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-top: 1px dashed #e2e8f0; margin-top: 6px; }
+  .model-hint { font-size: 11px; color: #94a3b8; flex: 1; }
   .example-link {
     display: inline-flex; align-items: center; gap: 4px;
     background: none; border: none; padding: 2px 4px;
