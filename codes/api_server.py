@@ -193,16 +193,25 @@ def ontology_graph_svg():
 
 
 @app.get("/api/ontology/graph")
-def ontology_graph():
-    """本体完整图(节点+边)，供前端 ECharts 动态大图渲染(仿 sme-decision-ontology /graph/full)。"""
+def ontology_graph(kb: str = Query("")):
+    """本体完整图(节点+边)，供前端 ECharts 动态大图渲染(仿 sme-decision-ontology /graph/full)。
+
+    多租户: 按 kb 参数加载对应行业本体(_get_kb_ctx), 不再锁定 food。
+    """
+    # 多租户: 惰性加载所选行业本体; 无效 kb 返回空图而非抛错
+    ctx = _get_kb_ctx(kb or None)
+    if ctx is None:
+        return {"ok": False, "error": "知识库无效", "nodes": [], "edges": []}
+    g = ctx["graph"]      # 当前行业本体图(替代模块级 food graph)
+    lb = ctx["labels"]    # 当前行业本体标签(替代模块级 food labels)
     nodes, edges = [], []
     seen_edges = set()
     RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
     # 实体类(从URI前缀推断: NS + <类名>_<实例id>); 仅保留实例节点(带 _ 的)
-    for uri, props in graph.items():
+    for uri, props in g.items():
         if uri == RDF_TYPE:
             continue
-        nm = labels.get(uri, uri.split("#")[-1].strip("<>"))
+        nm = lb.get(uri, uri.split("#")[-1].strip("<>"))
         local = uri.split("#")[-1].strip("<>")
         if "_" not in local:
             continue  # 跳过属性/关系/类声明节点(无实例id)
@@ -210,7 +219,7 @@ def ontology_graph():
         nodes.append({"id": uri, "name": nm, "entity": entity})
     # 边(对象属性: 目标是实体URI)
     node_ids = {n["id"] for n in nodes}
-    for uri, props in graph.items():
+    for uri, props in g.items():
         if uri not in node_ids:
             continue
         for rel, vals in props.items():

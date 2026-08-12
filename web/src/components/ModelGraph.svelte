@@ -6,7 +6,7 @@
   import echarts from '../lib/echarts.cjs';
   import { fetchGraph } from '../lib/api.js';
 
-  let { refreshKey = 0 } = $props();   // 建模时间戳，变化时重新加载
+  let { refreshKey = 0, kb = '' } = $props();   // 建模时间戳变化重新加载；kb=当前激活知识库，图跟随该本体
 
   let graph = $state(null);            // {nodes:[{id,name,entity}], edges:[{source,target,rel}]}
   let loading = $state(true);
@@ -106,7 +106,8 @@
   async function load() {
     loading = true; error = '';
     try {
-      const res = await fetchGraph();
+      // 传当前激活 kb，让模型结构图跟随该本体（非 food 默认）；无 kb 由后端走当前激活
+      const res = await fetchGraph(kb);
       if (res.ok && Array.isArray(res.nodes)) {
         graph = { nodes: res.nodes, edges: res.edges || [] };
         render();
@@ -130,9 +131,9 @@
   });
   function onResize() { if (chart) chart.resize(); }
 
-  // refreshKey 变化时（重新建模）重新加载
+  // refreshKey（重新建模）或 kb（切换知识库）变化时重新加载，使本体图跟随当前 kb
   $effect(() => {
-    if (refreshKey > 0) load();
+    if (refreshKey > 0 || kb) load();
   });
 
   // 图统计：节点/边/关系种类（图结构直接推导，无类级元数据时归零）

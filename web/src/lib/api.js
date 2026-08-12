@@ -91,8 +91,11 @@ export async function fetchSchema() {
 }
 
 // 模型结构图（图结构 nodes/edges）：/api/ontology/graph → 后端本体实例图，供 ECharts 力导向图渲染
-export async function fetchGraph() {
-  return fetchRetry('/api/ontology/graph', { cache: 'no-store' });
+// @param {string} [kb] 知识库名；传入则图跟随该 kb（调 ?kb=<kb>），缺省不传由后端走当前激活 kb
+export async function fetchGraph(kb) {
+  // 有 kb 时带上 ?kb=<kb>，让模型结构图跟随当前本体（非 food 默认）；无则省略走后端默认
+  const q = kb ? `?kb=${encodeURIComponent(kb)}` : '';
+  return fetchRetry(`/api/ontology/graph${q}`, { cache: 'no-store' });
 }
 
 export async function analyzeOntology(question, kb) {

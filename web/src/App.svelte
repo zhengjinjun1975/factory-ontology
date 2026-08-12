@@ -761,8 +761,8 @@
       <div class="pane-title">模型结构</div>
       <div class="graph-body">
         {#if modelResult}
-          <!-- refreshKey=ts：重新建模 ts 变 → ModelGraph 的 $effect 触发重新加载 -->
-          <ModelGraph refreshKey={modelResult.ts} />
+          <!-- refreshKey=ts：重新建模 ts 变 → ModelGraph 的 $effect 触发重新加载；kb=当前激活知识库，本体图跟随该 kb（非 food） -->
+          <ModelGraph refreshKey={modelResult.ts} kb={currentKb} />
         {:else}
           <div class="graph-empty">上传并建模后，此处展示本体的真实结构（类 / 属性 / 关系）。</div>
         {/if}
