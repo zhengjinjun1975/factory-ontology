@@ -1,40 +1,38 @@
 {
-  "status_cn2en": {
-    "idle": "idle",
-    "running": "running",
-    "stopped": "stopped"
+  "entity_cn2en": {
+    "书": "Library_inventory"
   },
+  "status_cn2en": {},
   "type_cn2en": {
-    "加工中心": "加工中心",
-    "机器人": "机器人",
-    "检测设备": "检测设备",
-    "焊接设备": "焊接设备"
+    "历史": "历史",
+    "文学": "文学",
+    "物理": "物理",
+    "科幻": "科幻",
+    "科技": "科技",
+    "计算机": "计算机"
   },
   "zone_cn2en": {},
   "attr_cn2en": {
-    "功率": "power_kw"
+    "price": "price",
+    "stock": "stock",
+    "borrowed": "borrowed"
   },
   "attr_en2cn": {
-    "power_kw": "功率"
+    "price": "price",
+    "stock": "stock",
+    "borrowed": "borrowed"
   },
   "field_aliases": {
-    "status": [
-      "status",
-      "Status"
-    ],
     "deviceType": [
-      "device_type",
-      "DeviceType"
+      "category",
+      "Category"
     ],
     "deviceName": [
-      "device_name",
-      "DeviceName"
+      "book_name",
+      "BookName"
     ]
   },
   "relations_cn2en": {},
-  "value_fields": {
-    "device_type": "device_type",
-    "status": "status"
-  },
-  "description": "由 LexiconAgent 全自动生成 (设备, 6字段)"
+  "value_fields": {},
+  "description": "由 LexiconAgent 全自动生成 (Library_inventory, 7字段)"
 }

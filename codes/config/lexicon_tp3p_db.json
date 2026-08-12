@@ -1,0 +1,215 @@
+{
+  "description": "自动生成词典（multi_model, suggest_schema 推断 + LLM 语义聚类同义词 + data profiling 映射）",
+  "attr_cn2en": {
+    "编号": "id",
+    "设备名称": "device_name",
+    "设备类型": "device_type",
+    "owner班组": "owner_team",
+    "specvalue": "spec_value",
+    "specunit": "spec_unit",
+    "状态": "status",
+    "line名称": "line_name",
+    "区域": "region",
+    "shotpoints": "shotpoints",
+    "receivers": "receivers",
+    "line编号": "line_id",
+    "shottime": "shot_time",
+    "chargekg": "charge_kg",
+    "depthm": "depth_m",
+    "quality": "quality",
+    "recordlengths": "record_length_s",
+    "班组名称": "team_name",
+    "method": "method",
+    "crewsize": "crew_size",
+    "﻿id": "﻿id"
+  },
+  "attr_en2cn": {
+    "id": "编号",
+    "device_name": "设备名称",
+    "device_type": "设备类型",
+    "owner_team": "owner班组",
+    "spec_value": "specvalue",
+    "spec_unit": "specunit",
+    "status": "状态",
+    "line_name": "line名称",
+    "region": "区域",
+    "shotpoints": "shotpoints",
+    "receivers": "receivers",
+    "line_id": "line编号",
+    "shot_time": "shottime",
+    "charge_kg": "chargekg",
+    "depth_m": "depthm",
+    "quality": "quality",
+    "record_length_s": "recordlengths",
+    "team_name": "班组名称",
+    "method": "method",
+    "crew_size": "crewsize",
+    "﻿id": "﻿id"
+  },
+  "status_cn2en": {
+    "运行中": "running",
+    "待机": "idle",
+    "报警": "alarm",
+    "维护中": "maintenance",
+    "离线": "offline",
+    "合格": "pass",
+    "不合格": "fail",
+    "正常": "正常",
+    "待检修": "待检修",
+    "采集完成": "采集完成",
+    "采集中": "采集中",
+    "设计中": "设计中",
+    "施工中": "施工中",
+    "休整": "休整",
+    "设备检修": "设备检修"
+  },
+  "type_cn2en": {
+    "激发设备": "激发设备",
+    "接收设备": "接收设备",
+    "记录设备": "记录设备",
+    "测量设备": "测量设备"
+  },
+  "zone_cn2en": {
+    "鄂尔多斯盆地": "鄂尔多斯盆地",
+    "塔里木盆地": "塔里木盆地",
+    "四川盆地": "四川盆地",
+    "准噶尔盆地": "准噶尔盆地"
+  },
+  "synonym_map": {
+    "line名称": [
+      "线名称",
+      "测线名称"
+    ],
+    "line编号": [
+      "线编号",
+      "测线编号"
+    ],
+    "owner班组": [
+      "负责班组",
+      "所属班组"
+    ],
+    "recordlengths": [
+      "记录长度"
+    ],
+    "shotpoints": [
+      "炮点",
+      "炮点数"
+    ],
+    "shottime": [
+      "放炮时间",
+      "激发时间"
+    ],
+    "specunit": [
+      "规格单位"
+    ],
+    "specvalue": [
+      "规格值"
+    ],
+    "准噶尔盆地": [
+      "准噶尔",
+      "准噶尔坳陷"
+    ],
+    "四川盆地": [
+      "四川"
+    ],
+    "塔里木盆地": [
+      "塔里木"
+    ],
+    "待检修": [
+      "待修",
+      "等待检修"
+    ],
+    "接收设备": [
+      "接收器",
+      "检波器"
+    ],
+    "施工中": [
+      "正在施工",
+      "作业中"
+    ],
+    "正常": [
+      "正常状态",
+      "良好"
+    ],
+    "测量设备": [
+      "测量仪器",
+      "测绘设备"
+    ],
+    "激发设备": [
+      "激发器",
+      "震源设备"
+    ],
+    "状态": [
+      "状况"
+    ],
+    "班组名称": [
+      "班组名"
+    ],
+    "编号": [
+      "ID",
+      "代码"
+    ],
+    "记录设备": [
+      "记录仪",
+      "采集记录设备"
+    ],
+    "设备名称": [
+      "设备名"
+    ],
+    "设备检修": [
+      "检修",
+      "维修"
+    ],
+    "设备类型": [
+      "设备类别"
+    ],
+    "设计中": [
+      "设计阶段",
+      "规划中"
+    ],
+    "鄂尔多斯盆地": [
+      "鄂尔多斯"
+    ],
+    "采集中": [
+      "正在采集",
+      "采集作业中"
+    ],
+    "采集完成": [
+      "已完成采集",
+      "采集结束"
+    ]
+  },
+  "entity_cn2en": {
+    "设备": "seis_equipment",
+    "地震设备": "seis_equipment",
+    "测线": "seis_lines",
+    "地震测线": "seis_lines",
+    "炮点": "seis_shots",
+    "地震炮点": "seis_shots",
+    "地震队": "seis_teams",
+    "地震测试": "seismic_test"
+  },
+  "numeric_fields": {
+    "炮点数": "shotpoints",
+    "检波点数": "receivers",
+    "药量": "charge_kg",
+    "炮点深度": "depth_m",
+    "记录长度": "record_length_s"
+  },
+  "field_aliases": {
+    "status": [
+      "status"
+    ],
+    "deviceType": [
+      "deviceType",
+      "device_type",
+      "type"
+    ],
+    "deviceName": [
+      "deviceName",
+      "device_name",
+      "name"
+    ]
+  },
+  "value_fields": []
+}

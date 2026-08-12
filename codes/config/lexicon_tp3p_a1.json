@@ -1,0 +1,48 @@
+{
+  "status_cn2en": {
+    "待机": "待机",
+    "维护中": "维护中",
+    "运行中": "运行中"
+  },
+  "type_cn2en": {
+    "机加设备": "机加设备",
+    "焊接设备": "焊接设备",
+    "表面处理设备": "表面处理设备",
+    "装配设备": "装配设备",
+    "试压设备": "试压设备",
+    "铸造设备": "铸造设备"
+  },
+  "zone_cn2en": {},
+  "attr_cn2en": {
+    "功率": "power_kw",
+    "振动": "vibration_mm_s",
+    "温度": "temp_c",
+    "电流": "current_a"
+  },
+  "attr_en2cn": {
+    "power_kw": "功率",
+    "vibration_mm_s": "振动",
+    "temp_c": "温度",
+    "current_a": "电流"
+  },
+  "field_aliases": {
+    "status": [
+      "status",
+      "Status"
+    ],
+    "deviceType": [
+      "device_type",
+      "DeviceType"
+    ],
+    "deviceName": [
+      "device_name",
+      "DeviceName"
+    ]
+  },
+  "relations_cn2en": {},
+  "value_fields": {
+    "device_type": "device_type",
+    "status": "status"
+  },
+  "description": "由 LexiconAgent 全自动生成 (tp3p_a1, 9字段)"
+}

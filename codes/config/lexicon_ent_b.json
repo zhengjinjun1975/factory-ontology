@@ -1,0 +1,317 @@
+{
+  "description": "自动生成词典（multi_model, suggest_schema 推断 + LLM 语义聚类同义词 + data profiling 映射）",
+  "attr_cn2en": {
+    "编号": "id",
+    "产品编号": "product_id",
+    "batchsizel": "batch_size_l",
+    "生产日期": "produce_date",
+    "yieldpct": "yield_pct",
+    "quality状态": "quality_status",
+    "班组": "team",
+    "设备名称": "device_name",
+    "设备类型": "device_type",
+    "车间": "workshop",
+    "capacityl": "capacity_l",
+    "状态": "status",
+    "pressurempa": "pressure_mpa",
+    "温度(℃)": "temp_c",
+    "温度": "temp_c",
+    "stir转速rpm": "stir_speed_rpm",
+    "型号代码": "model_code",
+    "产品名称": "product_name",
+    "category": "category",
+    "puritypct": "purity_pct",
+    "packaging": "packaging",
+    "价格": "price",
+    "名称": "name",
+    "类型": "type",
+    "供应商": "supplier",
+    "库存kg": "stock_kg",
+    "价格perkg": "price_per_kg"
+  },
+  "attr_en2cn": {
+    "id": "编号",
+    "product_id": "产品编号",
+    "batch_size_l": "batchsizel",
+    "produce_date": "生产日期",
+    "yield_pct": "yieldpct",
+    "quality_status": "quality状态",
+    "team": "班组",
+    "device_name": "设备名称",
+    "device_type": "设备类型",
+    "workshop": "车间",
+    "capacity_l": "capacityl",
+    "status": "状态",
+    "pressure_mpa": "pressurempa",
+    "temp_c": "温度(℃)",
+    "stir_speed_rpm": "stir转速rpm",
+    "model_code": "型号代码",
+    "product_name": "产品名称",
+    "category": "category",
+    "purity_pct": "puritypct",
+    "packaging": "packaging",
+    "price": "价格",
+    "name": "名称",
+    "type": "类型",
+    "supplier": "供应商",
+    "stock_kg": "库存kg",
+    "price_per_kg": "价格perkg"
+  },
+  "status_cn2en": {
+    "运行中": "运行中",
+    "待机": "待机",
+    "报警": "alarm",
+    "维护中": "维护中",
+    "离线": "offline",
+    "合格": "pass",
+    "不合格": "fail"
+  },
+  "type_cn2en": {
+    "反应设备": "反应设备",
+    "换热设备": "换热设备",
+    "分离设备": "分离设备",
+    "干燥设备": "干燥设备",
+    "生物反应设备": "生物反应设备",
+    "生物农药": "生物农药",
+    "化学农药": "化学农药",
+    "除草剂": "除草剂",
+    "原药": "原药",
+    "助剂": "助剂",
+    "溶剂": "溶剂",
+    "菌种": "菌种"
+  },
+  "zone_cn2en": {
+    "合成车间": "合成车间",
+    "精馏车间": "精馏车间",
+    "后处理车间": "后处理车间",
+    "发酵车间": "发酵车间"
+  },
+  "synonym_map": {
+    "batchsizel": [
+      "批量大小",
+      "批量规模",
+      "批次大小"
+    ],
+    "capacityl": [
+      "容量",
+      "容积",
+      "产能"
+    ],
+    "category": [
+      "类别",
+      "分类",
+      "种类"
+    ],
+    "packaging": [
+      "包装",
+      "包装方式",
+      "包装类型"
+    ],
+    "pressurempa": [
+      "压力mpa",
+      "压力值mpa",
+      "压强mpa"
+    ],
+    "puritypct": [
+      "纯度百分比",
+      "纯度%",
+      "纯度"
+    ],
+    "quality状态": [
+      "质量状态",
+      "品质状态"
+    ],
+    "stir转速rpm": [
+      "搅拌转速rpm",
+      "搅拌速度rpm",
+      "转速rpm"
+    ],
+    "yieldpct": [
+      "收率百分比",
+      "收率%",
+      "产率"
+    ],
+    "产品名称": [
+      "品名",
+      "产品名"
+    ],
+    "产品编号": [
+      "产品代码",
+      "产品号"
+    ],
+    "价格": [
+      "单价",
+      "售价"
+    ],
+    "价格perkg": [
+      "每公斤价格",
+      "单价每kg",
+      "每kg价格"
+    ],
+    "供应商": [
+      "供货商",
+      "厂家"
+    ],
+    "分离设备": [
+      "分离机",
+      "分离装置"
+    ],
+    "助剂": [
+      "添加剂",
+      "辅助剂"
+    ],
+    "化学农药": [
+      "化学杀虫剂",
+      "化学农药类"
+    ],
+    "原药": [
+      "原药料",
+      "原料药"
+    ],
+    "反应设备": [
+      "反应器",
+      "反应釜"
+    ],
+    "发酵车间": [
+      "发酵工段",
+      "发酵区"
+    ],
+    "合成车间": [
+      "合成工段",
+      "合成区"
+    ],
+    "名称": [
+      "名字",
+      "称谓"
+    ],
+    "后处理车间": [
+      "后处理工段",
+      "后处理区"
+    ],
+    "型号代码": [
+      "型号编号",
+      "型号"
+    ],
+    "干燥设备": [
+      "干燥机",
+      "干燥装置"
+    ],
+    "库存kg": [
+      "库存量kg",
+      "库存公斤"
+    ],
+    "待机": [
+      "待机状态",
+      "停机待命"
+    ],
+    "换热设备": [
+      "换热器",
+      "热交换设备"
+    ],
+    "温度": [
+      "温度值",
+      "温度读数"
+    ],
+    "温度(℃)": [
+      "摄氏温度",
+      "温度℃"
+    ],
+    "溶剂": [
+      "溶媒",
+      "溶解剂"
+    ],
+    "状态": [
+      "状况",
+      "状态值"
+    ],
+    "班组": [
+      "班次",
+      "作业组"
+    ],
+    "生产日期": [
+      "制造日期",
+      "生产日"
+    ],
+    "生物农药": [
+      "生物杀虫剂",
+      "生物农药类"
+    ],
+    "生物反应设备": [
+      "生物反应器",
+      "生物发酵设备"
+    ],
+    "类型": [
+      "种类",
+      "类别"
+    ],
+    "精馏车间": [
+      "精馏工段",
+      "精馏区"
+    ],
+    "维护中": [
+      "维修中",
+      "保养中"
+    ],
+    "编号": [
+      "代码",
+      "序号"
+    ],
+    "菌种": [
+      "菌株",
+      "微生物菌种"
+    ],
+    "设备名称": [
+      "设备名",
+      "机器名称"
+    ],
+    "设备类型": [
+      "设备类别",
+      "机器类型"
+    ],
+    "车间": [
+      "工段",
+      "生产车间"
+    ],
+    "运行中": [
+      "运转中",
+      "工作中"
+    ],
+    "除草剂": [
+      "除草农药",
+      "除草药"
+    ]
+  },
+  "entity_cn2en": {
+    "批次": "chem_batches",
+    "化工批次": "chem_batches",
+    "设备": "chem_equipment",
+    "化工设备": "chem_equipment",
+    "产品": "chem_products",
+    "化工产品": "chem_products",
+    "原料": "chem_raw_materials",
+    "化工原料": "chem_raw_materials"
+  },
+  "numeric_fields": {
+    "容量": "capacity_l",
+    "温度": "temp_c",
+    "stir转速rpm": "stir_speed_rpm",
+    "价格": "price",
+    "库存": "stock_kg"
+  },
+  "field_aliases": {
+    "status": [
+      "status"
+    ],
+    "deviceType": [
+      "deviceType",
+      "device_type",
+      "type"
+    ],
+    "deviceName": [
+      "deviceName",
+      "device_name",
+      "name"
+    ]
+  },
+  "value_fields": []
+}

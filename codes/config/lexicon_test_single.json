@@ -10,12 +10,12 @@
   },
   "zone_cn2en": {},
   "attr_cn2en": {
-    "公称通径": "size_mm",
-    "价格": "price"
+    "size": "size_mm",
+    "price": "price"
   },
   "attr_en2cn": {
-    "size_mm": "公称通径",
-    "price": "价格"
+    "size_mm": "size",
+    "price": "price"
   },
   "field_aliases": {
     "deviceType": [
@@ -31,5 +31,5 @@
   "value_fields": {
     "type": "type"
   },
-  "description": "由 LexiconAgent 全自动生成 (valve_products, 12字段)"
+  "description": "由 LexiconAgent 全自动生成 (test_single, 12字段)"
 }

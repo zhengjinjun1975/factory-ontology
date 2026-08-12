@@ -1,33 +1,49 @@
 {
-  "description": "能源电站设备领域示例词典",
-  "attr_cn2en": {
-    "设备名": "device_name",
-    "功率": "power_kw",
-    "温度": "temperature",
-    "运行时长": "run_hours",
-    "状态": "status"
-  },
-  "attr_en2cn": {
-    "device_name": "设备名",
-    "power_kw": "功率",
-    "temperature": "温度",
-    "run_hours": "运行时长",
-    "status": "状态"
-  },
   "status_cn2en": {
-    "运行中": "running", "运行": "running", "停止": "stopped",
-    "停机": "stopped", "待机": "idle", "报警": "alarm", "故障": "alarm"
+    "报警": "alarm",
+    "待机": "idle",
+    "运行中": "running",
+    "已停止": "stopped"
   },
   "type_cn2en": {
-    "燃气轮机": "燃气轮机", "锅炉": "锅炉", "风力发电": "风力发电",
-    "柴油发电": "柴油发电", "变压器": "变压器", "逆变器": "逆变器",
-    "冷却机组": "冷却机组", "储能电池": "储能电池"
+    "储能电池": "储能电池",
+    "冷却机组": "冷却机组",
+    "变压器": "变压器",
+    "柴油发电": "柴油发电",
+    "燃气轮机": "燃气轮机",
+    "逆变器": "逆变器",
+    "锅炉": "锅炉",
+    "风力发电": "风力发电"
+  },
+  "zone_cn2en": {},
+  "attr_cn2en": {
+    "功率（千瓦）": "power_kw",
+    "温度": "temperature",
+    "运行时长（小时）": "run_hours"
+  },
+  "attr_en2cn": {
+    "power_kw": "功率（千瓦）",
+    "temperature": "温度",
+    "run_hours": "运行时长（小时）"
   },
   "field_aliases": {
-    "deviceName": ["device_name", "设备名"],
-    "status": ["status"],
-    "deviceType": ["device_type"],
-    "location": []
+    "status": [
+      "status",
+      "Status"
+    ],
+    "deviceType": [
+      "device_type",
+      "DeviceType"
+    ],
+    "deviceName": [
+      "device_name",
+      "DeviceName"
+    ]
   },
-  "value_fields": []
+  "relations_cn2en": {},
+  "value_fields": {
+    "device_type": "device_type",
+    "status": "status"
+  },
+  "description": "由 LexiconAgent 全自动生成 (energy_station, 7字段)"
 }

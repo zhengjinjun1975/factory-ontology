@@ -1,0 +1,39 @@
+{
+  "status_cn2en": {
+    "休整": "休整",
+    "施工中": "施工中",
+    "设备检修": "设备检修"
+  },
+  "type_cn2en": {},
+  "zone_cn2en": {
+    "准噶尔盆地": "准噶尔盆地",
+    "四川盆地": "四川盆地",
+    "塔里木盆地": "塔里木盆地",
+    "鄂尔多斯盆地": "鄂尔多斯盆地"
+  },
+  "attr_cn2en": {
+    "队伍人数": "crew_size"
+  },
+  "attr_en2cn": {
+    "crew_size": "队伍人数"
+  },
+  "field_aliases": {
+    "status": [
+      "status",
+      "Status"
+    ],
+    "deviceName": [
+      "team_name",
+      "TeamName"
+    ],
+    "location": [
+      "region",
+      "Region"
+    ]
+  },
+  "relations_cn2en": {},
+  "value_fields": {
+    "status": "status"
+  },
+  "description": "由 LexiconAgent 全自动生成 (seis_teams, 6字段)"
+}

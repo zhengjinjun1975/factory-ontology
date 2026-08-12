@@ -27,7 +27,7 @@
       ],
       "data_dir": "data_valve",
       "lexicon": "lexicon_valve.json",
-      "nt": "output/h_阀门.nt"
+      "nt": "output/valve.nt"
     },
     "chem": {
       "name": "化工企业问答",
@@ -163,6 +163,56 @@
       "data_dir": "data",
       "lexicon": "lexicon_library_inventory.json",
       "nt": "output/library_inventory.nt"
+    },
+    "test_single": {
+      "nt": "output/test_single.nt",
+      "lexicon": "lexicon_test_single.json",
+      "data_dir": "data"
+    },
+    "test_multi": {
+      "nt": "output/test_multi.nt",
+      "lexicon": "lexicon_test_multi.json",
+      "data_dir": "data"
+    },
+    "ent_a": {
+      "nt": "output/ent_a.nt",
+      "lexicon": "lexicon_ent_a.json",
+      "data_dir": "data"
+    },
+    "ent_b": {
+      "nt": "output/ent_b.nt",
+      "lexicon": "lexicon_ent_b.json",
+      "data_dir": "data"
+    },
+    "tp_valve_a1": {
+      "nt": "output/tp_valve_a1.nt",
+      "lexicon": "lexicon_tp_valve_a1.json",
+      "data_dir": "data"
+    },
+    "tp_valve_multi": {
+      "nt": "output/tp_valve_multi.nt",
+      "lexicon": "lexicon_tp_valve_multi.json",
+      "data_dir": "data"
+    },
+    "test_e2e": {
+      "nt": "output/test_e2e.nt",
+      "lexicon": "lexicon_test_e2e.json",
+      "data_dir": "data"
+    },
+    "tp3p_a1": {
+      "nt": "output/tp3p_a1.nt",
+      "lexicon": "lexicon_tp3p_a1.json",
+      "data_dir": "data"
+    },
+    "tp3p_multi2": {
+      "nt": "output/tp3p_multi2.nt",
+      "lexicon": "lexicon_tp3p_multi2.json",
+      "data_dir": "data"
+    },
+    "tp3p_db": {
+      "nt": "output/tp3p_db.nt",
+      "lexicon": "lexicon_tp3p_db.json",
+      "data_dir": "data"
     }
   }
 }
