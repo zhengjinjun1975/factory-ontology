@@ -4,7 +4,7 @@ import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, graphOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, evalBenchmark, evalIsolate, knowledgeList, assetsList, assetsSnapshot, assetsRollback, knowledgeIngest, knowledgeDelete, knowledgeQuery } from './ontology.js';
+import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, graphOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, evalBenchmark, evalIsolate, knowledgeList, assetsList, assetsSnapshot, assetsRollback, knowledgeIngest, knowledgeDelete, knowledgeQuery, getEnterprise, saveEnterprise } from './ontology.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
@@ -135,6 +135,26 @@ const server = createServer(async (req, res) => {
   if (url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok', uptime: process.uptime() }));
+    return;
+  }
+
+  // ── API: 企业设置（读）──
+  if (req.method === 'GET' && url === '/api/ontology/enterprise') {
+    res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+    res.end(JSON.stringify(getEnterprise()));
+    return;
+  }
+  // ── API: 企业设置（存：企业名/logo/行业，原子写回 enterprise.json）──
+  if (req.method === 'POST' && url === '/api/ontology/enterprise') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const result = saveEnterprise(body);
+      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
     return;
   }
 

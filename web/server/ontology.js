@@ -24,6 +24,56 @@ function saveWebState(state) {
   try { writeFileSync(WEB_STATE, JSON.stringify(state, null, 2), 'utf-8'); } catch (e) { /* 忽略 */ }
 }
 
+// ── 企业配置（企业级品牌：企业名/logo/行业）──────────────────────────
+// 独立持久化到 web/enterprise.json，与多租户 kb 解耦（企业品牌跟随当前部署实例）
+const ENTERPRISE_FILE = join(__dirname, '..', 'enterprise.json');
+// logo 合法形态：emoji（≤2 码元）或 图片 URL(dataURL/相对/绝对 http(s))
+const LOGO_URL_RE = /^(data:image\/[a-z0-9+.-]+;base64,|\/|https?:\/\/)/i;
+
+function loadEnterprise() {
+  try {
+    if (existsSync(ENTERPRISE_FILE)) return JSON.parse(readFileSync(ENTERPRISE_FILE, 'utf-8'));
+  } catch (e) { /* 无配置或损坏则视为未配置 */ }
+  return null;
+}
+
+/**
+ * 读取企业配置（企业级品牌）。未配置时返回空字段，前端回退默认"工厂智能体"。
+ * @returns {{ok:true, data:{name,logo,industry,hasConfig}}}
+ */
+export function getEnterprise() {
+  const d = loadEnterprise();
+  const name = (d && d.name) || '';
+  const logo = (d && d.logo) || '';
+  const industry = (d && d.industry) || '';
+  return {
+    ok: true,
+    data: { name, logo, industry, hasConfig: !!(name || logo || industry) },
+  };
+}
+
+/**
+ * 保存企业配置（企业名/logo/行业），原子写回 enterprise.json。
+ * @param {{name?,logo?,industry?}} cfg
+ * @returns {{ok, data?:{name,logo,industry}, error?}}
+ */
+export function saveEnterprise(cfg) {
+  try {
+    const name = String((cfg && cfg.name) || '').trim().slice(0, 50);
+    let logo = String((cfg && cfg.logo) || '').trim();
+    const industry = String((cfg && cfg.industry) || '').trim().slice(0, 30);
+    // logo 校验：非空时必须为 emoji(≤2 码元) 或 URL/dataURL 图片
+    if (logo && [...logo].length > 2 && !LOGO_URL_RE.test(logo)) {
+      return { ok: false, error: 'logo 需为 emoji 或图片地址(dataURL/URL)' };
+    }
+    const obj = { name, logo, industry };
+    atomicWriteJson(ENTERPRISE_FILE, obj);
+    return { ok: true, data: obj };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
 function run(cmd, args, cwd) {
   return new Promise((resolve) => {
     execFile(cmd, args, { cwd, timeout: 180000, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {

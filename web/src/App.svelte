@@ -1,7 +1,7 @@
 <script>
   // 工厂智能体 · 本体问答 — 独立 Web 应用（工业软件浅色风格）
   import { onMount } from 'svelte';
-  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, setModel, getModels, saveModels, fetchVersion, browseFiles, readDataFile, fetchExample, fetchKbs, setKb } from './lib/api.js';
+  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, setModel, getModels, saveModels, fetchVersion, browseFiles, readDataFile, fetchExample, fetchKbs, setKb, fetchEnterprise, saveEnterprise } from './lib/api.js';
   import DashboardPanel from './components/DashboardPanel.svelte';
   import ModelGraph from './components/ModelGraph.svelte';
   import WelcomeModel from './components/WelcomeModel.svelte';
@@ -78,6 +78,85 @@
   let kbList = $state([]);        // [{key, name, icon, examples}]
   let currentKb = $state('');     // 当前激活 kb key
   let kbsLoaded = $state(false);
+
+  // ─── 企业设置（企业级品牌：企业名/logo/行业，后端持久化）───
+  let enterprise = $state({ name: '', logo: '', industry: '', hasConfig: false });
+  let entOpen = $state(false);              // 企业设置面板开关
+  let entForm = $state({ name: '', logo: '', industry: '' });  // 编辑态表单
+  let entBusy = $state(false);
+  let entErr = $state('');
+  let entOk = $state('');
+  // 可选的 logo emoji 预设（企业 logo 快速选择）
+  const LOGO_EMOJIS = ['🏭', '🏢', '💼', '🔧', '🧪', '⚙️', '🔩', '🛠️', '🌍', '🌿', '🚢', '🌀', '🎯', '🤖', '⚡', '📚', '🥛', '🏗️'];
+  // 行业选项（九大行业，与建模示例一致 + 通用/其他）
+  const INDUSTRY_OPTIONS = ['阀门制造', '化工企业', '机械加工', '精密加工', '波纹管', '环保工程', '造船', '地震勘探', '食品溯源', '通用制造', '其他'];
+
+  // logo 是否图片（dataURL/URL/相对路径）→ 渲染 <img>；否则按 emoji 文本渲染
+  const isImgLogo = (l) => !!l && /^(data:image\/|https?:\/\/|\/)/i.test(l);
+  // 顶部品牌名：企业设置后显示"企业名 · 本体问答"，未设置回退"工厂智能体 · 本体问答"
+  const brandName = $derived(enterprise.name ? `${enterprise.name} · 本体问答` : '工厂智能体 · 本体问答');
+  const brandLogo = $derived(enterprise.logo || '🏭');
+
+  // 从后端读取企业配置（onMount 时调用）
+  async function loadEnterprise() {
+    try {
+      const res = await fetchEnterprise();
+      if (res && res.ok && res.data) {
+        enterprise = res.data;
+        entForm = { name: res.data.name || '', logo: res.data.logo || '', industry: res.data.industry || '' };
+      }
+    } catch (e) { /* 后端不可达则回退默认 */ }
+  }
+
+  function openEnterprise() {
+    entForm = { name: enterprise.name || '', logo: enterprise.logo || '', industry: enterprise.industry || '' };
+    entErr = ''; entOk = '';
+    entOpen = true;
+  }
+  function closeEnterprise() { entOpen = false; }
+
+  // 选择预设 emoji 作 logo
+  function pickLogoEmoji(e) {
+    entForm.logo = e.target.value;
+    entErr = '';
+  }
+  // 上传本地图片作 logo（转 base64 dataURL，前端预览 + 后端存储）
+  function onLogoUpload(e) {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    if (!/^image\/(png|jpe?g|gif|webp|svg\+xml)$/i.test(f.type)) {
+      entErr = '仅支持图片文件（png/jpg/gif/webp/svg）';
+      e.target.value = ''; return;
+    }
+    if (f.size > 1024 * 1024) { entErr = '图片过大，请控制在 1MB 以内'; e.target.value = ''; return; }
+    const reader = new FileReader();
+    reader.onload = () => { entForm.logo = String(reader.result); entErr = ''; };
+    reader.readAsDataURL(f);
+    e.target.value = '';
+  }
+  function clearLogo() { entForm.logo = ''; }
+
+  // 保存企业设置 → 后端持久化 → 顶部品牌即时跟随
+  async function doSaveEnterprise() {
+    if (entBusy) return;
+    const name = entForm.name.trim();
+    if (!name) { entErr = '请输入企业名称'; return; }
+    entBusy = true; entErr = ''; entOk = '';
+    try {
+      const res = await saveEnterprise({ name, logo: entForm.logo, industry: entForm.industry });
+      if (res && res.ok && res.data) {
+        enterprise = res.data;
+        entOk = '已保存，顶部品牌已更新';
+        setStatus('ok', `企业信息已更新：${res.data.name}`);
+      } else {
+        entErr = (res && res.error) || '保存失败';
+      }
+    } catch (err) {
+      entErr = String(err && err.message ? err.message : err);
+    } finally {
+      entBusy = false;
+    }
+  }
 
   // 快速问题：跟随当前激活 kb 的 examples（不锁死 food）
   const quickQuestions = $derived(
@@ -174,6 +253,8 @@
   onMount(async () => {
     // 多租户：先加载已注册知识库 + 当前激活 kb（决定查询/看板/本体图检索哪个）
     await loadKbs();
+    // 企业设置：读取后端持久化的企业名/logo/行业，顶部品牌跟随
+    await loadEnterprise();
     try {
       const res = await getModels();
       if (res.ok) {
@@ -508,13 +589,20 @@
   <!-- ═══ 顶部工具栏 ═══ -->
   <header class="toolbar">
     <div class="toolbar-left">
-      <span class="logo">🏭</span>
+      {#if isImgLogo(brandLogo)}
+        <img class="logo-img" src={brandLogo} alt="企业logo" />
+      {:else}
+        <span class="logo">{brandLogo}</span>
+      {/if}
       <div class="brand">
-        <div class="brand-name">工厂智能体 · 本体问答</div>
+        <div class="brand-name">{brandName}</div>
         <div class="brand-sub">Factory Ontology QA System{#if appVersion} · v{appVersion}{/if}</div>
       </div>
     </div>
     <div class="toolbar-right">
+      <button class="ent-btn" onclick={openEnterprise} title="企业设置">
+        <span class="btn-icon">⚙️</span> 企业设置
+      </button>
       {#if kbsLoaded && kbList.length > 0}
         <label class="model-select kb-select">
           <span class="model-label">知识库</span>
@@ -571,21 +659,40 @@
     <section class="pane pane-left">
       <div class="pane-title">数据建模</div>
 
-      <!-- ─── 数据源输入（主入口：浏览文件；辅助：示例数据）─── -->
-      <div class="form-group">
-        <span class="form-label">数据文件（CSV / JSON，可多选）</span>
-        <label class="file-input">
-          <input type="file" multiple accept=".csv,.json" onchange={onPickFiles} />
-          <span class="file-icon">📁</span>
-          <span class="file-name">{localFiles.length ? `已选 ${localFiles.length} 个文件` : '浏览文件'}</span>
-        </label>
-        {#if localFiles.length}
-          <button class="btn-action" onclick={doLocalModel} disabled={localBusy} style="margin-top:8px">
-            <span class="btn-icon">{localBusy ? '⏳' : '⚙'}</span>
-            {localBusy ? '建模进行中…' : `确认并建模（${localFiles.length} 个文件）`}
-          </button>
-        {/if}
-        <div class="ind-select-row">
+      <!-- ─── 卡片① 本地文件建模 ─── -->
+      <div class="card">
+        <div class="card-head">
+          <span class="card-icon">📁</span>
+          <div class="card-titles">
+            <div class="card-title">本地文件建模</div>
+            <div class="card-desc">上传 CSV / JSON 文本文件，可多选</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <label class="file-input">
+            <input type="file" multiple accept=".csv,.json" onchange={onPickFiles} />
+            <span class="file-icon">📁</span>
+            <span class="file-name">{localFiles.length ? `已选 ${localFiles.length} 个文件` : '浏览选择文件'}</span>
+          </label>
+          {#if localFiles.length}
+            <button class="btn-action" onclick={doLocalModel} disabled={localBusy}>
+              <span class="btn-icon">{localBusy ? '⏳' : '⚙'}</span>
+              {localBusy ? '建模进行中…' : `确认并建模（${localFiles.length} 个文件）`}
+            </button>
+          {/if}
+        </div>
+      </div>
+
+      <!-- ─── 卡片② 行业示例建模 ─── -->
+      <div class="card">
+        <div class="card-head">
+          <span class="card-icon">🧪</span>
+          <div class="card-titles">
+            <div class="card-title">行业示例建模</div>
+            <div class="card-desc">一键体验九大行业示例数据</div>
+          </div>
+        </div>
+        <div class="card-body">
           <label class="ind-select">
             <span class="ind-label">行业示例</span>
             <select bind:value={defaultIndustry} disabled={defaultBusy}>
@@ -594,7 +701,7 @@
               {/each}
             </select>
           </label>
-          <button class="example-link" onclick={doDefaultExample} disabled={defaultBusy}>
+          <button class="btn-action btn-example" onclick={doDefaultExample} disabled={defaultBusy}>
             <span class="btn-icon">{defaultBusy ? '⏳' : '▸'}</span>
             {defaultBusy ? '示例建模中…' : '使用示例数据建模'}
           </button>
@@ -602,97 +709,105 @@
       </div>
 
       {#if modelResult}
-        <div class="model-panel">
-          <div class="model-head">
-            <span class="model-table">数据表：{modelResult.table}</span>
-            <span class="model-count">{modelResult.attrs.length} 张表</span>
+        <div class="card">
+          <div class="card-head">
+            <span class="card-icon">✅</span>
+            <div class="card-titles">
+              <div class="card-title">建模结果</div>
+              <div class="card-desc">数据表 {modelResult.table} · {modelResult.attrs.length} 张表</div>
+            </div>
           </div>
-          <div class="attr-chips">
-            {#each modelResult.attrs as a}
-              <span class="attr-chip">{typeof a === 'object' && a !== null ? (a.cn || a.field || JSON.stringify(a)) : a}</span>
-            {/each}
+          <div class="card-body">
+            <div class="attr-chips">
+              {#each modelResult.attrs as a}
+                <span class="attr-chip">{typeof a === 'object' && a !== null ? (a.cn || a.field || JSON.stringify(a)) : a}</span>
+              {/each}
+            </div>
           </div>
         </div>
       {/if}
 
-      <!-- ─── 数据库接入折叠区（本地厂区局域网）─── -->
-      <div class="db-collapse">
-        <button class="db-toggle" onclick={() => (dbOpen = !dbOpen)}>
-          <span class="file-icon">🗄️</span> 数据库接入
-          <span class="chevron">{dbOpen ? '▾' : '▸'}</span>
-        </button>
-        {#if dbOpen}
-          <div class="db-body">
-            <div class="db-hint">本地厂区局域网：连接 MES / ERP / 台账数据库，数据本地处理不出厂。</div>
-
-            <div class="form-group">
-              <label class="form-label" for="db-type">数据库类型</label>
-              <select id="db-type" class="db-input" bind:value={dbForm.db_type} onchange={onDbTypeChange}>
-                <option value="mysql">MySQL</option>
-                <option value="postgres">PostgreSQL</option>
-              </select>
-            </div>
-
-            <div class="db-row">
-              <div class="form-group">
-                <label class="form-label" for="db-host">主机</label>
-                <input id="db-host" class="db-input" placeholder="127.0.0.1" bind:value={dbForm.host} />
-              </div>
-              <div class="form-group db-port">
-                <label class="form-label" for="db-port">端口</label>
-                <input id="db-port" class="db-input" placeholder="3306" bind:value={dbForm.port} />
-              </div>
-            </div>
-
-            <div class="db-row">
-              <div class="form-group">
-                <label class="form-label" for="db-user">用户</label>
-                <input id="db-user" class="db-input" placeholder="root" bind:value={dbForm.user} />
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="db-pass">密码</label>
-                <input id="db-pass" class="db-input" type="password" placeholder="••••••" bind:value={dbForm.password} />
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="db-database">库名</label>
-              <input id="db-database" class="db-input" placeholder="factory" bind:value={dbForm.database} />
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="db-tables">表名（多个用逗号分隔）</label>
-              <input id="db-tables" class="db-input" placeholder="equipment, devices" bind:value={dbForm.tables} />
-            </div>
-
-            <button class="btn-action" onclick={doDbSetup} disabled={dbBusy}>
-              <span class="btn-icon">{dbBusy ? '⏳' : '🔗'}</span>
-              {dbBusy ? '建模进行中…' : '确认并建模'}
-            </button>
-
-            {#if dbResult}
-              <div class="db-result" class:db-err={!dbResult.ok}>
-                {#if dbResult.ok}
-                  <div class="model-head">
-                    <span class="model-table">数据表：{dbResult.table}</span>
-                    <span class="model-count">✓ 建模完成</span>
-                  </div>
-                {:else}
-                  <div class="db-err-text">✗ {dbResult.error}</div>
-                {/if}
-              </div>
-            {/if}
+      <!-- ─── 卡片③ 数据库接入（本地厂区局域网）─── -->
+      <div class="card">
+        <div class="card-head">
+          <span class="card-icon">🗄️</span>
+          <div class="card-titles">
+            <div class="card-title">数据库接入</div>
+            <div class="card-desc">连接 MES / ERP / 台账数据库，数据本地处理不出厂</div>
           </div>
-        {/if}
+        </div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label" for="db-type">数据库类型</label>
+            <select id="db-type" class="db-input" bind:value={dbForm.db_type} onchange={onDbTypeChange}>
+              <option value="mysql">MySQL</option>
+              <option value="postgres">PostgreSQL</option>
+            </select>
+          </div>
+
+          <div class="db-row">
+            <div class="form-group">
+              <label class="form-label" for="db-host">主机</label>
+              <input id="db-host" class="db-input" placeholder="127.0.0.1" bind:value={dbForm.host} />
+            </div>
+            <div class="form-group db-port">
+              <label class="form-label" for="db-port">端口</label>
+              <input id="db-port" class="db-input" placeholder="3306" bind:value={dbForm.port} />
+            </div>
+          </div>
+
+          <div class="db-row">
+            <div class="form-group">
+              <label class="form-label" for="db-user">用户</label>
+              <input id="db-user" class="db-input" placeholder="root" bind:value={dbForm.user} />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="db-pass">密码</label>
+              <input id="db-pass" class="db-input" type="password" placeholder="••••••" bind:value={dbForm.password} />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="db-database">库名</label>
+            <input id="db-database" class="db-input" placeholder="factory" bind:value={dbForm.database} />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="db-tables">表名（多个用逗号分隔）</label>
+            <input id="db-tables" class="db-input" placeholder="equipment, devices" bind:value={dbForm.tables} />
+          </div>
+
+          <button class="btn-action" onclick={doDbSetup} disabled={dbBusy}>
+            <span class="btn-icon">{dbBusy ? '⏳' : '🔗'}</span>
+            {dbBusy ? '建模进行中…' : '确认并建模'}
+          </button>
+
+          {#if dbResult}
+            <div class="db-result" class:db-err={!dbResult.ok}>
+              {#if dbResult.ok}
+                <div class="model-head">
+                  <span class="model-table">数据表：{dbResult.table}</span>
+                  <span class="model-count">✓ 建模完成</span>
+                </div>
+              {:else}
+                <div class="db-err-text">✗ {dbResult.error}</div>
+              {/if}
+            </div>
+          {/if}
+        </div>
       </div>
 
-      <!-- ─── 模型管理折叠区（查看/编辑/增删/设 active，api_key 脱敏）─── -->
-      <div class="db-collapse">
-        <button class="db-toggle" onclick={() => (modelOpen = !modelOpen)}>
-          <span class="file-icon">🤖</span> 模型配置管理
+      <!-- ─── 卡片④ 模型配置管理（查看/编辑/增删/设 active，api_key 脱敏）─── -->
+      <div class="card">
+        <button class="card-head card-head-btn" onclick={() => (modelOpen = !modelOpen)}>
+          <span class="card-icon">🤖</span>
+          <div class="card-titles">
+            <div class="card-title">模型配置管理</div>
+            <div class="card-desc">{modelOpen ? '点击收起' : '点击展开'}模型/向量配置</div>
+          </div>
           <span class="chevron">{modelOpen ? '▾' : '▸'}</span>
         </button>
         {#if modelOpen}
-          <div class="db-body">
+          <div class="card-body">
             <div class="db-hint">模型配置持久化到 model_config.json。api_key 仅在输入新值时更新，留空/不改则保留原值。本地优先：默认 ornith/qwen 可直连 Ollama。</div>
             {#each editModels as m, i}
               <div class="m-edit">
@@ -879,8 +994,72 @@
     {/if}
   </main>
 
+  <!-- ═══ 企业设置弹窗 ═══ -->
+  {#if entOpen}
+  <div class="ent-overlay" onclick={(e) => { if (e.target === e.currentTarget) closeEnterprise(); }}>
+    <div class="ent-modal" role="dialog" aria-modal="true" aria-label="企业设置">
+      <div class="ent-head">
+        <span class="card-icon">⚙️</span>
+        <span class="ent-title">企业设置</span>
+        <button class="ent-close" onclick={closeEnterprise} aria-label="关闭">✕</button>
+      </div>
+      <div class="ent-body">
+        <div class="ent-logo-row">
+          {#if isImgLogo(entForm.logo)}
+            <img class="ent-logo-preview" src={entForm.logo} alt="企业logo" />
+          {:else}
+            <span class="ent-logo-preview ent-logo-emoji">{entForm.logo || '🏭'}</span>
+          {/if}
+          <div class="ent-logo-actions">
+            <span class="form-label">企业 Logo</span>
+            <div class="ent-logo-btns">
+              <label class="ent-upload">
+                <input type="file" accept="image/*" onchange={onLogoUpload} />
+                📤 上传图片
+              </label>
+              <button class="ent-mini" onclick={clearLogo}>清除</button>
+            </div>
+          </div>
+        </div>
+        <div class="ent-emoji-wrap">
+          <span class="form-label">或选择 Logo（emoji）</span>
+          <div class="ent-emoji-grid">
+            {#each LOGO_EMOJIS as em}
+              <button
+                class="ent-emoji" class:sel={entForm.logo === em}
+                onclick={() => { entForm.logo = em; entErr = ''; }}
+              >{em}</button>
+            {/each}
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ent-name">企业名称</label>
+          <input id="ent-name" class="db-input" placeholder="请输入企业名称（如：华信精密制造）" bind:value={entForm.name} />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ent-industry">所属行业</label>
+          <select id="ent-industry" class="db-input" bind:value={entForm.industry}>
+            <option value="">请选择行业</option>
+            {#each INDUSTRY_OPTIONS as ind}
+              <option value={ind}>{ind}</option>
+            {/each}
+          </select>
+        </div>
+        {#if entErr}<div class="ent-err">✗ {entErr}</div>{/if}
+        {#if entOk}<div class="ent-ok">✓ {entOk}</div>{/if}
+      </div>
+      <div class="ent-foot">
+        <button class="btn-action btn-default" onclick={closeEnterprise}>取消</button>
+        <button class="btn-action" onclick={doSaveEnterprise} disabled={entBusy}>
+          {entBusy ? '保存中…' : '💾 保存设置'}
+        </button>
+      </div>
+    </div>
+  </div>
+  {/if}
+
   <footer class="statusbar">
-    <span class="sb-left">工厂智能体 · 本体问答系统</span>
+    <span class="sb-left">{enterprise.name ? `${enterprise.name} · 本体问答系统` : '工厂智能体 · 本体问答系统'}</span>
     <span class="sb-right">数据本地处理 ｜ 运行时：Node.js + Python</span>
   </footer>
 </div>
@@ -915,9 +1094,48 @@
     padding: 4px 8px; font-size: 12px; color: #1e293b; cursor: pointer;
   }
   .model-select select:focus { outline: none; border-color: #3b82f6; }
-  .logo { font-size: 22px; }
+  .logo { font-size: 22px; line-height: 1; }
+  .logo-img {
+    width: 32px; height: 32px; border-radius: 8px; object-fit: contain;
+    background: #f1f5f9; border: 1px solid #e2e8f0; padding: 2px;
+  }
   .brand-name { font-size: 15px; font-weight: 700; color: #1e293b; letter-spacing: 0.2px; }
   .brand-sub { font-size: 11px; color: #8892a4; letter-spacing: 0.4px; }
+
+  /* ─── 企业设置按钮 ─── */
+  .ent-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: #fff; color: #1e293b; border: 1px solid #d5dbe3; border-radius: 6px;
+    padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: all 0.15s; white-space: nowrap;
+  }
+  .ent-btn:hover { background: #eff6ff; border-color: #3b82f6; color: #2563eb; }
+
+  /* ─── 卡片化功能分区（建模 tab）─── */
+  .card {
+    background: #ffffff; border: 1px solid #e4e9f0; border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+    overflow: hidden; transition: box-shadow 0.15s;
+  }
+  .card:hover { box-shadow: 0 4px 14px rgba(15, 23, 42, 0.09); }
+  .card-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 13px; background: #f8fafc;
+    border-bottom: 1px solid #eef1f6;
+  }
+  .card-head-btn {
+    width: 100%; border: none; text-align: left; cursor: pointer;
+    background: #f8fafc; font: inherit;
+  }
+  .card-head-btn:hover { background: #eff6ff; }
+  .card-head-btn:hover .card-title { color: #2563eb; }
+  .card-icon { font-size: 20px; flex-shrink: 0; }
+  .card-titles { flex: 1; display: flex; flex-direction: column; gap: 1px; }
+  .card-title { font-size: 13px; font-weight: 700; color: #1e293b; }
+  .card-desc { font-size: 11px; color: #94a3b8; }
+  .card-body { padding: 12px 13px; display: flex; flex-direction: column; gap: 10px; }
+  .btn-example { background: #1e293b; }
+  .btn-example:hover:not(:disabled) { background: #0f172a; }
 
   .status-indicator {
     display: flex; align-items: center; gap: 8px;
@@ -1249,6 +1467,74 @@
     border-top: 1px solid #d5dbe3;
     font-size: 11px; color: #8892a4;
     flex-shrink: 0;
+  }
+
+  /* ─── 企业设置弹窗 ─── */
+  .ent-overlay {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(15, 23, 42, 0.42);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .ent-modal {
+    width: 100%; max-width: 460px; max-height: 90vh; overflow-y: auto;
+    background: #ffffff; border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.25);
+    display: flex; flex-direction: column;
+  }
+  .ent-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 14px 16px; background: #f8fafc;
+    border-bottom: 1px solid #eef1f6;
+  }
+  .ent-title { flex: 1; font-size: 15px; font-weight: 700; color: #1e293b; }
+  .ent-close {
+    width: 26px; height: 26px; border: none; border-radius: 6px;
+    background: #eef1f6; color: #64748b; font-size: 13px; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .ent-close:hover { background: #e2e8f0; color: #1e293b; }
+  .ent-body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .ent-logo-row { display: flex; align-items: center; gap: 14px; }
+  .ent-logo-preview {
+    width: 58px; height: 58px; border-radius: 12px;
+    background: #f1f5f9; border: 1px solid #e2e8f0;
+    object-fit: contain; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .ent-logo-emoji { font-size: 32px; }
+  .ent-logo-actions { display: flex; flex-direction: column; gap: 6px; }
+  .ent-logo-btns { display: flex; gap: 8px; align-items: center; }
+  .ent-upload {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: #2563eb; color: #fff; border-radius: 6px;
+    padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .ent-upload:hover { background: #1d4ed8; }
+  .ent-upload input { display: none; }
+  .ent-mini {
+    background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0;
+    border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .ent-mini:hover { background: #e2e8f0; color: #1e293b; }
+  .ent-emoji-wrap { display: flex; flex-direction: column; gap: 6px; }
+  .ent-emoji-grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; }
+  .ent-emoji {
+    aspect-ratio: 1; border: 1px solid #e4e9f0; border-radius: 8px;
+    background: #fbfcfe; font-size: 18px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.12s;
+  }
+  .ent-emoji:hover { background: #eff6ff; border-color: #3b82f6; }
+  .ent-emoji.sel { background: #eff6ff; border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2); }
+  .ent-err { font-size: 12px; color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 7px 10px; }
+  .ent-ok { font-size: 12px; color: #16a34a; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 7px 10px; }
+  .ent-foot {
+    display: flex; justify-content: flex-end; gap: 10px;
+    padding: 13px 16px; background: #f8fafc;
+    border-top: 1px solid #eef1f6;
   }
 
   ::-webkit-scrollbar { width: 6px; height: 6px; }

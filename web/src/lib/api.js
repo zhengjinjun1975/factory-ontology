@@ -159,3 +159,16 @@ export async function browseFiles(dir) {
 export async function readDataFile(path) {
   return fetchRetry(`/api/ontology/read-data?path=${encodeURIComponent(path)}`);
 }
+
+// ── 企业设置（企业名/logo/行业，后端持久化）──
+export async function fetchEnterprise() {
+  return fetchRetry('/api/ontology/enterprise', { cache: 'no-store' });
+}
+
+export async function saveEnterprise(cfg) {
+  return fetchRetry('/api/ontology/enterprise', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(cfg),
+  });
+}
