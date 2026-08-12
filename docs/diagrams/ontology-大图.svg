@@ -78,7 +78,7 @@
 
   <!-- 说明 -->
   <rect x="120" y="700" width="1040" height="170" rx="12" fill="#fff" stroke="#e0e6ef" stroke-width="1.5"/>
-  <text x="150" y="730" fill="#1a2233" font-size="16" font-weight="bold" font-family="PingFang SC,Microsoft YaHei,sans-serif">深化要点（参考 sme-decision-ontology 解决方式）</text>
+  <text x="150" y="730" fill="#1a2233" font-size="16" font-weight="bold" font-family="PingFang SC,Microsoft YaHei,sans-serif">深化要点（参考既有深化方案）</text>
   <text x="150" y="760" fill="#3d4a5d" font-size="14" font-family="PingFang SC,Microsoft YaHei,sans-serif">① 本体层次（Is-A）：产品 subClassOf 类别（闸阀/球阀/蝶阀/止回阀/安全阀）+ 设备类别 → 多表本体自动生成 rdfs:subClassOf</text>
   <text x="150" y="790" fill="#3d4a5d" font-size="14" font-family="PingFang SC,Microsoft YaHei,sans-serif">② 企业与客户关系：新增 客户 + 销售 表，产品 --销售--> 客户（hasValve_products / hasValve_customers）</text>
   <text x="150" y="820" fill="#3d4a5d" font-size="14" font-family="PingFang SC,Microsoft YaHei,sans-serif">③ 跨行业泛化：multi_table 自动检测 FK（含领域前缀+单复数）+ 类别列，换数据（阀门/食品）代码不动</text>
