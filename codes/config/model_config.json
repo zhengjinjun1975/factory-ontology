@@ -1,6 +1,6 @@
 {
   "_comment": "模型配置：local=本地ornith(Ollama,无需key)，cloud=云端DeepSeek(OpenAI兼容,需api_key)。api_key 直接填此字段；留空则读环境变量 DEEPSEEK_API_KEY 或 ZHIPU_API_KEY(不依赖任何外部Agent框架)。修改 active 切换，或用环境变量 FOOD_MODEL 覆盖。embedding=向量检索用本地模型，默认nomic-embed-text。",
-  "active": "cloud",
+  "active": "local",
   "embedding": {
     "name": "本地向量模型",
     "type": "ollama",
