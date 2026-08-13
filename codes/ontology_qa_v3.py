@@ -427,6 +427,95 @@ def _entity_subset(q, D, data):
     return data
 
 
+# ------------------------------------------------------------------ 聚合/分组查询
+# '各X的Y' / 'XX分布' / '平均/合计' 等聚合查询统一落在规则引擎(确定性, 不依赖 LLM)。
+# 分组属性词典驱动: attr_cn2en(车间->workshop/类型->type/状态->status) + 枚举别名兜底。
+
+def _agg_field_value(d, en, aliases):
+    """取某记录的分组/聚合字段值(en)。对类型/状态/区域类字段做多字段兜底解析,
+    兼容 设备用 deviceType、产品用 type、区域用 workshop/location 等差异。"""
+    if en in ("type", "deviceType", "category"):
+        for f in ("deviceType", "category", "type", "kind"):
+            v = _field(d, f, aliases)
+            if v:
+                return v
+        return _field(d, en, aliases) or "未知"
+    if en in ("status", "state", "result"):
+        return _field(d, "status", aliases) or "未知"
+    if en in ("workshop", "zone", "location", "region", "area"):
+        for f in ("workshop", "zone", "location", "region", "area"):
+            v = _field(d, f, aliases)
+            if v:
+                return v
+        return _field(d, en, aliases) or "未知"
+    return _field(d, en, aliases) or "未知"
+
+
+def _find_agg_attr(D, q):
+    """聚合/分组属性检测(词典驱动, 不硬编码词)。
+    返回 (en字段, 中文属性, 模式) 或 (None,None,None)。
+    - 模式 "group": '各X' 分组计数 (各车间/各类型/各状态)
+    - 模式 "dist" : 'X分布' 枚举分布 (状态分布/类型分布/车间分布)
+    """
+    ac2e = D.get("attr_cn2en", {}) or {}
+    # 先找 '各X'(分组计数): 车间/类型/状态等
+    for cn, en in sorted(ac2e.items(), key=lambda x: len(x[0]), reverse=True):
+        if "各" + cn in q:
+            return en, cn, "group"
+    # 再找 'X分布'(枚举分布)
+    for cn, en in sorted(ac2e.items(), key=lambda x: len(x[0]), reverse=True):
+        if cn + "分布" in q:
+            return en, cn, "dist"
+    return None, None, None
+
+
+def _agg_distribution(q, D, data, en):
+    """统计某分组字段的分布。返回 (有序 dict {值:计数}, 该字段非空记录数)。
+
+    实体作用域: 问题含实体词时用 _entity_subset 消歧(各车间设备/各类型产品只在该类聚合)。
+    问题不含实体词时(裸"状态分布/类型分布"), 自动选该字段覆盖最广的实体类, 避免把
+    多类不兼容枚举(设备的运行中 vs 批次的生产中)混在一起并产生大量"未知"。"""
+    aliases = D.get("field_aliases", {})
+    sub = _entity_subset(q, D, data)
+    # 自动选类: 若问题没点名实体, 且存在多个实体类, 取该字段非空率最高的类
+    _named = any(cn in q for cn in (D.get("entity_cn2en", {}) or {})) or \
+             any(cn in q for cn in (get_entity_cn2uri() or {}))
+    if not _named:
+        # 用实体表名子串给每个实例归类(如 valve_equipment/valve_products), 而非取 key 首段,
+        # 因为实例 key 形如 "Valve_equipment_E001", 首段 "Valve" 对所有类都相同。
+        _cls_list = []
+        for cn, _en in (D.get("entity_cn2en", {}) or {}).items():
+            if isinstance(_en, str) and _en:
+                _cls_list.append(_en.lower())
+        _cls_list = sorted(set(_cls_list), key=len, reverse=True)
+        if not _cls_list:
+            _cls_list = [str(v).lower() for v in (get_entity_cn2uri() or {}).values() if v]
+        classes = {}
+        for k in sub:
+            matched = next((c for c in _cls_list if c in k.lower()), None)
+            classes.setdefault(matched or "_other", []).append(k)
+        if len(classes) > 1:
+            best_c, best_hits = None, -1
+            for c, keys in classes.items():
+                if c == "_other":
+                    continue
+                hits = sum(1 for k in keys if _agg_field_value(data[k], en, aliases) != "未知")
+                if hits > best_hits:
+                    best_c, best_hits = c, hits
+            if best_c:
+                sub = {k: d for k, d in sub.items() if best_c in k.lower()}
+    cnt = defaultdict(int)
+    nonempty = 0
+    for d in sub.values():
+        v = _agg_field_value(d, en, aliases)
+        if v != "未知":
+            nonempty += 1
+        cnt[v] += 1
+    # 去掉"未知"桶: 只展示真实取值, 避免大段噪音(未点名实体时尤其重要)
+    cnt.pop("未知", None)
+    return dict(sorted(cnt.items(), key=lambda x: (-x[1], str(x[0])))), nonempty
+
+
 def answer(q, data, D):
     """词典 D 驱动的通用问答。"""
     aliases = D.get("field_aliases", {})
@@ -462,6 +551,17 @@ def answer(q, data, D):
         if "多少" in q:
             return "%s区域有 %d" % (zo_cn, len(nm))
         return "%s区域的记录(%d):\n%s" % (zo_cn, len(nm), _fmt_names(nm))
+
+    # ---- 聚合/分组查询 (规则引擎, 确定性): '各X的Y' 与 'XX分布' ----
+    # 词典驱动: attr_cn2en 识别 车间/类型/状态 等分组属性; 实体消歧限定聚合范围。
+    # 放在通用"类型枚举/列出"之前, 避免"各类型产品数"被误判成"类型有: ..."列表。
+    _agg_en, _agg_cn, _agg_mode = _find_agg_attr(D, q)
+    if _agg_en and (_agg_mode == "group" or _agg_mode == "dist"):
+        _dist, _nonempty = _agg_distribution(q, D, data, _agg_en)
+        _lines = "\n".join(f"  {k}: {v}" for k, v in _dist.items())
+        if _agg_mode == "dist":
+            return "%s分布:\n%s" % (_agg_cn, _lines)
+        return "各%s:\n%s" % (_agg_cn, _lines)
 
     attr_en, attr_cn = _find_attr(D, q)
 
@@ -589,7 +689,8 @@ def answer(q, data, D):
 
     # ---- 平均 ----
     if attr_en and ("平均" in q or "均值" in q):
-        vals = [_num(_field(d, attr_en, aliases)) for d in data.values()]
+        sub = _entity_subset(q, D, data)  # 聚合作用域: 只在该实体类中平均
+        vals = [_num(_field(d, attr_en, aliases)) for d in sub.values()]
         vals = [v for v in vals if v is not None]
         if vals:
             cname = attr_cn or cn2cn.get(attr_en, attr_en)
@@ -597,7 +698,8 @@ def answer(q, data, D):
 
     # ---- 总和 ----
     if attr_en and any(k in q for k in ("总", "合计", "总和")):
-        vals = [_num(_field(d, attr_en, aliases)) for d in data.values()]
+        sub = _entity_subset(q, D, data)  # 聚合作用域: 只在该实体类中求和
+        vals = [_num(_field(d, attr_en, aliases)) for d in sub.values()]
         vals = [v for v in vals if v is not None]
         if vals:
             cname = attr_cn or cn2cn.get(attr_en, attr_en)
