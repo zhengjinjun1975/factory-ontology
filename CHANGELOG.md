@@ -105,8 +105,6 @@
 
 ### 内部使用方案（示例）
 - `docs/内部使用方案.md`（示例）：设备/合同知识库场景 + 落地步骤 + ROI
-- `internal_demo.py` + `data_internal/*.csv`（合成示例）：实证内部知识管理可行（设备数量、客户/状态过滤、金额过滤）
-- `config/lexicon_internal.json` 设备/合同词典
 
 ## [2.9.2] — 2026-08-06
 

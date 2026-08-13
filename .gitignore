@@ -35,3 +35,7 @@ web/users.json
 
 # 内部数据(含真实客户/人名), 不发布
 codes/data_internal/
+
+# 内部demo(引用真实客户数据), 不发布
+codes/internal_demo.py
+codes/config/lexicon_internal.json
