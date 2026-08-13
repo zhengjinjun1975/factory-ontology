@@ -706,24 +706,44 @@ _FUSION_STOP = {"的", "了", "是", "在", "有", "与", "和", "或", "及", "
                  "从", "被", "把", "让", "要", "但", "并且", "哪", "些", "等",
                  "关于", "请问", "一下", "信息", "相关", "数据"}
 
-def _fuse_q_keywords(q):
-    """从问题提取有区分度的中文关键词(用于文档融合的相关性闸门)。
+# 尾部疑问/请求助词(只做"去尾", 不作为内容词参与二元组匹配)
+_FUSION_QUEST_TAIL = ("是什么", "有哪些", "多少个", "多少种", "多少", "怎么", "如何",
+                      "什么", "哪些", "为什", "吗", "呢", "呀", "吧")
 
-    提取 2+ 字中文连续段, 过滤停用词/疑问助词, 再取其首尾两字子串,
-    得到一组可用来判断文档切块与问题是否同主题的关键词。
+
+def _fuse_q_bigrams(q):
+    """从问题提取"滑动二元组"(相邻词对), 用于文档融合的相关性闸门。
+
+    去掉尾部疑问助词(是什么/有哪些/多少/怎么/如何等)后, 对剩余中文主体
+    取每相邻两字组成一个词对(如"设备温度要求"→"设备/备温/温度/度要/要求"),
+    得到一组可判断文档切块与问题是否同主题的滑动二元组。
     """
     out = set()
-    for run in re.findall(r"[\u4e00-\u9fff]{2,}", q or ""):
-        if run in _FUSION_STOP:
+    for run in re.findall(r"[\u4e00-\u9fff]+", q or ""):
+        body = run
+        for p in sorted(_FUSION_QUEST_TAIL, key=len, reverse=True):
+            if body.endswith(p):
+                body = body[:len(body) - len(p)]
+                break
+        if len(body) < 2:
             continue
-        if len(run) <= 4 and run.endswith(("有哪些", "什么", "多少", "怎么", "如何")):
-            continue
-        out.add(run)
-        if len(run) >= 2:
-            out.add(run[:2])
-            out.add(run[-2:])
-    out -= _FUSION_STOP
+        out.add(body)
+        for i in range(len(body) - 1):
+            out.add(body[i:i + 2])
     return out
+
+
+def _fuse_chunk_relevant(question, chunk):
+    """相关性闸门: 文档切块与问题共享 >=2 个滑动二元组(相邻词对)即判同主题。
+
+    相比单一 2 字关键词(易被跨主题文档偶然命中, 如"类型/设备"在护肤/医药报告),
+    滑动二元组要求问题与切块有多个相邻词对重合, 显著提升相关度判断精度,
+    从而过滤跨主题的无关文档命中, 避免 RAG 融合/兜底时的主题污染。
+    """
+    bgs = _fuse_q_bigrams(question)
+    if not bgs:
+        return False
+    return sum(1 for b in bgs if b in (chunk or "")) >= 2
 
 
 def _fuse_doc_supplement(question, structured_payload, kb):
@@ -740,11 +760,10 @@ def _fuse_doc_supplement(question, structured_payload, kb):
     doc_hits = _retrieve_doc_chunks(question, kb, top_k=5)
     if not doc_hits:
         return structured_payload
-    # 相关性闸门: 只保留与问题共享关键词的切块, 过滤跨主题的无关文档命中
-    kw = _fuse_q_keywords(question)
-    if kw:
-        doc_hits = [h for h in doc_hits
-                    if any(k in (h.get("chunk") or "") for k in kw)]
+    # 相关性闸门: 只保留与问题共享 >=2 个滑动二元组(相邻词对)的切块,
+    # 过滤跨主题的无关文档命中(如护肤/医药报告偶然命中"类型/设备"等单字)
+    doc_hits = [h for h in doc_hits
+                if _fuse_chunk_relevant(question, h.get("chunk") or "")]
     if not doc_hits:
         return structured_payload
     doc_ev = _norm_doc_evidence(doc_hits)
@@ -780,6 +799,8 @@ def _doc_rag_fallback(question, kb):
         res = _rag_answer(None, question, KnowledgeStore(kbdir), top_k=5)
         ans = (res or {}).get("answer", "") or ""
         ev = (res or {}).get("evidence", []) or []
+        # 相关性闸门: 只保留与问题共享 >=2 个滑动二元组的切块, 过滤跨主题文档
+        ev = [e for e in ev if _fuse_chunk_relevant(question, e.get("chunk") or "")]
         if ans.strip() and not ans.startswith("[") and "片段未覆盖" not in ans and ev:
             return {"ok": True, "mode": "kb_rag", "answer": ans,
                     "evidence": _norm_doc_evidence(ev), "engines": ["doc"],
@@ -946,8 +967,10 @@ def _ask_impl(req: AskReq):
             _res = _rag_answer(None, q, _store, top_k=5)
             _ans = (_res or {}).get("answer", "") or ""
             _ev = (_res or {}).get("evidence", []) or []
-            _invalid = not _ans.strip() or _ans.startswith("[") or "片段未覆盖" in _ans
-            if not _invalid and _ev:
+            # 相关性闸门: 只保留与问题共享 >=2 个滑动二元组的切块, 过滤跨主题文档
+            _ev = [e for e in _ev if _fuse_chunk_relevant(q, e.get("chunk") or "")]
+            _invalid = not _ans.strip() or _ans.startswith("[") or "片段未覆盖" in _ans or not _ev
+            if not _invalid:
                 return {"ok": True, "mode": "kb_rag", "answer": _ans,
                         "evidence": _norm_doc_evidence(_ev), "engines": ["doc"],
                         "structured": None, "no_basis": False, "kb": ctx["kb"]}
