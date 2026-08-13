@@ -91,9 +91,23 @@ class QueryAgent(BaseAgent):
             fused = rrf_fuse(bm_hits, vec_hits, HYBRID_CFG)
             if fused:
                 ents = "、".join(f["entity"] for f in fused)
-                # 评测路径(use_llm=False): 不输出"找到相关实体"占位(用户不可读), 返回友好提示。
-                # 混合检索命中实体≠回答了问题(如"功率最大"只命中设备类名), 应诚实告知未找到确切答案。
+                # 评测路径(use_llm=False): 不输出"找到相关实体"占位(用户不可读)。
+                # 咨询/建议型开放问题(有什么安全问题/风险/建议等)即使评测也走 LLM 兜底生成可读建议,
+                # 而非僵硬返回"未找到确切答案"——这类问题本来就不该罗列实体。
+                # 明确数据查询(极值/计数/列出)才返回友好提示(诚实告知未找到确切答案)。
                 if not task.get("use_llm", True):
+                    import re as _re
+                    _ADVICE = _re.compile(
+                        r"有什么需要|建议|应当注意|应该注意|需要警惕|"
+                        r"如何(才能|有效|更好|避免|预防|防范|降低|减少|提高|确保)|"
+                        r"风险|安全隐患|合规|规范要求|需要注意|怎么办|意义|作用|影响|"
+                        r"问题|措施|方案|注意", _re.I)
+                    if _ADVICE.search(q):
+                        lans = self._advice_answer(q, nt, D)
+                        if lans:
+                            return self._ok(_pack(q, lans,
+                                                 engines=["rule", "graphrag", "hybrid", "llm"],
+                                                 evidence={"answer": lans}), "query")
                     return self._ok(_pack(q, "未能在当前知识库中找到确切答案（可换一种问法，或补充相关字段数据）",
                                          engines=["rule", "graphrag", "hybrid"],
                                          evidence={"hits": fused[:5], "no_basis": True}), "query")
@@ -154,6 +168,29 @@ class QueryAgent(BaseAgent):
         )
         try:
             ans = llm_generate(prompt, temperature=0.4, max_tokens=400)
+            if not ans or ans.startswith("[模型"):
+                return None
+            return ans.strip()
+        except Exception:
+            return None
+
+    def _advice_answer(self, q, nt, D):
+        """咨询/建议型问题专用兜底: 基于行业常识生成建议, 明确声明非具体数据结论。
+        区别于 _llm_fallback(数据问答导向, 实体不在schema答'无相关数据')。
+        模型不可用/输出非法返回 None。"""
+        try:
+            from model_llm import llm_generate
+        except Exception:
+            return None
+        prompt = (
+            f"用户问题: {q}\n"
+            "这是关于化工/制造企业的咨询型问题, 用户在寻求通用建议/知识, 不是查询具体数据。\n"
+            "请基于行业通用常识给出简洁、务实的建议。\n"
+            "注意: 若涉及本知识库可能有的具体数据(设备/产品/批次数量等), 可提及但不编造具体数字; "
+            "纯咨询部分按通用知识作答。回答控制在150字内。"
+        )
+        try:
+            ans = llm_generate(prompt, temperature=0.5, max_tokens=300)
             if not ans or ans.startswith("[模型"):
                 return None
             return ans.strip()
