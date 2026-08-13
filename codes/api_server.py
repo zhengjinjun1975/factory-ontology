@@ -278,6 +278,7 @@ li{{margin:6px 0}} .foot{{color:#94a3b8;font-size:12px;margin-top:24px}}</style>
 class AskReq(BaseModel):
     question: str
     kb: str = ""  # 多租户: 指定知识库; 缺省用 FOOD_KB(默认 food), 兼容旧调用
+    fuse_docs: bool = True  # RAG+本体融合: 结构化命中时是否并行检索文档补充细节/溯源(One Query 全答)
 
 
 # ── 多租户惰性加载(T-D1 彻底化): 按 kb 加载本体/词典, 缓存多库, 根治串台 ──
@@ -678,6 +679,116 @@ def _llm_fallback_answer(question, kb):
     return None
 
 
+def _retrieve_doc_chunks(question, kb, top_k=5):
+    """仅检索(不生成答案)某 kb 已入库文档, 返回归一化 doc 证据列表 [{doc_id,title,chunk,score}]。
+
+    RAG+本体融合的\"文档补细节/溯源\"用: 只取向量命中的原文切块, 不调 LLM 生成答案,
+    避免重复生成冗余 doc 回答、也保证溯源只引用原文不编造。无有效命中返回 []。
+    """
+    try:
+        from knowledge.rag import _retrieve
+        from knowledge.store import KnowledgeStore
+        kbdir = _kb_dir(kb)
+        if kbdir is None:
+            return []
+        hits, _qv = _retrieve(KnowledgeStore(kbdir), question, top_k=top_k)
+        if not hits:
+            return []
+        return [{"doc_id": h.get("doc_id"), "title": h.get("title"),
+                 "chunk": h.get("chunk", ""), "score": h.get("score")}
+                for h in hits]
+    except Exception:
+        return []
+
+
+_FUSION_STOP = {"的", "了", "是", "在", "有", "与", "和", "或", "及", "个", "只",
+                 "种", "类型", "哪些", "什么", "怎么", "如何", "为", "为了", "对",
+                 "从", "被", "把", "让", "要", "但", "并且", "哪", "些", "等",
+                 "关于", "请问", "一下", "信息", "相关", "数据"}
+
+def _fuse_q_keywords(q):
+    """从问题提取有区分度的中文关键词(用于文档融合的相关性闸门)。
+
+    提取 2+ 字中文连续段, 过滤停用词/疑问助词, 再取其首尾两字子串,
+    得到一组可用来判断文档切块与问题是否同主题的关键词。
+    """
+    out = set()
+    for run in re.findall(r"[\u4e00-\u9fff]{2,}", q or ""):
+        if run in _FUSION_STOP:
+            continue
+        if len(run) <= 4 and run.endswith(("有哪些", "什么", "多少", "怎么", "如何")):
+            continue
+        out.add(run)
+        if len(run) >= 2:
+            out.add(run[:2])
+            out.add(run[-2:])
+    out -= _FUSION_STOP
+    return out
+
+
+def _fuse_doc_supplement(question, structured_payload, kb):
+    """RAG+本体融合核心: 结构化答案优先, 文档补细节/溯源。
+
+    当结构化查询命中确定数据(evidence 非空)时, 并行检索该 kb 已入库文档;
+    若文档返回有效命中, 把文档切块并入 evidence(source=doc), 并在 answer 尾部
+    追加一段带溯源的\"文档补充\", 返回融合 payload(mode=fused, engines 含 doc)。
+    文档无有效命中、或命中切块与问题无关键词重合(跨主题干扰)时,
+    原样返回结构化 payload(结构化仍优先, 不因文档缺失/无关而降级)。
+    """
+    if not kb or not structured_payload:
+        return structured_payload
+    doc_hits = _retrieve_doc_chunks(question, kb, top_k=5)
+    if not doc_hits:
+        return structured_payload
+    # 相关性闸门: 只保留与问题共享关键词的切块, 过滤跨主题的无关文档命中
+    kw = _fuse_q_keywords(question)
+    if kw:
+        doc_hits = [h for h in doc_hits
+                    if any(k in (h.get("chunk") or "") for k in kw)]
+    if not doc_hits:
+        return structured_payload
+    doc_ev = _norm_doc_evidence(doc_hits)
+    payload = dict(structured_payload)
+    payload["evidence"] = list(structured_payload.get("evidence", [])) + doc_ev
+    payload["engines"] = list(dict.fromkeys(list(payload.get("engines", [])) + ["doc"]))
+    payload["mode"] = "fused"
+    payload["doc_evidence"] = doc_ev
+    payload["no_basis"] = False
+    # 文档补充段: 只引用原文切块 + 来源标题, 绝不自行编造细节
+    top = doc_ev[0]
+    chunk = str(top.get("value") or "")[:300].strip()
+    if chunk:
+        supp = "\n\n—— 📄 文档补充（溯源）——\n%s" % chunk
+        if top.get("entity"):
+            supp += "\n（来源：《%s》 相关度 %.2f）" % (top["entity"], top.get("score") or 0)
+        payload["answer"] = str(payload.get("answer", "")).rstrip() + supp
+    return payload
+
+
+def _doc_rag_fallback(question, kb):
+    """文档有而本体无时用文档答: 结构化查询\"无记录\"(no_basis)时, 让文档 RAG 兜底。
+
+    返回文档 RAG 的完整答案 payload(kb_rag); 文档也无有效依据时返回 None,
+    交由调用方保留原确定性\"无记录\"答案(不编造)。
+    """
+    try:
+        from knowledge.rag import answer as _rag_answer
+        from knowledge.store import KnowledgeStore
+        kbdir = _kb_dir(kb)
+        if kbdir is None:
+            return None
+        res = _rag_answer(None, question, KnowledgeStore(kbdir), top_k=5)
+        ans = (res or {}).get("answer", "") or ""
+        ev = (res or {}).get("evidence", []) or []
+        if ans.strip() and not ans.startswith("[") and "片段未覆盖" not in ans and ev:
+            return {"ok": True, "mode": "kb_rag", "answer": ans,
+                    "evidence": _norm_doc_evidence(ev), "engines": ["doc"],
+                    "structured": None, "no_basis": False, "kb": kb}
+    except Exception:
+        pass
+    return None
+
+
 def _ask_impl(req: AskReq):
     """问答引擎实现(供 ask 端点包装审计后调用)。"""
     ctx = _get_kb_ctx(req.kb)
@@ -688,7 +799,7 @@ def _ask_impl(req: AskReq):
     D, QDATA, graph = ctx["D"], ctx["QDATA"], ctx["graph"]
     FOOD_NT, FOOD_LEX = ctx["nt_file"], ctx["lex_file"]
     q = req.question
-    # 1. 规则引擎(确定性, 结构化查询) + LLM 润色
+    # 1. 规则引擎(确定性, 结构化查询) + LLM 润色 + RAG+本体融合
     ans = v3.answer(q, QDATA, D)
     if ans != "暂不支持该问题":
         try:
@@ -698,9 +809,23 @@ def _ask_impl(req: AskReq):
             raw_ev = {}
         ev, structured = _norm_rule_evidence(raw_ev)
         polished = _polish_rule_answer(q, ans)
+        if ev:
+            # 结构化命中确定数据 → 融合文档补细节/溯源(One Query 全答)
+            payload = {"ok": True, "mode": "rule", "answer": polished,
+                       "evidence": ev, "engines": ["rule"], "structured": structured,
+                       "no_basis": False, "kb": ctx["kb"]}
+            if req.fuse_docs:
+                payload = _fuse_doc_supplement(q, payload, ctx["kb"])
+            return payload
+        # 结构化"无记录"(no_basis) → 文档有而本体无时用文档答: 先让文档 RAG 兜底,
+        # 文档也无有效依据时保留确定性"无记录"答案(不编造)。
+        if req.fuse_docs:
+            doc_payload = _doc_rag_fallback(q, ctx["kb"])
+            if doc_payload:
+                return doc_payload
         return {"ok": True, "mode": "rule", "answer": polished,
-                "evidence": ev, "engines": ["rule"], "structured": structured,
-                "no_basis": not ev, "kb": ctx["kb"]}
+                "evidence": [], "engines": ["rule"], "structured": None,
+                "no_basis": True, "kb": ctx["kb"]}
     # 1.5 通用跨域校验(P1, 取代原白名单词表): 规则引擎 miss 后, 若问题是一条明确的数据查询
     #     (计数/列表/极值/范围/统计), 且其中引用的实体概念不在该 kb 本体任何实体类/词典
     #     (kb_vocab: entity/type/status/zone/attr/numeric_fields), 则禁止逻辑桥/图检索/混合/
@@ -731,9 +856,20 @@ def _ask_impl(req: AskReq):
                 raw_ev = {}
             ev, structured = _norm_rule_evidence(raw_ev)
             polished = _polish_rule_answer(q, lans)
+            if ev:
+                payload = {"ok": True, "mode": "logical", "answer": polished,
+                           "evidence": ev, "engines": ["rule"], "structured": structured,
+                           "no_basis": False, "kb": ctx["kb"]}
+                if req.fuse_docs:
+                    payload = _fuse_doc_supplement(q, payload, ctx["kb"])
+                return payload
+            if req.fuse_docs:
+                doc_payload = _doc_rag_fallback(q, ctx["kb"])
+                if doc_payload:
+                    return doc_payload
             return {"ok": True, "mode": "logical", "answer": polished,
-                    "evidence": ev, "engines": ["rule"], "structured": structured,
-                    "no_basis": not ev, "kb": ctx["kb"]}
+                    "evidence": [], "engines": ["rule"], "structured": None,
+                    "no_basis": True, "kb": ctx["kb"]}
     except Exception:
         pass  # 逻辑桥不可用则跳过
     # 3. GraphRAG(LLM 基于图子图作答)

@@ -1,0 +1,7 @@
+{
+  "dsn": "sqlite:///E:/open-source/factory-ontology-kit/codes/data/erp_demo.db",
+  "tables": ["equipment", "products", "production_order", "customer"],
+  "output": "erp_multi",
+  "poll_interval": 30,
+  "comment": "增量刷新配置。poll_interval为定时轮询间隔(秒)。watermark为可选：{表名: 水位列}，用COUNT+MAX廉价探测变更，适合大表(需表有 updated_at 之类时间列)。缺省 watermark 用内容哈希检测(读全表)。"
+}

@@ -1,0 +1,41 @@
+{
+  "tables": {
+    "equipment": {
+      "fp": "c:5:411552f0387e3abe09a5d9c7624e211d",
+      "subjects": [
+        "http://factory.example/ontology#Equipment_EQ-001",
+        "http://factory.example/ontology#Equipment_EQ-002",
+        "http://factory.example/ontology#Equipment_EQ-003",
+        "http://factory.example/ontology#Equipment_EQ-004",
+        "http://factory.example/ontology#Equipment_EQ-005"
+      ]
+    },
+    "products": {
+      "fp": "c:4:516377bcf829dbb4ce6779df68a2353d",
+      "subjects": [
+        "http://factory.example/ontology#Products_P-001",
+        "http://factory.example/ontology#Products_P-002",
+        "http://factory.example/ontology#Products_P-003",
+        "http://factory.example/ontology#Products_P-004"
+      ]
+    },
+    "production_order": {
+      "fp": "c:3:a6de7e90cc9608a408321a568c22ace3",
+      "subjects": [
+        "http://factory.example/ontology#Production_order_SO-1001",
+        "http://factory.example/ontology#Production_order_SO-1003",
+        "http://factory.example/ontology#Production_order_SO-1004"
+      ]
+    },
+    "customer": {
+      "fp": "c:4:82174ae96e5ea85ef425a03268fc9f0f",
+      "subjects": [
+        "http://factory.example/ontology#Customer_C-01",
+        "http://factory.example/ontology#Customer_C-02",
+        "http://factory.example/ontology#Customer_C-03",
+        "http://factory.example/ontology#Customer_C-04"
+      ]
+    }
+  },
+  "init": true
+}
