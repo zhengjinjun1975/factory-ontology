@@ -6,16 +6,16 @@
 <title>知识库管理后台</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#f5f7fa;color:#1f2937;padding:16px}
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#f8fafc;color:#1f2937;padding:16px}
   h1{font-size:18px;margin-bottom:12px}
   .card{background:#fff;border-radius:12px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
   .card h3{font-size:14px;margin-bottom:10px;color:#374151}
   label{font-size:13px;display:block;margin:6px 0 4px}
-  select,input[type=file],input[type=text]{width:100%;padding:9px;border:1px solid #d1d5db;border-radius:8px;font-size:14px}
-  button{background:#16a34a;color:#fff;border:none;padding:9px 14px;border-radius:8px;font-size:14px;cursor:pointer;margin-top:8px}
+  select,input[type=file],input[type=text]{width:100%;padding:9px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px}
+  button{background:#0d9488;color:#fff;border:none;padding:9px 14px;border-radius:8px;font-size:14px;cursor:pointer;margin-top:8px;font-weight:600}
   .row{display:flex;gap:8px;align-items:center}
   pre{background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:10px;font-size:12px;overflow:auto;white-space:pre-wrap}
-  .stat{display:inline-block;background:#dcfce7;color:#15803d;border-radius:8px;padding:6px 12px;font-size:13px;margin:4px 6px 4px 0}
+  .stat{display:inline-block;background:#ccfbf1;color:#0f766e;border-radius:8px;padding:6px 12px;font-size:13px;margin:4px 6px 4px 0}
   .status{font-size:12px;color:#9ca3af;margin-top:6px}
 </style>
 </head>
@@ -85,26 +85,26 @@ async function load(){
     const o=await j('/api/ontology/structure');
     el('ontology').innerHTML=
       `<div style="margin-bottom:8px"><span class="stat">实例 ${o.instance_total}</span><span class="stat">类 ${o.classes.length}</span><span class="stat">关系 ${o.object_properties.length}</span></div>`+
-      `<b style="font-size:13px">类：</b><div style="font-size:12px;margin:4px 0">${o.classes.map(c=>'<span style="background:#eef2ff;padding:2px 8px;border-radius:6px;margin:2px 4px;display:inline-block">'+c+'</span>').join('')}</div>`+
-      `<b style="font-size:13px">Is-A 类别层级(subClassOf)：</b><div style="font-size:12px;margin:4px 0">${o.subclass_of.map(([s,p])=>'<span style="background:#ecfdf5;padding:2px 8px;border-radius:6px;margin:2px 4px;display:inline-block">'+s+' → '+p+'</span>').join('')||'无'}</div>`+
+      `<b style="font-size:13px">类：</b><div style="font-size:12px;margin:4px 0">${o.classes.map(c=>'<span style="background:#ede9fe;padding:2px 8px;border-radius:6px;margin:2px 4px;display:inline-block">'+c+'</span>').join('')}</div>`+
+      `<b style="font-size:13px">Is-A 类别层级(subClassOf)：</b><div style="font-size:12px;margin:4px 0">${o.subclass_of.map(([s,p])=>'<span style="background:#ccfbf1;padding:2px 8px;border-radius:6px;margin:2px 4px;display:inline-block">'+s+' → '+p+'</span>').join('')||'无'}</div>`+
       `<b style="font-size:13px">对象属性关系：</b><div style="font-size:12px;margin:4px 0">${o.object_properties.join(' · ')}</div>`;
   }catch(e){el('ontology').textContent='加载失败: '+e.message;}
   try{
     const o=await j('/api/ontology/graph');
     if(typeof echarts!=='undefined'){
       const chartEl=el('biggraph');
-      const colors={Food_products:'#2f6bff',Food_raw_materials:'#27ae60',Food_batches:'#f39c12',Food_batch_ingredient:'#e67e22',Food_qc:'#e74c3c',Food_equipment:'#16a085',Food:'#8e44ad'};
+      const colors={Food_products:'#0d9488',Food_raw_materials:'#14b8a6',Food_batches:'#7c3aed',Food_batch_ingredient:'#a78bfa',Food_qc:'#ef4444',Food_equipment:'#10b981',Food:'#f59e0b'};
       const cats=[...new Set(o.nodes.map(n=>n.entity))].map(e=>({name:e}));
       const chart=echarts.init(chartEl);
       chart.setOption({tooltip:{show:true},animationDuration:800,
         series:[{type:'graph',layout:'force',roam:true,
           force:{repulsion:280,edgeLength:[50,120],gravity:0.1},
           label:{show:true,position:'right',fontSize:9,formatter:p=>p.name&&p.name.split('#').pop().split('_').pop()},
-          edgeSymbol:['none','arrow'],lineStyle:{color:'#d6e4ff',width:1},
+          edgeSymbol:['none','arrow'],lineStyle:{color:'#ccfbf1',width:1},
           categories:cats,
           data:o.nodes.map(n=>({id:n.id,name:n.name,entity:n.entity,
             category:cats.findIndex(c=>c.name===n.entity),
-            itemStyle:{color:colors[n.entity]||'#7f8c8d'}})),
+            itemStyle:{color:colors[n.entity]||'#94a3b8'}})),
           links:o.edges.map(e=>({source:e.from,target:e.to,label:{show:false}})),
           emphasis:{focus:'adjacency',label:{show:true,fontSize:11}}
         }]});
