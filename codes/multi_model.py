@@ -253,10 +253,15 @@ def _build_lexicon(schema, data):
     }
 
 
-def build(data_dir, table="factory_multi"):
-    """load_all + suggest_schema + to_nt 统一建模。返回 (table, tables列表, nt行数)。"""
+def build_data(data, table="factory_multi"):
+    """对内存中的 {表名: [行...]} 直接建模（DB 直连场景：省去 CSV 落盘中间步）。
+
+    与 build() 共用同一套已验收建模流水线（suggest_schema + to_nt + 词典 + state），
+    供 db_to_ontology 一键从 ERP/MES 数据库建本体复用。返回 (table, tables列表, nt行数)。
+    """
     so = _load("schema_ontology", os.path.join(ROOT, "schema_ontology.py"))
-    data = so.load_all(data_dir)               # {表名: [行...]}
+    if not data:
+        raise ValueError("[建模失败] 无可建模的数据表（未从数据库读到任何行）")
     schema = so.suggest_schema(data)           # 自动推断 schema（schema-free）
     os.makedirs(OUT, exist_ok=True)
     nt = os.path.join(OUT, f"{table}.nt")
@@ -269,10 +274,18 @@ def build(data_dir, table="factory_multi"):
     with open(lex_path, "w", encoding="utf-8") as f:
         json.dump(lexicon, f, ensure_ascii=False, indent=2)
     json.dump({"nt": os.path.relpath(nt, ROOT), "table": table,
-               "data_dir": os.path.relpath(data_dir, ROOT),
+               "data_dir": None,
+               "source": "db",
                "lexicon": os.path.relpath(lex_path, ROOT)},
               open(STATE, "w", encoding="utf-8"))
     return table, list(data.keys()), len(lines)
+
+
+def build(data_dir, table="factory_multi"):
+    """load_all + suggest_schema + to_nt 统一建模。返回 (table, tables列表, nt行数)。"""
+    so = _load("schema_ontology", os.path.join(ROOT, "schema_ontology.py"))
+    data = so.load_all(data_dir)               # {表名: [行...]}
+    return build_data(data, table)
 
 
 def main():

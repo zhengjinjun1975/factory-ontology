@@ -104,11 +104,11 @@ class QueryAgent(BaseAgent):
                         r"风险|安全隐患|合规|规范要求|需要注意|怎么办|意义|作用|影响|"
                         r"问题|措施|方案|注意", _re.I)
                     if _ADVICE.search(q):
-                        lans = self._advice_answer(q, nt, D)
+                        lans, route = self._advice_answer(q, nt, D)
                         if lans:
                             return self._ok(_pack(q, lans,
                                                  engines=["rule", "graphrag", "hybrid", "llm"],
-                                                 evidence={"answer": lans}), "query")
+                                                 evidence={"answer": lans, "route": route}), "query")
                     return self._ok(_pack(q, "未能在当前知识库中找到确切答案（可换一种问法，或补充相关字段数据）",
                                          engines=["rule", "graphrag", "hybrid"],
                                          evidence={"hits": fused[:5], "no_basis": True}), "query")
@@ -135,11 +135,11 @@ class QueryAgent(BaseAgent):
         except Exception:
             pass
         if task.get("use_llm", True):
-            lans = self._llm_fallback(q, nt, D)
+            lans, route = self._llm_fallback(q, nt, D)
             if lans:
                 return self._ok(_pack(q, lans,
                                      engines=["rule", "graphrag", "hybrid", "llm"],
-                                     evidence={"answer": lans}), "query")
+                                     evidence={"answer": lans, "route": route}), "query")
 
         # ---- 5. 彻底答不上 ----
         return self._ok(_pack(q, _MISS_SENTINEL,
@@ -150,11 +150,12 @@ class QueryAgent(BaseAgent):
 
     def _llm_fallback(self, q, nt, D):
         """纯 LLM 兜底: 注入本体 schema 上下文(尽力而为), 让模型直接作答。
-        模型不可用 / 输出非法时返回 None, 绝不阻塞。"""
+        使用智能路由(简单→本地/复杂→云端/离线→降级本地)。模型不可用/输出非法时返回
+        (None, route), 绝不阻塞 —— 上层据此走规则/检索结果。"""
         try:
-            from model_llm import llm_generate
+            from model_llm import llm_generate_auto
         except Exception:
-            return None
+            return None, {}
         schema_ctx = ""
         try:
             from graph_rag import _schema_context
@@ -170,21 +171,21 @@ class QueryAgent(BaseAgent):
             "严禁编造数量/记录/实体名。若本库有该数据但未给出具体值, 说明\"数据中未找到\", 不得猜测数字。\n"
         )
         try:
-            ans = llm_generate(prompt, temperature=0.4, max_tokens=400)
+            ans, route = llm_generate_auto(prompt, question=q, temperature=0.4, max_tokens=400)
             if not ans or ans.startswith("[模型"):
-                return None
-            return ans.strip()
+                return None, route
+            return ans.strip(), route
         except Exception:
-            return None
+            return None, {}
 
     def _advice_answer(self, q, nt, D):
         """咨询/建议型问题专用兜底: 基于行业常识生成建议, 明确声明非具体数据结论。
         区别于 _llm_fallback(数据问答导向, 实体不在schema答'无相关数据')。
-        模型不可用/输出非法返回 None。"""
+        使用智能路由(简单→本地/复杂→云端/离线→降级本地)。模型不可用返回 (None, route)。"""
         try:
-            from model_llm import llm_generate
+            from model_llm import llm_generate_auto
         except Exception:
-            return None
+            return None, {}
         prompt = (
             f"用户问题: {q}\n"
             "这是关于化工/制造企业的咨询型问题, 用户在寻求通用建议/知识, 不是查询具体数据。\n"
@@ -193,12 +194,12 @@ class QueryAgent(BaseAgent):
             "纯咨询部分按通用知识作答。回答控制在150字内。"
         )
         try:
-            ans = llm_generate(prompt, temperature=0.5, max_tokens=300)
+            ans, route = llm_generate_auto(prompt, question=q, temperature=0.5, max_tokens=300)
             if not ans or ans.startswith("[模型"):
-                return None
-            return ans.strip()
+                return None, route
+            return ans.strip(), route
         except Exception:
-            return None
+            return None, {}
 
     @staticmethod
     def _rule_evidence(ans):

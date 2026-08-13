@@ -230,6 +230,21 @@
       "data_dir": "data_furniture",
       "lexicon": "lexicon_furniture.json",
       "nt": "output/furniture.nt"
+    },
+    "bellowstest": {
+      "nt": "output/bellowstest.nt",
+      "lexicon": "lexicon_bellowstest.json",
+      "data_dir": "data"
+    },
+    "ecotest": {
+      "nt": "output/ecotest.nt",
+      "lexicon": "lexicon_ecotest.json",
+      "data_dir": "data"
+    },
+    "huangtest": {
+      "nt": "output/huangtest.nt",
+      "lexicon": "lexicon_huangtest.json",
+      "data_dir": "data"
     }
   }
 }

@@ -1,0 +1,6 @@
+{
+  "dsn": "sqlite:///E:/open-source/factory-ontology-kit/codes/data/erp_demo.db",
+  "tables": ["equipment", "products", "production_order", "customer"],
+  "output": "erp_multi",
+  "comment": "企业ERP/MES一键建本体示例配置。dsn支持 sqlite/mysql/postgres；tables缺省则自动列出全部表；output为输出本体名"
+}

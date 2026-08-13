@@ -45,7 +45,42 @@ STD_FIELD_PATTERNS = {
 # ── 字段类别启发式关键词（供 _build_enum_mapping 数据驱动查表）──
 STATUS_KEYWORDS = ("status", "state", "condition", "runstate", "failure", "fault", "alarm", "flag")
 TYPE_KEYWORDS = ("type", "category", "kind")
-ZONE_KEYWORDS = ("zone", "district", "area", "location", "region")
+ZONE_KEYWORDS = ("zone", "district", "area", "location", "region", "workshop", "facility")
+
+# ── 极值字段：数值列 → 中文极值词（numeric_fields 自动生成）。显式映射优先于字段名推断，
+#    保证"最贵的价格""容量最大""压力最高"等口语能命中规范数值字段。覆盖跨行业高频数值语义。
+NUMERIC_ATTR_CN = {
+    "accuracy": "精度", "precision": "精度", "investment": "投资", "investment_wan": "投资",
+    "price": "价格", "unit_price": "单价", "amount": "金额", "amount_wan": "金额",
+    "contract_amount": "合同金额", "contract_amount_wan": "合同金额",
+    "tonnage": "吨位", "tonnage_dwt": "吨位", "weight": "重量", "mass": "质量",
+    "capacity": "容量", "capacity_t": "容量", "capacity_mw": "容量", "capacity_kw": "容量",
+    "power": "功率", "power_kw": "功率", "power_mw": "功率",
+    "quantity": "数量", "stock": "库存", "layers": "层数", "progress": "进度",
+    "progress_pct": "进度", "lifting_capacity_t": "起重能力", "shotpoints": "炮点数",
+    "receivers": "检波点数", "charge_kg": "药量", "depth_m": "深度", "record_length_s": "记录长度",
+    "temperature": "温度", "pressure": "压力", "pressure_bar": "压力", "pressure_mpa": "压力",
+    "size": "尺寸", "size_mm": "尺寸", "voltage": "电压", "current": "电流",
+    "flow": "流量", "flow_rate": "流量", "speed": "转速", "rotational": "转速",
+    "torque": "扭矩", "humidity": "湿度", "vibration": "振动", "efficiency": "效率",
+    "yield": "良品率", "volume": "体积", "length": "长度", "width": "宽度",
+    "height": "高度", "runtime": "运行时长", "hours": "运行小时", "age": "机龄",
+    "consumption": "能耗", "energy": "能耗",
+}
+# 数值列关键字（is_numeric 推断为 True 之外的兜底；供 review 提示用）
+NUMERIC_KEYWORDS = {
+    "accuracy", "precision", "investment", "price", "unit_price", "amount", "tonnage",
+    "capacity", "power", "quantity", "layers", "progress", "stock", "temperature",
+    "pressure", "depth", "weight", "rate", "score", "cost", "size", "voltage",
+    "current", "flow", "speed", "torque", "humidity", "vibration", "efficiency",
+}
+
+# 代码/主键/编号类字段名 token：不作为"类型/类别"枚举处理（避免把 P001/BW-01 当产品类型）。
+_CODE_ID_TOKENS = ("id", "no", "num", "code", "sn", "udi", "编号", "编码", "型号")
+# 名称类字段名 token：不作为"类型"枚举（避免把每条记录名当分类）。
+_NAME_TOKENS = ("name", "label", "title", "名称", "标题")
+# 时间类字段名 token：不作为"类型"枚举。
+_TIME_TOKENS = ("date", "time", "year", "month", "day", "日期", "时间", "年份", "月份")
 
 class LexiconAgent(BaseAgent):
     name = "lexicon"
@@ -283,7 +318,13 @@ class LexiconAgent(BaseAgent):
         return attr_cn2en, attr_en2cn
 
     def _build_enum_mapping(self, field_info, enum_map):
-        """状态/类型/区域值映射（核心启发式）。"""
+        """状态/类型/区域值映射（核心启发式）。
+
+        use_llm=False 时 enum_map 为值→自身的恒等映射，同样在此归入 type/status/zone，
+        保证纯规则路径也提取枚举值（修"XX类的产品"无记录）。
+        兜底：字段名不含 type/category 关键字、但为非数值低基数枚举（如 material/storage/
+        connection/包装）的字段，同样纳入 type_cn2en，使"XX类的产品"口语能命中。
+        """
         status_cn2en, type_cn2en, zone_cn2en = {}, {}, {}
         for f, info in field_info.items():
             low = f.lower()
@@ -309,9 +350,26 @@ class LexiconAgent(BaseAgent):
             if any(k in low for k in TYPE_KEYWORDS) and not single:
                 for v, cn in vmap.items():
                     type_cn2en.setdefault(cn, v)
-            elif any(k in low for k in ZONE_KEYWORDS):
+                continue  # 已归类为类型字段
+            if any(k in low for k in ZONE_KEYWORDS):
                 for v, cn in vmap.items():
                     zone_cn2en.setdefault(cn, v)
+                continue  # 已归类为区域字段
+            # 兜底：字段名未命中 type/category/kind 关键字，但为低基数非数值枚举
+            # （material/storage/connection/包装/压力等级…）。排除 id/编号/名称/时间/单字母等级/布尔，
+            # 剩余纳入 type_cn2en —— 用户问"不锈钢类的产品/PN16类的产品"时能命中。
+            if single or binary:
+                continue
+            if not (2 <= info["num_values"] <= 50):
+                continue
+            parts = self._split_parts(low)
+            if any(p in _CODE_ID_TOKENS for p in parts) or any(p.endswith("id") for p in parts):
+                continue
+            if any(p in _NAME_TOKENS for p in parts) or any(p in _TIME_TOKENS for p in parts):
+                continue
+            for v, cn in vmap.items():
+                if cn:
+                    type_cn2en.setdefault(cn, v)
         return status_cn2en, type_cn2en, zone_cn2en
 
     def _build_field_aliases(self, field_info):
@@ -395,6 +453,104 @@ class LexiconAgent(BaseAgent):
             entity_cn2en[cn] = cls
         return entity_cn2en
 
+    def _numeric_cn(self, f):
+        """数值字段名 -> 中文极值词。优先精确匹配，其次前缀匹配(accuracy_mm→精度)，再兜底末词。"""
+        snake = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', f).lower()
+        snake = snake.replace("-", "_").replace(".", "_")
+        if snake in NUMERIC_ATTR_CN:
+            return NUMERIC_ATTR_CN[snake]
+        for k in sorted(NUMERIC_ATTR_CN, key=len, reverse=True):
+            if snake.startswith(k + "_"):
+                return NUMERIC_ATTR_CN[k]
+        return NUMERIC_ATTR_CN.get(snake.split("_")[-1], "")
+
+    def _build_numeric_fields(self, field_info, attr_en2cn):
+        """数值列 -> {中文极值词: 英文字段}（供极值查询"最X的Y"使用）。
+
+        显式 NUMERIC_ATTR_CN 命中优先（price→价格/tonnage→吨位）；否则用字段名推断的中文名，
+        并去掉单位后缀(功率(kW)→功率)，保证"功率最大的设备"等口语命中规范数值字段。
+        """
+        self._nf_src = {}
+        numeric_fields = {}
+        for f, info in field_info.items():
+            if not info["is_numeric"]:
+                continue
+            cname = self._numeric_cn(f)
+            src = "显式"
+            if not cname:
+                cname = attr_en2cn.get(f) or self._infer_cn_from_name(f)
+                src = "推断"
+                cname = re.sub(r'[（(][^）)]*[）)]', '', cname).strip()
+            if not cname or not re.search(r'[\u4e00-\u9fff]', cname):
+                continue  # 无中文极值词则跳过(纯英文名如 price 不落 numeric_fields)
+            numeric_fields[cname] = f
+            # 记录来源供 review 提示
+            self._nf_src[cname] = {"field": f, "src": src}
+        return numeric_fields
+
+    def _build_review(self, field_info, attr_map, enum_map, status_cn2en, type_cn2en, zone_cn2en,
+                      numeric_fields, entity_cn2en):
+        """产出 review 待确认项，供甲方/用户核对自动推断是否合理，减 FDE 补词依赖。
+
+        条目覆盖：① 未命中 type/category 关键字、按兜底纳入 type_cn2en 的枚举字段；
+        ② 状态字段取值（中文值需人工确认语义，如 build_status）；③ 极值字段中文名来源
+        （推断的需确认）；④ 实体类中文名猜测；⑤ 排除字段（id/编号/名称等不作为类型）。
+        """
+        items = []
+
+        def _add(cat, field, detail, reason, action="确认"):
+            items.append({"category": cat, "field": field, "detail": detail,
+                          "reason": reason, "action": action})
+
+        # 1. 兜底纳入 type_cn2en 的字段（未命中关键字但判为类型/分类枚举）
+        for f, info in field_info.items():
+            if info["is_numeric"] or any(k in f.lower() for k in TYPE_KEYWORDS):
+                continue
+            if any(k in f.lower() for k in STATUS_KEYWORDS + ZONE_KEYWORDS):
+                continue
+            parts = self._split_parts(f.lower())
+            if any(p in _CODE_ID_TOKENS for p in parts) or any(p in _NAME_TOKENS for p in parts):
+                continue
+            if not (2 <= info["num_values"] <= 50):
+                continue
+            if self._is_single_letter_grade(info.get("values", [])) or self._is_binary_flag(info.get("values", [])):
+                continue
+            _add("type_enum", f, "取值: %s" % "、".join(info.get("values", [])),
+                 "字段名未含 type/category 关键字，按通用类型/分类枚举兜底归入 type_cn2en。若它不是产品类型请删除。")
+
+        # 2. 状态字段取值（中文语义需人工确认，如 build_status/进度 等）
+        for f, info in field_info.items():
+            if any(k in f.lower() for k in STATUS_KEYWORDS) and not info["is_numeric"]:
+                vals = info.get("values", [])
+                _add("status_enum", f, "取值: %s" % "、".join(vals[:20]),
+                     "字段名含状态关键字。中文状态值无法自动翻英(如'分段建造')，请确认中文→英文值映射是否正确。")
+
+        # 3. 极值字段：中文名来自推断的需确认
+        for cname, meta in getattr(self, "_nf_src", {}).items():
+            if meta.get("src") == "推断":
+                _add("numeric_field", meta["field"], "极值词: %s" % cname,
+                     "中文极值词由字段名推断，请确认是否准确(如应为'价格'而非'price')。")
+
+        # 4. 实体类中文名猜测
+        for cn, tbl in entity_cn2en.items():
+            _add("entity", "(表)", "中文实体名 '%s' → 表 %s" % (cn, tbl),
+                 "实体中文名由表名/字段名自动推断，请确认用户会用该词提问。", action="确认/补充别名")
+
+        # 5. 排除字段：id/编号/名称等未纳入类型枚举
+        for f, info in field_info.items():
+            parts = self._split_parts(f.lower())
+            if any(p in _CODE_ID_TOKENS for p in parts) or any(p in _NAME_TOKENS for p in parts):
+                if not info["is_numeric"] and 2 <= info["num_values"] <= 50:
+                    _add("excluded", f, "取值: %s" % "、".join(info.get("values", [])[:10]),
+                         "识别为编号/名称/主键字段，未纳入类型枚举。若它实际是产品分类，请手动加入 type_cn2en。")
+
+        return {
+            "note": "以下为 LexiconAgent 全自动推断产生的待确认项。确认/修正后可将结果写回词典，减少人工补词。",
+            "pending_count": len(items),
+            "status": "pending",
+            "items": items,
+        }
+
     def _build_full_lexicon(self, field_info, attr_map, enum_map, task):
         """组装完整 lexicon.json。"""
         table = task.get("table_name", "数据")
@@ -403,6 +559,9 @@ class LexiconAgent(BaseAgent):
         field_aliases = self._build_field_aliases(field_info)
         relations_cn2en = self._build_relations_cn2en(table)
         entity_cn2en = self._build_entity_cn2en(field_info, table)
+        numeric_fields = self._build_numeric_fields(field_info, attr_en2cn)
+        review = self._build_review(field_info, attr_map, enum_map, status_cn2en, type_cn2en,
+                                    zone_cn2en, numeric_fields, entity_cn2en)
         return {
             "entity_cn2en": entity_cn2en,
             "status_cn2en": status_cn2en,
@@ -410,10 +569,12 @@ class LexiconAgent(BaseAgent):
             "zone_cn2en": zone_cn2en,
             "attr_cn2en": attr_cn2en,
             "attr_en2cn": attr_en2cn,
+            "numeric_fields": numeric_fields,
             "field_aliases": field_aliases,
             "relations_cn2en": relations_cn2en,
             "value_fields": {f: attr_en2cn.get(f, f) for f in field_info if f.lower().find("status") >= 0 or f.lower().find("type") >= 0},
-            "description": f"由 LexiconAgent 全自动生成 ({table}, {len(field_info)}字段)",
+            "review": review,
+            "description": f"由 LexiconAgent 全自动生成 ({table}, {len(field_info)}字段, {review['pending_count']}项待确认)",
         }
 
     def main():

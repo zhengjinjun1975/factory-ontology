@@ -1,0 +1,112 @@
+{
+  "description": "自动生成词典（multi_model, suggest_schema 推断 + LLM 语义聚类同义词 + data profiling 映射）",
+  "attr_cn2en": {
+    "equipment编号": "equipment_id",
+    "equipment名称": "equipment_name",
+    "类型": "type",
+    "状态": "status",
+    "factoryarea": "factory_area",
+    "功率(kW)": "power_kw",
+    "功率": "power_kw",
+    "purchasedate": "purchase_date",
+    "产品编号": "product_id",
+    "产品名称": "product_name",
+    "category": "category",
+    "spec": "spec",
+    "unit": "unit",
+    "价格": "price",
+    "order编号": "order_id",
+    "数量": "quantity",
+    "startdate": "start_date",
+    "duedate": "due_date",
+    "progresspct": "progress_pct",
+    "客户编号": "customer_id",
+    "客户名称": "customer_name",
+    "区域": "region",
+    "contactphone": "contact_phone",
+    "level": "level"
+  },
+  "attr_en2cn": {
+    "equipment_id": "equipment编号",
+    "equipment_name": "equipment名称",
+    "type": "类型",
+    "status": "状态",
+    "factory_area": "factoryarea",
+    "power_kw": "功率(kW)",
+    "purchase_date": "purchasedate",
+    "product_id": "产品编号",
+    "product_name": "产品名称",
+    "category": "category",
+    "spec": "spec",
+    "unit": "unit",
+    "price": "价格",
+    "order_id": "order编号",
+    "quantity": "数量",
+    "start_date": "startdate",
+    "due_date": "duedate",
+    "progress_pct": "progresspct",
+    "customer_id": "客户编号",
+    "customer_name": "客户名称",
+    "region": "区域",
+    "contact_phone": "contactphone",
+    "level": "level"
+  },
+  "status_cn2en": {
+    "运行中": "运行中",
+    "待机": "待机",
+    "报警": "alarm",
+    "维护中": "maintenance",
+    "离线": "offline",
+    "合格": "pass",
+    "不合格": "fail",
+    "保养": "保养"
+  },
+  "type_cn2en": {
+    "机加设备": "机加设备",
+    "注塑设备": "注塑设备",
+    "装配设备": "装配设备",
+    "轴承类": "轴承类",
+    "塑胶件": "塑胶件",
+    "电机类": "电机类",
+    "总成件": "总成件"
+  },
+  "zone_cn2en": {
+    "华东": "华东",
+    "华北": "华北",
+    "华南": "华南"
+  },
+  "synonym_map": {
+    "功率": [
+      "功率(kW)"
+    ]
+  },
+  "entity_cn2en": {
+    "设备": "equipment",
+    "产品": "products",
+    "订单": "production_order",
+    "生产订单": "production_order",
+    "客户": "customer"
+  },
+  "numeric_fields": {
+    "功率": "power_kw",
+    "价格": "price",
+    "数量": "quantity",
+    "进度": "progress_pct"
+  },
+  "field_aliases": {
+    "status": [
+      "status"
+    ],
+    "deviceType": [
+      "deviceType",
+      "device_type",
+      "type"
+    ],
+    "deviceName": [
+      "deviceName",
+      "device_name",
+      "name"
+    ]
+  },
+  "value_fields": []
+}

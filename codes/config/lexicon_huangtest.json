@@ -1,0 +1,101 @@
+{
+  "entity_cn2en": {
+    "记录": "huangtest"
+  },
+  "status_cn2en": {
+    "备用": "备用",
+    "检修": "检修",
+    "运行中": "运行中"
+  },
+  "type_cn2en": {
+    "抽水蓄能机组": "抽水蓄能机组",
+    "燃气轮机": "燃气轮机",
+    "燃煤机组": "燃煤机组",
+    "GE": "GE",
+    "上海电气": "上海电气",
+    "东方电气": "东方电气",
+    "哈尔滨电气": "哈尔滨电气"
+  },
+  "zone_cn2en": {
+    "主厂房": "主厂房",
+    "汽机车间": "汽机车间"
+  },
+  "attr_cn2en": {
+    "容量": "capacity_mw"
+  },
+  "attr_en2cn": {
+    "capacity_mw": "容量"
+  },
+  "numeric_fields": {
+    "容量": "capacity_mw"
+  },
+  "field_aliases": {
+    "status": [
+      "status",
+      "Status"
+    ],
+    "deviceType": [
+      "unit_type",
+      "UnitType"
+    ],
+    "deviceName": [
+      "unit_name",
+      "UnitName"
+    ]
+  },
+  "relations_cn2en": {},
+  "value_fields": {
+    "unit_type": "unit_type",
+    "status": "status"
+  },
+  "review": {
+    "note": "以下为 LexiconAgent 全自动推断产生的待确认项。确认/修正后可将结果写回词典，减少人工补词。",
+    "pending_count": 6,
+    "status": "pending",
+    "items": [
+      {
+        "category": "type_enum",
+        "field": "commission_date",
+        "detail": "取值: 2012-05-18、2013-08-22、2015-01-10、2016-11-30、2018-07-12、2019-03-15、2019-06-02、2021-09-25",
+        "reason": "字段名未含 type/category 关键字，按通用类型/分类枚举兜底归入 type_cn2en。若它不是产品类型请删除。",
+        "action": "确认"
+      },
+      {
+        "category": "type_enum",
+        "field": "manufacturer",
+        "detail": "取值: GE、上海电气、东方电气、哈尔滨电气",
+        "reason": "字段名未含 type/category 关键字，按通用类型/分类枚举兜底归入 type_cn2en。若它不是产品类型请删除。",
+        "action": "确认"
+      },
+      {
+        "category": "status_enum",
+        "field": "status",
+        "detail": "取值: 备用、检修、运行中",
+        "reason": "字段名含状态关键字。中文状态值无法自动翻英(如'分段建造')，请确认中文→英文值映射是否正确。",
+        "action": "确认"
+      },
+      {
+        "category": "entity",
+        "field": "(表)",
+        "detail": "中文实体名 '记录' → 表 huangtest",
+        "reason": "实体中文名由表名/字段名自动推断，请确认用户会用该词提问。",
+        "action": "确认/补充别名"
+      },
+      {
+        "category": "excluded",
+        "field": "unit_id",
+        "detail": "取值: U001、U002、U003、U004、U005、U006、U007、U008",
+        "reason": "识别为编号/名称/主键字段，未纳入类型枚举。若它实际是产品分类，请手动加入 type_cn2en。",
+        "action": "确认"
+      },
+      {
+        "category": "excluded",
+        "field": "unit_name",
+        "detail": "取值: U001号机组、U002号机组、U003号机组、U004号机组、U005号机组、U006号机组、U007号机组、U008号机组",
+        "reason": "识别为编号/名称/主键字段，未纳入类型枚举。若它实际是产品分类，请手动加入 type_cn2en。",
+        "action": "确认"
+      }
+    ]
+  },
+  "description": "由 LexiconAgent 全自动生成 (huangtest, 8字段, 6项待确认)"
+}

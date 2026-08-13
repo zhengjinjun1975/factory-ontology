@@ -15,9 +15,9 @@ try:
 except Exception:            # pragma: no cover
     _embed = None
 try:
-    from model_llm import llm_generate as _generate
+    from model_llm import llm_generate_auto as _generate_auto
 except Exception:            # pragma: no cover
-    _generate = None
+    _generate_auto = None
 
 
 def _retrieve(store, question, base=None, model=None, top_k=5):
@@ -55,7 +55,7 @@ def answer(doc_id_or_kb, question, store, model=None, top_k=5, base=None,
         缺模型/检索失败返回 {"answer": "[无法检索知识库]", "evidence": []}。
     """
     try:
-        if _generate is None:
+        if _generate_auto is None:
             return {"answer": "[模型未配置]", "evidence": []}
         hits, qv = _retrieve(store, question, base=base, model=embed_model, top_k=top_k)
         if not hits:
@@ -74,14 +74,16 @@ def answer(doc_id_or_kb, question, store, model=None, top_k=5, base=None,
             "请仅依据下面的知识库片段回答问题。若片段中没有答案，请明确说明\"片段未覆盖\"。\n"
             "---知识库片段---\n%s\n---问题---\n%s\n---\n请给出简洁、准确的中文回答。" % (context, question)
         )
-        ans = _generate(prompt, model_key=model)
+        # 智能路由生成：model 显式给出则以其优先(force_key)，否则按问题复杂度路由
+        # (简单→本地 ornith / 复杂→云端 DeepSeek / 云端不可用→降级本地)。
+        ans, route = _generate_auto(prompt, question=question, force_key=model)
         evidence = [
             {"doc_id": h.get("doc_id"), "title": h.get("title"),
              "chunk": h.get("chunk", ""), "score": h.get("score")}
             for h in hits
         ]
-        if not ans or ans.startswith("["):   # llm_generate 返回错误描述时也照实返回
-            return {"answer": ans or "[生成失败]", "evidence": evidence}
-        return {"answer": ans, "evidence": evidence}
+        if not ans or ans.startswith("["):   # 模型错误/失败描述时照实返回，但附上路由
+            return {"answer": ans or "[生成失败]", "evidence": evidence, "route": route}
+        return {"answer": ans, "evidence": evidence, "route": route}
     except Exception:
         return {"answer": "[检索生成失败]", "evidence": []}

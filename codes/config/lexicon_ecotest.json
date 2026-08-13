@@ -1,0 +1,91 @@
+{
+  "entity_cn2en": {
+    "记录": "ecotest"
+  },
+  "status_cn2en": {
+    "施工中": "施工中",
+    "设计中": "设计中"
+  },
+  "type_cn2en": {
+    "固废处理": "固废处理",
+    "大气治理": "大气治理",
+    "水治理": "水治理"
+  },
+  "zone_cn2en": {
+    "华东": "华东",
+    "华北": "华北",
+    "华南": "华南",
+    "西南": "西南"
+  },
+  "attr_cn2en": {
+    "investmentwan": "investment_wan",
+    "progress": "progress"
+  },
+  "attr_en2cn": {
+    "investment_wan": "investmentwan",
+    "progress": "progress"
+  },
+  "numeric_fields": {
+    "投资": "investment_wan",
+    "进度": "progress"
+  },
+  "field_aliases": {
+    "status": [
+      "status",
+      "Status"
+    ],
+    "deviceType": [
+      "type",
+      "Type"
+    ],
+    "deviceName": [
+      "project_name",
+      "ProjectName"
+    ],
+    "location": [
+      "region",
+      "Region"
+    ]
+  },
+  "relations_cn2en": {},
+  "value_fields": {
+    "type": "type",
+    "status": "status"
+  },
+  "review": {
+    "note": "以下为 LexiconAgent 全自动推断产生的待确认项。确认/修正后可将结果写回词典，减少人工补词。",
+    "pending_count": 4,
+    "status": "pending",
+    "items": [
+      {
+        "category": "status_enum",
+        "field": "status",
+        "detail": "取值: 施工中、设计中",
+        "reason": "字段名含状态关键字。中文状态值无法自动翻英(如'分段建造')，请确认中文→英文值映射是否正确。",
+        "action": "确认"
+      },
+      {
+        "category": "entity",
+        "field": "(表)",
+        "detail": "中文实体名 '记录' → 表 ecotest",
+        "reason": "实体中文名由表名/字段名自动推断，请确认用户会用该词提问。",
+        "action": "确认/补充别名"
+      },
+      {
+        "category": "excluded",
+        "field": "id",
+        "detail": "取值: PJ1、PJ2、PJ3、PJ4、PJ5",
+        "reason": "识别为编号/名称/主键字段，未纳入类型枚举。若它实际是产品分类，请手动加入 type_cn2en。",
+        "action": "确认"
+      },
+      {
+        "category": "excluded",
+        "field": "project_name",
+        "detail": "取值: 化工厂废气治理、垃圾焚烧飞灰处置、城市黑臭水体治理、工业园区污水处理、电厂脱硫改造",
+        "reason": "识别为编号/名称/主键字段，未纳入类型枚举。若它实际是产品分类，请手动加入 type_cn2en。",
+        "action": "确认"
+      }
+    ]
+  },
+  "description": "由 LexiconAgent 全自动生成 (ecotest, 7字段, 4项待确认)"
+}

@@ -115,6 +115,29 @@ def _field(rec, canonical, aliases):
     return rec.get(canonical, "")
 
 
+def _type_matches(d, ty_en, aliases):
+    """记录 d 是否属于类型 ty_en（值级判定）。
+
+    优先规范字段(deviceType/type/category)精确匹配；未命中时兜底扫描全部字段——
+    精确匹配优先，其次"取值包含"（容忍 304不锈钢 vs 不锈钢）。这使"XX类的产品"查询
+    不再依赖字段名必须是 type/category（material/pressure_grade/设备类型等兜底字段也能命中），
+    配合 lexicon_agent 自动把低基数枚举兜底进 type_cn2en，实现甲方自助补全词典。
+    """
+    for f in ("deviceType", "category", "type", "kind"):
+        if _field(d, f, aliases) == ty_en:
+            return True
+    if str(d.get("deviceType", "") or d.get("category", "") or d.get("type", "")) == ty_en:
+        return True
+    for v in d.values():
+        if str(v) == ty_en:
+            return True
+    if ty_en:
+        for v in d.values():
+            if ty_en in str(v):
+                return True
+    return False
+
+
 # 常见数值/极值字段的中文别名 -> 规范英文字段名（跨行业泛化，非硬编码具体行业）。
 # 词典 attr_cn2en 缺失时兜底，覆盖高频中文口语：保质期/质保/寿命等。
 # 数据来源 lexicon.get_attr_cn_aliases()（与原 _ATTR_CN_ALIASES 键值逐一一致）。
@@ -418,7 +441,7 @@ def answer(q, data, D):
     ty_en, ty_cn = _find_enum(D, q, "type")
     if st_en and ty_en:
         matched = [(n, d) for n, d in data.items()
-                   if _field(d, "status", aliases) == st_en and _field(d, "deviceType", aliases) == ty_en]
+                   if _field(d, "status", aliases) == st_en and _type_matches(d, ty_en, aliases)]
         nm = names(matched)
         if "多少" in q:
             return "有 %d %s的%s" % (len(nm), st_cn, ty_cn)
@@ -488,7 +511,7 @@ def answer(q, data, D):
     ty_en, ty_cn = _find_enum(D, q, "type")
     if ty_en and ("多少" in q or "数量" in q):
         sub = _entity_subset(q, D, data)
-        n = sum(1 for d in sub.values() if _field(d, "deviceType", aliases) == ty_en)
+        n = sum(1 for d in sub.values() if _type_matches(d, ty_en, aliases))
         return "有 %d %s" % (n, ty_cn)
     # 类型词 + 的：按类型过滤计数/列出（"大气治理的项目" / "油轮的" 等，非"多少"式）
     # 极值消歧(P1): "容量最大的发电机组"里"发电机"是 type_cn2en 子串会误命中此处,
@@ -496,7 +519,7 @@ def answer(q, data, D):
     # 否则会错误返回"无发电机"。故类型列举仅在非极值查询时触发。
     if ty_en and "的" in q and not (_EXTREME.search(q) and attr_en):
         sub = _entity_subset(q, D, data)
-        matched = [(n, d) for n, d in sub.items() if _field(d, "deviceType", aliases) == ty_en]
+        matched = [(n, d) for n, d in sub.items() if _type_matches(d, ty_en, aliases)]
         nm = names(matched)
         return "%s(%d):\n%s" % (ty_cn, len(nm), _fmt_names(nm)) if nm else "无%s" % ty_cn
 
@@ -514,7 +537,7 @@ def answer(q, data, D):
             return "列出所有%s:\n%s" % (st_cn, _fmt_names(names(matched))) if matched else "无%s" % st_cn
         ty_en, ty_cn = _find_enum(D, q, "type")
         if ty_en:
-            matched = [(n, d) for n, d in data.items() if _field(d, "deviceType", aliases) == ty_en]
+            matched = [(n, d) for n, d in data.items() if _type_matches(d, ty_en, aliases)]
             return "列出所有%s:\n%s" % (ty_cn, _fmt_names(names(matched))) if matched else "无%s" % ty_cn
         # 实体实例列表: "项目有哪些/订单有哪些/有哪些船" → 枚举 entity_cn2en 对应类的实例
         if ("有哪些" in q or "哪些" in q) and not st_en and not ty_en:

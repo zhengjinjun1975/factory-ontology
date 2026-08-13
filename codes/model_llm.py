@@ -13,10 +13,15 @@
   - 或在代码里 llm_generate(prompt, model_key="cloud") 临时指定
 """
 import os
+import re
 import json
 import requests
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "model_config.json")
+
+# 模型错误/失败描述前缀：llm_generate 在模型不可用(离线/无key/HTTP错误/异常)时统一返回
+# "[模型错误]..." / "[模型调用失败]..."，路由层据此识别并降级，绝不抛异常。
+_ERR_PREFIXES = ("[模型错误]", "[模型调用失败]")
 
 
 def _load_config():
@@ -129,6 +134,94 @@ def llm_generate(prompt, temperature=0.3, max_tokens=800, model_key=None):
             return resp.json().get("response", "").strip()
     except Exception as e:
         return f"[模型调用失败] {e}"
+
+
+# =====================================================================================
+# 模型智能路由（简单→本地 ornith / 复杂→云端 DeepSeek / 离线→降级本地）
+# =====================================================================================
+
+def is_model_error(text):
+    """判断 llm_generate 返回值是否为模型不可用/失败的错误描述串。"""
+    return isinstance(text, str) and text.startswith(_ERR_PREFIXES)
+
+
+def classify_question(q):
+    """把问题分为 simple / complex。
+
+    simple：明确点查/计数(有多少、是什么、状态、是否存在、列出实体)。
+    complex：多条件(且/并且/在…条件下/当…时/高于/低于等)、开放式(如何/怎样/什么原因)、
+            或需要推理(对比/差异/影响/风险/建议/分析)。分数 >=2 判 complex。
+    """
+    q = (q or "").strip()
+    if not q:
+        return "simple"
+    score = 0
+    # 开放式 / 推理 / 建议型 → 复杂(+2)
+    if re.search(
+            r"如何|怎样|怎么|为什么|为何|原因|分析|评估|建议|对比|比较|区别|差异|"
+            r"影响|风险|隐患|措施|方案|趋势|分布|占比|比例|汇总|统计|展望|规划|"
+            r"什么(危害|后果|问题)|注意事项|需要(注意|警惕)", q):
+        score += 2
+    # 多条件 / 约束型 → 复杂(+2)
+    if re.search(
+            r"并且|同时|以及|且|在[^，。；,;]{1,10}(情况|条件|状态|场景|时候|情形)"
+            r"[^，。；,;]{0,4}(下|时)|当[^，。；,;]{1,8}时|如果|若|满足|处于|"
+            r"高于|低于|超过|大于|小于|不低于|不超过", q):
+        score += 2
+    # 多个枚举/并列实体 → 复杂(轻微)
+    score += min(q.count("、") + q.count(",") + q.count("，") + q.count("和"), 2)
+    # 长句倾向复杂
+    if len(q) >= 20:
+        score += 1
+    # 明确点查/计数 → 简单(减分)
+    if re.search(r"有多少|数量|总数|总共|是什么|叫什么|哪个|哪些实体|状态|"
+                 r"是否存在|有没有|在不在|有.{0,3}个", q):
+        score -= 1
+    return "complex" if score >= 2 else "simple"
+
+
+def _candidates_for(question, force_key=None):
+    """返回尝试顺序的 model_key 列表。复杂→[cloud, local]，简单→[local]，
+    force_key 显式指定时用它优先，其后追加 local 作降级。离线时 cloud 失败自动落到 local。"""
+    if force_key:
+        return [force_key] + (["local"] if force_key != "local" else [])
+    if question:
+        return ["cloud", "local"] if classify_question(question) == "complex" else ["local"]
+    # 无问题上下文时退化为配置 active
+    return [get_model_config()["key"]]
+
+
+def llm_generate_auto(prompt, question=None, temperature=0.3, max_tokens=800, force_key=None):
+    """带智能路由的模型调用。返回 (text, route)。
+
+    route 说明实际命中的模型/尝试链/是否降级，供上层记录到 evidence。
+    路由策略：
+      简单问题 → 本地 ornith；复杂问题 → 云端 DeepSeek，云端不可用(离线/无key/HTTP错)
+      → 自动降级本地；force_key 显式指定时优先并追加 local 兜底。
+    绝不抛异常；所有模型均不可用时返回错误描述串(调用方按空处理即可，走规则/检索结果)。
+    """
+    route = {"question": question, "class": None, "tried": [], "model_key": None,
+             "type": None, "fallback": False}
+    try:
+        candidates = _candidates_for(question, force_key)
+        route["class"] = "forced" if force_key else (
+            classify_question(question) if question else "auto")
+        last = None
+        for key in candidates:
+            route["tried"].append(key)
+            ans = llm_generate(prompt, temperature=temperature, max_tokens=max_tokens,
+                               model_key=key)
+            if ans and not is_model_error(ans):
+                route["model_key"] = key
+                route["type"] = get_model_config(key).get("type")
+                route["fallback"] = len(route["tried"]) > 1
+                return ans, route
+            last = ans
+        route["model_key"] = candidates[-1]
+        return last, route
+    except Exception as e:
+        route["tried"].append("error")
+        return f"[模型调用失败] {e}", route
 
 
 if __name__ == "__main__":
