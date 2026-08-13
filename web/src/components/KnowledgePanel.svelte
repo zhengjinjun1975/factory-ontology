@@ -311,8 +311,8 @@
   .kb-label { font-size: 12px; font-weight: 700; color: #1e293b; }
   .kb-tag {
     display: inline-flex; align-items: center;
-    padding: 4px 12px; font-size: 12px; font-weight: 600; color: #2563eb;
-    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px;
+    padding: 4px 12px; font-size: 12px; font-weight: 600; color: var(--brand);
+    background: var(--brand-soft); border: 1px solid var(--brand-line); border-radius: 12px;
   }
   .kb-input {
     flex: 1; max-width: 280px;
@@ -320,15 +320,15 @@
     background: #fff; border: 1px solid #cbd5e1; border-radius: 4px;
     outline: none; transition: border-color 0.15s;
   }
-  .kb-input:focus { border-color: #3b82f6; }
+  .kb-input:focus { border-color: var(--brand); }
   .kb-load {
     display: flex; align-items: center; gap: 5px;
-    background: #2563eb; color: #fff;
-    border: 1px solid #2563eb; border-radius: 4px;
+    background: var(--brand); color: #fff;
+    border: 1px solid var(--brand); border-radius: 4px;
     padding: 6px 14px; font-size: 12px; cursor: pointer;
     transition: all 0.15s;
   }
-  .kb-load:hover:not(:disabled) { background: #1d4ed8; }
+  .kb-load:hover:not(:disabled) { background: var(--brand-dark); }
   .kb-load:disabled { opacity: 0.6; cursor: not-allowed; }
   .btn-icon { font-size: 12px; }
 
@@ -340,7 +340,7 @@
     background: #fff; border: 1px dashed #94a3b8; border-radius: 4px;
     cursor: pointer; transition: all 0.15s;
   }
-  .file-pick:hover { border-color: #2563eb; color: #2563eb; background: #f8fafc; }
+  .file-pick:hover { border-color: var(--brand); color: var(--brand); background: #f8fafc; }
   .file-name { font-size: 12px; color: #475569; }
   .btn-upload {
     padding: 6px 14px; font-size: 12px; cursor: pointer;
@@ -376,12 +376,12 @@
   .dash-nodata { color: #64748b; }
   .dash-err { color: #dc2626; }
   .dash-retry {
-    margin-left: 10px; background: #fff; color: #2563eb;
+    margin-left: 10px; background: #fff; color: var(--brand);
     border: 1px solid #cbd5e1; border-radius: 4px;
     padding: 4px 12px; font-size: 12px; cursor: pointer;
     transition: all 0.15s;
   }
-  .dash-retry:hover { border-color: #3b82f6; background: #f8fafc; }
+  .dash-retry:hover { border-color: var(--brand); background: #f8fafc; }
 
   .doc-table-wrap {
     background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md);

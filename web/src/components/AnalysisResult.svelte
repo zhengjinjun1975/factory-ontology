@@ -5,7 +5,7 @@
   let { stats, report } = $props();
 
   const STATUS_COLOR = { running: '#10b981', idle: '#f59e0b', alarm: '#ef4444', maintenance: '#8b5cf6', offline: '#64748b', '正常': '#10b981', '故障': '#ef4444' };
-  const PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
+  const PALETTE = ['#0D9488', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
 
   // 转数组（stats 里是 dict）
   const statusArr = $derived(Object.entries(stats?.status_dist || {}).map(([k, v], i) => ({ name: k, value: v, color: STATUS_COLOR[k] || PALETTE[i % PALETTE.length] })));
@@ -23,7 +23,7 @@
   const faultPct = $derived(Math.round((stats?.fault_rate ?? 0) * 100));
   const faultAlert = $derived(faultPct > FAULT_THRESHOLD * 100);
   const kpis = $derived([
-    { label: '设备总数', value: stats?.total_devices ?? 0, color: '#2563eb', alert: false },
+    { label: '设备总数', value: stats?.total_devices ?? 0, color: '#0D9488', alert: false },
     { label: '运行中', value: stats?.status_dist?.running ?? 0, color: '#10b981', alert: false },
     { label: '异常/维护', value: anomalyCount, color: anomalyCount > 0 ? '#ef4444' : '#10b981', alert: anomalyCount > 0 },
     { label: '故障率', value: faultPct + '%', color: faultAlert ? '#ef4444' : '#10b981', alert: faultAlert },
@@ -246,7 +246,7 @@
   .report-title { font-size:13px; font-weight:700; color:#1e293b; margin-bottom:10px; }
   .report-body { font-size:12px; color:#334155; line-height:1.7; }
   .r-h1 { font-size:15px; color:#1e293b; margin:14px 0 6px; border-bottom:1px solid #e2e8f0; padding-bottom:4px; }
-  .r-h2 { font-size:13px; color:#2563eb; margin:10px 0 4px; }
+  .r-h2 { font-size:13px; color:var(--brand); margin:10px 0 4px; }
   .r-h3 { font-size:12px; color:#475569; margin:8px 0 3px; }
   .r-p { margin:5px 0; }
   .r-table { border-collapse:collapse; margin:6px 0; width:100%; }

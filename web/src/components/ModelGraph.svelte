@@ -47,7 +47,7 @@
   }
 
   // 实体(类)分类色（工业风浅色系，分类稳定）
-  const ENTITY_COLORS = ['#3b82f6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#64748b', '#6366f1', '#84cc16', '#0ea5e9', '#f43f5e'];
+  const ENTITY_COLORS = ['#0D9488', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#64748b', '#6366f1', '#84cc16', '#0ea5e9', '#f43f5e'];
   function entityColor(name) {
     let h = 0;
     for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
@@ -241,7 +241,7 @@
 
   .mg-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: #475569; }
   .mg-cls { font-weight: 700; color: #475569; }
-  .mg-inst, .mg-obj, .mg-dp, .mg-graph { color: #2563eb; }
+  .mg-inst, .mg-obj, .mg-dp, .mg-graph { color: var(--brand); }
   .mg-cur b { color: #3730a3; font-weight: 700; }
 
   .mg-echarts {

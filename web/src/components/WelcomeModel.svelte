@@ -59,7 +59,7 @@
         <stop offset="100%" stop-color="#0e1533"/>
       </linearGradient>
       <radialGradient id="wm-cta" cx="50%" cy="40%" r="80%">
-        <stop offset="0%" stop-color="#38bdf8"/>
+        <stop offset="0%" stop-color="#14b8a6"/>
         <stop offset="100%" stop-color="#4f46e5"/>
       </radialGradient>
       <filter id="wm-blur" x="-60%" y="-60%" width="220%" height="220%">
@@ -88,7 +88,7 @@
     {/each}
 
     <!-- HUD 装饰弧线 -->
-    <g opacity="0.5" fill="none" stroke="#38bdf8" stroke-width="1">
+    <g opacity="0.5" fill="none" stroke="#14b8a6" stroke-width="1">
       <circle cx="640" cy="300" r="470" stroke-dasharray="2 8"/>
       <circle cx="640" cy="300" r="360" stroke-dasharray="1 12" opacity="0.4"/>
     </g>
@@ -112,7 +112,7 @@
     <!-- 中心企业徽标环 -->
     <g transform="translate(640,230)">
       <circle r="86" fill="none" stroke="url(#wm-glow)" stroke-width="2" class="wm-ring" opacity="0.9"/>
-      <circle r="98" fill="none" stroke="#38bdf8" stroke-width="1" stroke-dasharray="4 6" opacity="0.5" class="wm-ring2"/>
+      <circle r="98" fill="none" stroke="#14b8a6" stroke-width="1" stroke-dasharray="4 6" opacity="0.5" class="wm-ring2"/>
       <text y="26" text-anchor="middle" font-size="60" filter="url(#wm-glowtxt)">{cur.icon}</text>
     </g>
 

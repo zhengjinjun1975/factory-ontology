@@ -264,8 +264,8 @@
   .kb-label { font-size: 12px; color: #334155; font-weight: 600; white-space: nowrap; }
   .kb-tag {
     display: inline-flex; align-items: center;
-    padding: 4px 12px; font-size: 12px; font-weight: 600; color: #2563eb;
-    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px;
+    padding: 4px 12px; font-size: 12px; font-weight: 600; color: var(--brand);
+    background: var(--brand-soft); border: 1px solid var(--brand-line); border-radius: 12px;
   }
   .kb-input {
     flex: 1; max-width: 260px;
@@ -273,13 +273,13 @@
     border: 1px solid #cbd5e1; border-radius: 4px; background: #fff;
     transition: border-color 0.15s;
   }
-  .kb-input:focus { outline: none; border-color: #3b82f6; }
+  .kb-input:focus { outline: none; border-color: var(--brand); }
   .btn-load {
-    background: #2563eb; color: #fff; border: none; border-radius: 4px;
+    background: var(--brand); color: #fff; border: none; border-radius: 4px;
     padding: 6px 16px; font-size: 13px; cursor: pointer; transition: background 0.15s;
   }
-  .btn-load:hover { background: #1d4ed8; }
-  .btn-load:disabled { background: #93c5fd; cursor: not-allowed; }
+  .btn-load:hover { background: var(--brand-dark); }
+  .btn-load:disabled { background: var(--brand-line); cursor: not-allowed; }
 
   /* 快照操作区 */
   .asset-snapbar { display: flex; gap: 8px; align-items: center; }

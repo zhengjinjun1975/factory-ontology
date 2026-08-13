@@ -13,7 +13,7 @@
   let empty = $state(false);   // 未建模空态（stats 为 null 且 empty=true，非报错）
 
   // 图表配色
-  const TYPE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
+  const TYPE_COLORS = ['#0D9488', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
   const STATUS_COLOR = { running: '#10b981', idle: '#f59e0b', alarm: '#ef4444', maintenance: '#8b5cf6', offline: '#64748b' };
 
   // 计算最大数用于比例
@@ -31,7 +31,7 @@
   const kpis = $derived([
     { label: '故障/异常设备', value: anomalyCount, color: anomalyCount > 0 ? '#ef4444' : '#10b981', alert: anomalyCount > 0 },
     { label: '故障率', value: faultPct + '%', color: faultAlert ? '#ef4444' : '#10b981', alert: faultAlert },
-    { label: '设备总数', value: total, color: '#2563eb', alert: false },
+    { label: '设备总数', value: total, color: '#0D9488', alert: false },
     { label: '运行中', value: running, color: '#10b981', alert: false },
   ]);
 

@@ -30,7 +30,7 @@
     ? Math.round(result.hits / result.questions_n * 100)
     : (result && result.score != null ? Math.round(result.score * 100) : 0));
   // 进度条配色：<60 橙、<80 蓝、其余绿（浅色护眼）
-  const barColor = $derived(pct < 60 ? '#f59e0b' : pct < 80 ? '#3b82f6' : '#10b981');
+  const barColor = $derived(pct < 60 ? '#f59e0b' : pct < 80 ? '#0D9488' : '#10b981');
   const verdict = $derived(
     pct >= 80 ? '命中表现良好' : pct >= 60 ? '命中表现中等' : '命中偏低，建议补充词典/示例'
   );
@@ -136,8 +136,8 @@
       <div class="eval-result">
         <div class="kpi-row">
           <div class="mini-card">
-            <div class="mc-accent" style="background:#2563eb"></div>
-            <div class="mc-num" style="color:#2563eb">{result.questions_n}</div>
+            <div class="mc-accent" style="background:#0D9488"></div>
+            <div class="mc-num" style="color:#0D9488">{result.questions_n}</div>
             <div class="mc-label">评测题数</div>
           </div>
           <div class="mini-card">
@@ -246,7 +246,7 @@
     background: #fff; color: #1e293b; outline: none;
     transition: border-color 0.15s;
   }
-  .eval-kb input:focus { border-color: #3b82f6; }
+  .eval-kb input:focus { border-color: var(--brand); }
   .eval-modes { display: flex; gap: 4px; }
   .mode-btn {
     background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;
@@ -254,18 +254,18 @@
     cursor: pointer; transition: all 0.15s;
   }
   .mode-btn:hover { background: #e2e8f0; }
-  .mode-btn.mode-on { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .mode-btn.mode-on { background: var(--brand); color: #fff; border-color: var(--brand); }
   .eval-hint { font-size: 11px; color: #64748b; }
   .bench-ctl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .iso-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
   .btn-run {
-    background: #2563eb; color: #fff;
+    background: var(--brand); color: #fff;
     border: none; border-radius: 4px;
     padding: 8px 16px; font-size: 13px; font-weight: 600;
     cursor: pointer; transition: background 0.15s;
   }
-  .btn-run:hover:not(:disabled) { background: #1d4ed8; }
+  .btn-run:hover:not(:disabled) { background: var(--brand-dark); }
   .btn-run:disabled { background: #94a3b8; cursor: not-allowed; }
 
   /* ─── isolate 输入区 ─── */
@@ -277,7 +277,7 @@
     background: #fff; color: #1e293b; outline: none; resize: vertical;
     transition: border-color 0.15s; font-family: inherit;
   }
-  .iso-input:focus { border-color: #3b82f6; }
+  .iso-input:focus { border-color: var(--brand); }
 
   /* ─── 空态 / 错误 / 加载 ─── */
   .eval-empty { color: #94a3b8; font-size: 13px; text-align: center; padding: 30px; }
@@ -301,12 +301,12 @@
     padding: 14px; display: flex; flex-direction: column; gap: 12px;
   }
   .eval-retry {
-    margin-left: 10px; background: #fff; color: #2563eb;
+    margin-left: 10px; background: #fff; color: var(--brand);
     border: 1px solid #cbd5e1; border-radius: 4px;
     padding: 4px 12px; font-size: 12px; cursor: pointer;
     transition: all 0.15s;
   }
-  .eval-retry:hover { border-color: #3b82f6; background: #f8fafc; }
+  .eval-retry:hover { border-color: var(--brand); background: #f8fafc; }
 
   /* ─── 结果区（benchmark）─── */
   .eval-result { display: flex; flex-direction: column; gap: 12px; }
@@ -353,7 +353,7 @@
     font-size: 13px; font-weight: 600; color: #1e293b;
     border-bottom: 1px solid #e2e8f0;
   }
-  .qa-num { color: #2563eb; margin-right: 6px; font-family: 'Consolas', monospace; }
+  .qa-num { color: var(--brand); margin-right: 6px; font-family: 'Consolas', monospace; }
   .qa-a { padding: 8px 12px; }
   .qa-a-label { font-size: 11px; font-weight: 600; color: #64748b; }
   .qa-text {
