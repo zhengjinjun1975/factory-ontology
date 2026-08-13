@@ -14,7 +14,8 @@ DATA = os.path.join(ROOT, "data")
 
 # fail-closed 鉴权(架构师审计 P0-1): 测试需配置 key + 传 X-API-Key
 os.environ.setdefault("FOOD_ADMIN_KEY", "test-admin-key")
-_API_HEADERS = {"X-API-Key": "test-admin-key"}
+# 头从环境取: 独立跑时 setdefault 得默认值; 被 e2e_test 预置 key 时用 e2e 的 key(避免错配 401)
+_API_HEADERS = {"X-API-Key": os.environ.get("FOOD_ADMIN_KEY", "test-admin-key")}
 
 
 # ── API 端点 ──

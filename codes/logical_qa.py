@@ -151,6 +151,49 @@ def nl_to_query(question, D):
     return norm
 
 
+# ------------------------------------------------------------------ 确定性数值阈值比较（不依赖 LLM）
+# 覆盖“{属性}超过/大于/高于/以上/低于/小于… {数字}”类问题。原先这类问题依赖 LLM 翻译，
+# “超过”等非标准词常解析失败 → 逻辑桥漏答（e2e 逻辑桥 4/5）。此处用规则兜底，确定性、零 token。
+
+_GT_WORDS = ("超过", "高于", "大于", "以上", "不少于", "不小于")
+_LT_WORDS = ("低于", "小于", "以下", "不超过", "不多于", "不大于")
+_THRESHOLD_RE = re.compile(
+    r"(超过|高于|大于等于|大于|不少于|不小于|以上|低于|小于等于|小于|不超过|不多于|不大于|以下)"
+    r"\s*([0-9]+(?:\.[0-9]+)?)")
+
+
+def _threshold_query(question, D):
+    """确定性解析数值阈值比较 → 结构化 filter 查询 {intent, attr, rel, n}；非阈值问题返回 None。
+
+    仅当问题出现“比较词 + 数字”且属性可映射到词典时返回，否则 None（保持零误判）。
+    """
+    m = _THRESHOLD_RE.search(question)
+    if not m:
+        return None
+    op_word, num_str = m.group(1), m.group(2)
+    try:
+        val = float(num_str)
+    except ValueError:
+        return None
+    cn2en = D.get("attr_cn2en", {}) or {}
+    # 属性取“比较词之前的词典中文属性名”（最长匹配，避免截到较短无关词）
+    idx = question.find(op_word)
+    prefix = question[:idx]
+    best = None
+    for cn in cn2en:
+        if cn and prefix.endswith(cn) and (best is None or len(cn) > len(best)):
+            best = cn
+    if not best:  # 回退: 全句最长属性名
+        for cn in cn2en:
+            if cn and cn in question and (best is None or len(cn) > len(best)):
+                best = cn
+    if not best:
+        return None
+    rel = "gt" if any(w in op_word for w in _GT_WORDS) else "lt"
+    return {"intent": "filter", "attr": cn2en[best], "filter_cn": None,
+            "rel": rel, "n": val, "extreme_dir": "max"}
+
+
 # ------------------------------------------------------------------ 确定性执行器
 
 
@@ -284,8 +327,24 @@ def execute_query(query, data, D):
 
     # ---- filter: 属性过滤 ----
     if intent == "filter":
-        matched = {n: d for n, d in filtered.items()
-                   if _field(d, attr_en, aliases) not in ("", None)}
+        # 数值阈值比较(确定性兜底): rel 为 gt/lt 且 n 为数值时, 仅保留满足阈值比较的记录
+        rel = query.get("rel")
+        thr = query.get("n")
+        is_threshold = rel in ("gt", "lt") and isinstance(thr, (int, float))
+        matched = {}
+        for n, d in filtered.items():
+            raw = _field(d, attr_en, aliases)
+            if raw in ("", None):
+                continue
+            if is_threshold:
+                numv = _num(raw)
+                if numv is None:
+                    continue
+                if rel == "gt" and not (numv > thr):
+                    continue
+                if rel == "lt" and not (numv < thr):
+                    continue
+            matched[n] = d
         if not matched:
             return None
         cname = attr_cn or attr_en
@@ -311,7 +370,9 @@ def answer(question, data, D):
     # 防止"完全无关xyz"被 LLM 强行翻译成 total/count 意图错误接管
     if not _is_relevant(question, D):
         return None
-    query = nl_to_query(question, D)
+    query = _threshold_query(question, D)  # 确定性数值阈值兜底(优先, 不依赖 LLM)
+    if query is None:
+        query = nl_to_query(question, D)
     if query is None:
         return None
     ans = execute_query(query, data, D)
