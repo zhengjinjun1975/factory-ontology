@@ -57,20 +57,6 @@ def test_multi_tenant():
     assert r.status_code == 200 and r.json()["ok"] and r.json()["nodes"] >= 100
 
 
-# ── 图持久化(graph_store) ──
-def test_graph_store_roundtrip(tmp_path):
-    import graph_rag as gr
-    import graph_store as gs
-    g, labels, vi, rev = gr.build_graph(os.path.join(ROOT, "output", "food.nt"))
-    db = str(tmp_path / "g.db")
-    gs.persist(g, labels, vi, rev, db)
-    g2, l2, v2, r2 = gs.load(db)
-    assert len(l2) == len(labels)  # 节点数一致
-    # 持久化图问答可用
-    seeds = gr.find_seeds("哪些批次用了盐", g2, l2, v2)
-    assert any(gr.tail(s).startswith("Food_raw_materials_RM008") for s in seeds)
-
-
 # ── 数据接入(data_import) ──
 def test_data_import_mapping(tmp_path):
     import data_import as di

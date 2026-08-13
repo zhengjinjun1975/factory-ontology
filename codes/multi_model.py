@@ -257,7 +257,7 @@ def build_data(data, table="factory_multi"):
     """对内存中的 {表名: [行...]} 直接建模（DB 直连场景：省去 CSV 落盘中间步）。
 
     与 build() 共用同一套已验收建模流水线（suggest_schema + to_nt + 词典 + state），
-    供 db_to_ontology 一键从 ERP/MES 数据库建本体复用。返回 (table, tables列表, nt行数)。
+    供外部 DB 直连场景（ERP/MES）一键建本体复用。返回 (table, tables列表, nt行数)。
     """
     so = _load("schema_ontology", os.path.join(ROOT, "schema_ontology.py"))
     if not data:
