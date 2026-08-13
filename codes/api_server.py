@@ -701,6 +701,23 @@ def _ask_impl(req: AskReq):
         return {"ok": True, "mode": "rule", "answer": polished,
                 "evidence": ev, "engines": ["rule"], "structured": structured,
                 "no_basis": not ev, "kb": ctx["kb"]}
+    # 1.5 通用跨域校验(P1, 取代原白名单词表): 规则引擎 miss 后, 若问题是一条明确的数据查询
+    #     (计数/列表/极值/范围/统计), 且其中引用的实体概念不在该 kb 本体任何实体类/词典
+    #     (kb_vocab: entity/type/status/zone/attr/numeric_fields), 则禁止逻辑桥/图检索/混合/
+    #     LLM 兜底编造, 强制返回"无相关数据"。横向覆盖所有跨域问题(书/船/测线/冲床/图纸…),
+    #     不靠具体词表。非数据查询(开放式/咨询/建议)不拦 —— 由下方 3.4 咨询拦截/LLM 兜底处理。
+    try:
+        from ontology_qa_v3 import is_cross_domain_data_query
+        # 咨询/建议型开放问题即使含"哪些/多少"(如"有哪些需要注意的事项")也非数据查询,
+        # 跳过跨域校验, 交给 3.4 咨询拦截生成建议。
+        if is_cross_domain_data_query(q, D) and not re.search(
+                r"需要注意|注意事项|建议|注意什么|注意哪些|应当注意|应该注意|风险|隐患|"
+                r"怎么办|措施|方案|如何|怎么(才能|有效|避免|预防)|意义|作用|影响|经验", q):
+            return {"ok": True, "mode": "miss", "answer": "无相关数据（该知识库不含该实体概念）",
+                    "evidence": [], "engines": [], "structured": None,
+                    "no_basis": True, "kb": ctx["kb"]}
+    except Exception:
+        pass
     # 2. 逻辑推理桥(LLM转逻辑查询→确定性执行, 借鉴KAG; 覆盖更多开放式问题而不失确定性)
     try:
         import logical_qa

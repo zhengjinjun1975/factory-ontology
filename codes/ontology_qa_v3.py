@@ -218,7 +218,8 @@ def _display_name(rec, aliases, default=""):
         return n
     # 兜底: 尝试常见主键字段 (含驼峰)
     for key in ("id", "udi", "UDI", "device_id", "serial_no", "code", "name",
-                "product_name", "productName", "raw_name", "rawName"):
+                "product_name", "productName", "raw_name", "rawName",
+                "unit_name", "unitName", "equipment_name", "equipmentName"):
         if key in rec:
             return rec[key]
     return default
@@ -334,6 +335,61 @@ def _is_min(q):
     return any(k in q for k in _EXTREME_MIN)
 
 
+# ------------------------------------------------------------------ 通用跨域校验
+# 数据查询意图正则(计数/列表/极值/范围/统计等)。跨域校验只拦"明确的数据查询",
+# 不拦开放式/咨询问题(那些走 LLM 兜底生成建议)。
+_DATA_QUERY_RE = re.compile(
+    r"多少|数量|总数|几个|总共|共计|共有|一共有|列出|有哪些|哪些|"
+    r"最[大小高低多少长短贵便宜快慢久重轻新老早晚近]|共\s*多少|"
+    r"是多少|等于|大于|小于|高于|低于|平均|合计|总和|统计|分组|"
+    r"台|条|个|张|艘|本|支|卷|份")
+
+
+def kb_vocab(D):
+    """该 kb 本体的全部领域词(中文实体/类型/状态/区域/属性/数值字段等)。
+
+    跨域判定依据: 词典 entity_cn2en(实体类) + type/status/zone/category 枚举 +
+    attr_cn2en/attr_en2cn(属性) + numeric_fields。只收集该 kb 词典里真实出现的概念,
+    不依赖任何白名单词表 —— 换任何行业/数据源都通用。
+    """
+    voc = set()
+    for key in ("entity_cn2en", "type_cn2en", "status_cn2en", "zone_cn2en",
+                "category_cn2en", "attr_cn2en", "attr_en2cn"):
+        m = (D or {}).get(key) or {}
+        for k in m:
+            if k:
+                voc.add(k)
+            v = m[k]
+            if isinstance(v, str) and v:
+                voc.add(v)
+    for k in ((D or {}).get("numeric_fields") or {}):
+        if k:
+            voc.add(k)
+    return {w for w in voc if w and len(str(w)) >= 1}
+
+
+def is_cross_domain_data_query(q, D):
+    """通用跨域校验(取代原白名单词表钩子)。
+
+    若问题是一条"明确的数据查询"(计数/列表/极值/范围/统计), 且其中引用的实体概念
+    不在该 kb 本体任何实体类/词典(即问题里不含任何该 kb 领域词), 判定为跨域 →
+    应禁止 LLM 兜底编造, 强制返回"无相关数据"。
+    横向覆盖所有跨域问题(问书/船/测线/冲床/图纸…), 不靠具体词表。
+    非数据查询(开放式/咨询)返回 False, 不拦截。
+    """
+    if not q or not D:
+        return False
+    if not _DATA_QUERY_RE.search(q):
+        return False  # 非数据查询, 不拦
+    voc = kb_vocab(D)
+    if not voc:
+        return False
+    for w in voc:
+        if w and w in q:
+            return False  # 问题含该 kb 领域词 → 域内, 不拦
+    return True
+
+
 def _entity_subset(q, D, data):
     """实体消歧: 若问题含 entity_cn2en 的实体词(如"机组"), 返回该实体类的实例子集;
     否则返回全部。解决"运行中的机组"误匹配到设备(锅炉/发电机)而非机组。"""
@@ -435,7 +491,10 @@ def answer(q, data, D):
         n = sum(1 for d in sub.values() if _field(d, "deviceType", aliases) == ty_en)
         return "有 %d %s" % (n, ty_cn)
     # 类型词 + 的：按类型过滤计数/列出（"大气治理的项目" / "油轮的" 等，非"多少"式）
-    if ty_en and "的" in q:
+    # 极值消歧(P1): "容量最大的发电机组"里"发电机"是 type_cn2en 子串会误命中此处,
+    # 而问题实为"最X的Y"极值查询(attr_en 已解析 + 极值词)。极值应优先于类型列举,
+    # 否则会错误返回"无发电机"。故类型列举仅在非极值查询时触发。
+    if ty_en and "的" in q and not (_EXTREME.search(q) and attr_en):
         sub = _entity_subset(q, D, data)
         matched = [(n, d) for n, d in sub.items() if _field(d, "deviceType", aliases) == ty_en]
         nm = names(matched)
@@ -474,7 +533,8 @@ def answer(q, data, D):
     # ---- TopN (属性最高/最低的N个) ----
     if attr_en and re.search(r'\d+\s*[台个条]', q) and _EXTREME.search(q):
         n = int(_extract_nums(q)[0]) if _extract_nums(q) else 3
-        items = [(d, _num(_field(d, attr_en, aliases))) for d in data.values()]
+        sub = _entity_subset(q, D, data)  # 极值消歧: 只在该实体类实例中求极值
+        items = [(d, _num(_field(d, attr_en, aliases))) for d in sub.values()]
         items = [(d, v) for d, v in items if v is not None]
         is_max = _is_max(q)
         items.sort(key=lambda x: x[1], reverse=is_max)
@@ -495,7 +555,8 @@ def answer(q, data, D):
         _has_attr_ref = any(cn in q for cn in (D.get("attr_cn2en", {}) or {}))
         if _has_abstract and not _has_entity_ref and not _has_attr_ref:
             return "暂不支持该问题"
-        items = [(d, _num(_field(d, attr_en, aliases))) for d in data.values()]
+        sub = _entity_subset(q, D, data)  # 极值消歧(P1): 只在该实体类实例中求极值
+        items = [(d, _num(_field(d, attr_en, aliases))) for d in sub.values()]
         items = [(d, v) for d, v in items if v is not None]
         if items:
             is_max = _is_max(q)

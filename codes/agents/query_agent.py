@@ -15,6 +15,7 @@ task 结构:
 
 import os
 import sys
+import re
 
 # 路径修正(与 lexicon_agent 一致)
 _APP = os.path.dirname(os.path.abspath(__file__))
@@ -119,16 +120,18 @@ class QueryAgent(BaseAgent):
             pass
 
         # ---- 4. LLM 兜底(开放式问题, 借鉴 ontology_qa_v2 code_answer/llm_answer) ----
-        # 跨域校验钩子(P0): 若问题引用该 kb 词典外的实体概念(跨域), 且规则/图/混合全 miss,
-        # 禁止 LLM 兜底编造数据, 直接走 miss 返回"无相关数据"。
+        # 通用跨域校验(P1, 取代原白名单词表): 若问题是一条明确的数据查询, 且其中引用的
+        # 实体概念不在该 kb 本体任何实体类/词典(kb_vocab: entity/type/status/zone/attr/
+        # numeric_fields), 且规则/图/混合全 miss, 则禁止 LLM 兜底编造, 强制返回"无相关数据"。
+        # 横向覆盖所有跨域问题(书/船/测线/冲床/图纸…), 不靠具体词表。
         try:
-            legal = set(D.get("entity_cn2en", {})) | set(D.get("type_cn2en", {})) | set(D.get("status_cn2en", {})) | set(D.get("zone_cn2en", {})) | set(D.get("attr_cn2en", {})) | set(D.get("attr_en2cn", {}))
-            # 常见跨域实体词(其他行业概念): 本库若无法典匹配则判跨域
-            _cross_terms = ["书", "图书", "图书馆", "船舶", "订单", "测线", "炮点", "船", "原料", "原料"]
-            cross_hit = [w for w in _cross_terms if w in q and not any(w == k or w in str(k) for k in legal)]
-            if cross_hit:
+            from ontology_qa_v3 import is_cross_domain_data_query
+            # 咨询/建议型开放问题即使含"哪些/多少"也非数据查询, 跳过跨域校验, 交给 LLM 兜底生成建议。
+            if is_cross_domain_data_query(q, D) and not re.search(
+                    r"需要注意|注意事项|建议|注意什么|注意哪些|应当注意|应该注意|风险|隐患|"
+                    r"怎么办|措施|方案|如何|怎么(才能|有效|避免|预防)|意义|作用|影响|经验", q):
                 return self._ok(_pack(q, "无相关数据（该知识库不含该实体概念）", engines=["miss"],
-                                     evidence={"cross_domain": cross_hit, "no_basis": True}), "query")
+                                     evidence={"cross_domain": True, "no_basis": True}), "query")
         except Exception:
             pass
         if task.get("use_llm", True):
