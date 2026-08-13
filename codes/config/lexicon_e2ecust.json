@@ -1,0 +1,90 @@
+{
+  "description": "自动生成词典（multi_model, suggest_schema 推断 + LLM 语义聚类同义词 + data profiling 映射）",
+  "attr_cn2en": {
+    "编号": "id",
+    "产品编号": "product_id",
+    "生产日期": "produce_date",
+    "数量": "quantity",
+    "原料": "raw_parts",
+    "班组": "team",
+    "状态": "status",
+    "批次编号": "batch_id",
+    "检查项目": "check_item",
+    "压力规则": "press_rule",
+    "保压秒数": "hold_sec",
+    "泄漏气泡": "leak_bubbles_min",
+    "结果": "result",
+    "检查员": "checker",
+    "检查日期": "check_date"
+  },
+  "attr_en2cn": {
+    "id": "编号",
+    "product_id": "产品编号",
+    "produce_date": "生产日期",
+    "quantity": "数量",
+    "raw_parts": "原料",
+    "team": "班组",
+    "status": "状态",
+    "batch_id": "批次编号",
+    "check_item": "检查项目",
+    "press_rule": "压力规则",
+    "hold_sec": "保压秒数",
+    "leak_bubbles_min": "泄漏气泡",
+    "result": "结果",
+    "checker": "检查员",
+    "check_date": "检查日期"
+  },
+  "status_cn2en": {
+    "运行中": "running",
+    "待机": "idle",
+    "报警": "alarm",
+    "维护中": "maintenance",
+    "离线": "offline",
+    "合格": "合格",
+    "不合格": "不合格",
+    "已入库": "已入库",
+    "待质检": "待质检",
+    "生产中": "生产中"
+  },
+  "type_cn2en": {},
+  "zone_cn2en": {},
+  "synonym_map": {
+    "不合格": [
+      "不合格品"
+    ],
+    "合格": [
+      "良品"
+    ],
+    "泄漏气泡": [
+      "漏气",
+      "气泡泄漏"
+    ]
+  },
+  "entity_cn2en": {
+    "批次": "valve_batches",
+    "阀门批次": "valve_batches",
+    "质检": "valve_qc",
+    "阀门质检": "valve_qc"
+  },
+  "numeric_fields": {
+    "数量": "quantity",
+    "保压秒数": "hold_sec",
+    "泄漏气泡": "leak_bubbles_min"
+  },
+  "field_aliases": {
+    "status": [
+      "status"
+    ],
+    "deviceType": [
+      "deviceType",
+      "device_type",
+      "type"
+    ],
+    "deviceName": [
+      "deviceName",
+      "device_name",
+      "name"
+    ]
+  },
+  "value_fields": []
+}

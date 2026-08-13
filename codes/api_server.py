@@ -702,7 +702,10 @@ def _ask_impl(req: AskReq):
         pass  # 逻辑桥不可用则跳过
     # 3. GraphRAG(LLM 基于图子图作答)
     gans, gctx = gr.answer_graph(q, FOOD_NT, depth=2, max_nodes=40, lexicon=D)
-    if not gans.startswith("[图检索]"):
+    # P1: 图引擎命中(种子/子图有据)但 LLM 生成空串时, 不得当成"有据命中"(no_basis=False +
+    # 空答案 = 假命中)。空串按未答处理, 继续走后续混合/文档/LLM 兜底(no_basis=True), 避免
+    # "看似有据实则空答"绕过跨域拦截。
+    if gans and not gans.startswith("[图检索]"):
         # 图检索有子图依据: evidence 记录图上下文溯源(来源=graph)
         g_ev = [{"entity": None, "attr": "context", "value": gctx[:1000],
                  "source": "graph", "score": 1.0}] if gctx.strip() else []
@@ -830,6 +833,13 @@ def ask(req: AskReq):
     """
     start = time.time()
     result = _ask_impl(req)
+    # P1 跨域拦截兜底: 任何引擎若产出"空答案", 一律判为无据(no_basis=True)——
+    # no_basis=False + 空答案 是"看似有据实则空答"的假命中, 必须归为无据, 防绕过跨域拦截。
+    try:
+        if result and not str(result.get("answer") or "").strip():
+            result["no_basis"] = True
+    except Exception:
+        pass
     # 问答审计: 记录问题/知识库/命中引擎/模式, 供追溯与质量分析
     try:
         _audit_event("qa", kb=req.kb or KB_NAME, question=req.question,

@@ -367,6 +367,14 @@ _DATA_QUERY_RE = re.compile(
     r"是多少|等于|大于|小于|高于|低于|平均|合计|总和|统计|分组|"
     r"台|条|个|张|艘|本|支|卷|份")
 
+# 通用查询意图词(计数/列举/极值/统计的语法标记): 从 _DATA_QUERY_RE 抽出的 ≥2 字中文词
+# 加上单位量词。它们是数据查询的"意图", 不是领域概念, 且几乎每个 kb 的字段名里都可能出现
+# (如 valve 的 numeric_fields 就有"数量")。跨域域内判定须排除它们, 否则跨域问题
+# ("冲床的数量"命中通用字段名"数量")会被误判为域内而绕过拦截。
+_DATA_INTENT_WORDS = {
+    w for w in re.findall(r"[\u4e00-\u9fff]{2,}", _DATA_QUERY_RE.pattern)
+} | set("个张条台艘本支卷份")
+
 
 def kb_vocab(D):
     """该 kb 本体的全部领域词(中文实体/类型/状态/区域/属性/数值字段等)。
@@ -399,6 +407,12 @@ def is_cross_domain_data_query(q, D):
     应禁止 LLM 兜底编造, 强制返回"无相关数据"。
     横向覆盖所有跨域问题(问书/船/测线/冲床/图纸…), 不靠具体词表。
     非数据查询(开放式/咨询)返回 False, 不拦截。
+
+    域内判定排除"通用查询意图词"(数量/多少/几个/哪些…): 这些词是数据查询的语法
+    意图标记, 且几乎每个 kb 的字段名里都会出现(如 valve 的 numeric_fields 有"数量")。
+    若把它们纳入域内判定, 跨域问题(如"冲床的数量")会因命中通用字段名"数量"被误判为
+    域内, 绕过跨域拦截 → 空答案/编造数字假命中。域内判定只看"领域区分词"
+    (实体类/类型/状态/区域等), 才能正确识别真·本域问题。
     """
     if not q or not D:
         return False
@@ -408,8 +422,8 @@ def is_cross_domain_data_query(q, D):
     if not voc:
         return False
     for w in voc:
-        if w and w in q:
-            return False  # 问题含该 kb 领域词 → 域内, 不拦
+        if w and w not in _DATA_INTENT_WORDS and w in q:
+            return False  # 命中该 kb 领域区分词 → 域内, 不拦
     return True
 
 
