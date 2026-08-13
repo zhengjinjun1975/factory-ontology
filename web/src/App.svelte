@@ -220,6 +220,8 @@
     data_food_co: ['food_products', 'food_batches', 'food_equipment', 'food_raw_materials', 'food_batch_ingredient', 'food_qc'],
   };
   let defaultIndustry = $state('data_valve'); // 当前选中的行业示例
+  // 本地文件建模折叠区
+  let localModelOpen = $state(true);
   // 数据库接入
   let dbOpen = $state(false);
   let dbBusy = $state(false);
@@ -907,7 +909,7 @@
       <span class="tab-icon">📚</span> 知识库
     </button>
     <button class="tab" class:active={activeTab === 'assets'} onclick={() => switchTab('assets')}>
-      <span class="tab-icon">🗂️</span> 资产
+      <span class="tab-icon">📦</span> 资产
     </button>
   </nav>
 
@@ -927,28 +929,45 @@
         </div>
       {/if}
 
-      <!-- ─── 卡片① 本地文件建模 ─── -->
+      <!-- ─── 卡片① 本地文件建模（折叠式，对齐模型配置管理）─── -->
       <div class="card">
-        <div class="card-head">
+        <button class="card-head card-head-btn" onclick={() => (localModelOpen = !localModelOpen)}>
           <span class="card-icon">📁</span>
           <div class="card-titles">
             <div class="card-title">本地文件建模</div>
-            <div class="card-desc">上传 CSV / JSON 文本文件，可多选</div>
+            <div class="card-desc">{localModelOpen ? '点击收起' : '点击展开'}上传 CSV / JSON 文件建模</div>
+          </div>
+          <span class="chevron">{localModelOpen ? '▾' : '▸'}</span>
+        </button>
+        {#if localModelOpen}
+        <div class="card-body">
+          <div class="file-upload-zone">
+            <label class="file-input">
+              <input type="file" multiple accept=".csv,.json" onchange={onPickFiles} />
+              <span class="file-upload-icon">📁</span>
+              <span class="file-upload-main">
+                <span class="file-upload-title">{localFiles.length ? `已选 ${localFiles.length} 个文件` : '选择 CSV / JSON 文件'}</span>
+                <span class="file-upload-hint">可多选，支持 .csv / .json</span>
+              </span>
+              <span class="file-upload-btn">浏览选择文件</span>
+            </label>
+            {#if localFiles.length}
+              <div class="file-selected">
+                <div class="file-selected-title">待建模文件</div>
+                <div class="file-selected-list">
+                  {#each localFiles as f}
+                    <span class="file-selected-chip">📄 {f.name}</span>
+                  {/each}
+                </div>
+              </div>
+              <button class="btn-action" onclick={doLocalModel} disabled={localBusy}>
+                <span class="btn-icon">{localBusy ? '⏳' : '⚙'}</span>
+                {localBusy ? '建模进行中…' : `确认并建模（${localFiles.length} 个文件）`}
+              </button>
+            {/if}
           </div>
         </div>
-        <div class="card-body">
-          <label class="file-input">
-            <input type="file" multiple accept=".csv,.json" onchange={onPickFiles} />
-            <span class="file-icon">📁</span>
-            <span class="file-name">{localFiles.length ? `已选 ${localFiles.length} 个文件` : '浏览选择文件'}</span>
-          </label>
-          {#if localFiles.length}
-            <button class="btn-action" onclick={doLocalModel} disabled={localBusy}>
-              <span class="btn-icon">{localBusy ? '⏳' : '⚙'}</span>
-              {localBusy ? '建模进行中…' : `确认并建模（${localFiles.length} 个文件）`}
-            </button>
-          {/if}
-        </div>
+        {/if}
       </div>
 
       {#if modelResult}
@@ -990,15 +1009,17 @@
         </div>
       {/if}
 
-      <!-- ─── 卡片③ 数据库接入（本地厂区局域网）─── -->
+      <!-- ─── 卡片③ 数据库接入（折叠式，对齐模型配置管理）─── -->
       <div class="card">
-        <div class="card-head">
+        <button class="card-head card-head-btn" onclick={() => (dbOpen = !dbOpen)}>
           <span class="card-icon">🗄️</span>
           <div class="card-titles">
             <div class="card-title">数据库接入</div>
-            <div class="card-desc">连接 MES / ERP / 台账数据库，数据本地处理不出厂</div>
+            <div class="card-desc">{dbOpen ? '点击收起' : '点击展开'}连接 MES / ERP / 台账数据库</div>
           </div>
-        </div>
+          <span class="chevron">{dbOpen ? '▾' : '▸'}</span>
+        </button>
+        {#if dbOpen}
         <div class="card-body">
           <div class="form-group">
             <label class="form-label" for="db-type">数据库类型</label>
@@ -1057,6 +1078,7 @@
             </div>
           {/if}
         </div>
+        {/if}
       </div>
 
       <!-- ─── 卡片④ 模型配置管理（查看/编辑/增删/设 active，api_key 脱敏）─── -->
@@ -1138,7 +1160,7 @@
 
     <!-- ─── 右栏：模型结构图 ─── -->
     <section class="pane pane-right">
-      <div class="pane-title">模型结构</div>
+      <div class="pane-title">{modelResult ? '模型结构' : (user && user.enterpriseName ? `${user.enterpriseName} · 本体问答系统` : '本体问答系统')}</div>
       <div class="graph-body">
         {#if modelResult}
           <!-- refreshKey=ts：重新建模 ts 变 → ModelGraph 的 $effect 触发重新加载；kb=当前激活知识库，本体图跟随该 kb（非 food） -->
@@ -1748,6 +1770,35 @@
   .m-embed-title { font-size: 12px; font-weight: 700; color: #1e3a8a; }
 
   .file-icon { font-size: 16px; }
+
+  /* ─── 本地文件建模：上传区（对齐成熟商业软件的上传体验） ─── */
+  .file-upload-zone { display: flex; flex-direction: column; gap: 10px; }
+  .file-input {
+    display: flex; align-items: center; gap: 12px;
+    border: 1.5px dashed #cbd5e1; border-radius: 8px;
+    padding: 14px 16px; cursor: pointer; background: #f8fafc;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .file-input:hover { border-color: #2563eb; background: #eff6ff; }
+  .file-input input[type="file"] { display: none; }
+  .file-upload-icon { font-size: 24px; flex-shrink: 0; }
+  .file-upload-main { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .file-upload-title { font-size: 13px; font-weight: 600; color: #1e293b; }
+  .file-upload-hint { font-size: 11px; color: #64748b; }
+  .file-upload-btn {
+    font-size: 12px; font-weight: 600; color: #2563eb;
+    border: 1px solid #2563eb; border-radius: 4px; padding: 5px 12px;
+    white-space: nowrap; transition: background 0.15s;
+  }
+  .file-input:hover .file-upload-btn { background: #2563eb; color: #fff; }
+  .file-selected { display: flex; flex-direction: column; gap: 6px; }
+  .file-selected-title { font-size: 11px; font-weight: 600; color: #64748b; }
+  .file-selected-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .file-selected-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: #eff6ff; color: #1e3a8a; border: 1px solid #bfdbfe;
+    border-radius: 4px; padding: 3px 8px; font-size: 12px;
+  }
 
   .btn-action {
     display: flex; align-items: center; justify-content: center; gap: 8px;

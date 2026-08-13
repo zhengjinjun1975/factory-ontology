@@ -171,10 +171,8 @@
       {error}
       <button class="asset-retry" onclick={load}>重试</button>
     </div>
-  {:else if empty}
-    <div class="asset-empty asset-nodata">知识库「{curKb}」暂无资产版本，请先在后端生成语义资产</div>
-  {:else if loaded}
-    <!-- 快照操作区 -->
+  {:else}
+    <!-- 快照操作区：始终显示(空态也能创建首个快照)，不藏在 loaded 分支里 -->
     <div class="asset-snapbar">
       <input
         class="snap-input"
@@ -191,6 +189,9 @@
       <div class="asset-opmsg">{opMsg}</div>
     {/if}
 
+    {#if empty}
+      <div class="asset-empty asset-nodata">知识库「{curKb}」暂无资产版本，点击上方「📸 创建快照」生成首个版本（语义资产存档，用于版本回滚与交付）。</div>
+    {:else if loaded}
     <div class="asset-meta">
       <span class="meta-kb">知识库：<b>{curKb}</b></span>
       <span class="meta-count">{versions.length} 个版本</span>
@@ -248,6 +249,7 @@
     </div>
 
     <div class="asset-hint">● 当前激活版本为系统正在使用的语义资产；可对任意历史版本点「回滚」切换。</div>
+    {/if}
   {/if}
 </div>
 
