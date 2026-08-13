@@ -575,9 +575,10 @@ def answer(q, data, D):
 
     # ---- 属性值过滤计数 (泛化): "不锈钢波纹管的数量" / "船坞的数量" ----
     # data profiling 未覆盖的复合/取值过滤计数兜底（位于所有具名模板之后）。
+    # 去掉调试后缀("单字段取值"), 给用户可读的计数回答。
     _vc = _value_filter_count(q, data)
     if _vc:
-        return "符合条件共 %d 条(%s)" % _vc
+        return "符合条件共 %d 条" % _vc[0]
 
     # ---- 总数: 一共有多少条记录 ----
     if ("一共" in q or "总共有" in q or "总共" in q) and ("记录" in q or "多少" in q):
