@@ -346,6 +346,21 @@ python valve_demo.py
 - [合规](docs/合规.md)：溯源合规与召回场景
 - 贡献规范见 [CONTRIBUTING.md](CONTRIBUTING.md)
 
+## 记忆沉淀（可选）：行业经验 note 进 OptMem
+
+`codes/memnote.py` 提供轻量"记忆沉淀"命令/函数，把**行业词典经验、建模经验**固化进
+[OptMem](E:\optmem)（跨行业、跨会话复用）。**不侵入主流程、零依赖**（纯标准库），按需触发，失败静默。
+
+```bash
+python codes/memnote.py lexicon <行业> <中文术语> <英文>        # 行业词典经验
+python codes/memnote.py model  <行业> "<建模经验一句话>"          # 建模/映射经验
+python codes/memnote.py note   "<一行经验, ≤280字节>"             # 直接记
+python codes/memnote.py hint                                      # 关键节点提示
+```
+
+建议在"新行业词典/同义词组建成后、建模映射调通"时沉淀。可用 `OPTMEM_NOTE=0` 关闭；检索复用见
+`python E:\optmem\memo_search.py "<关键词>"`。命令行参数缺省用 `python` 的 memo 工具。
+
 ## 一键启动
 
 ```bash
