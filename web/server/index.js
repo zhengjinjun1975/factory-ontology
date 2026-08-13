@@ -5,7 +5,7 @@ import { readFileSync, existsSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, graphOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, evalBenchmark, evalIsolate, knowledgeList, assetsList, assetsSnapshot, assetsRollback, knowledgeIngest, knowledgeDelete, knowledgeQuery, getEnterprise, saveEnterprise, resetKb } from './ontology.js';
-import { login as authLogin, logout as authLogout, me as authMe, createUser, updateUser, seedUsersIfEmpty } from './auth.js';
+import { login as authLogin, logout as authLogout, me as authMe, createUser, updateUser, seedUsersIfEmpty, restoreSessions } from './auth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
@@ -54,8 +54,9 @@ function readRawBody(req, max = 60 * 1024 * 1024) {
 const server = createServer(async (req, res) => {
   const url = req.url.split('?')[0];
 
-  // ── 启动时种子企业用户（仅当 users.json 为空）──
+  // ── 启动时种子企业用户（仅当 users.json 为空）+ 恢复持久化会话（node 重启不掉线）──
   seedUsersIfEmpty();
+  restoreSessions();
 
   // ═══ 鉴权辅助 ═══
   // 从 Authorization: Bearer <token> 或 X-Auth-Token 头取会话 token
@@ -255,8 +256,9 @@ const server = createServer(async (req, res) => {
       if (!user || !user.kb) { writeErr(400, { ok: false, error: '无企业数据可重置' }); return; }
       const r = resetKb(user.kb);
       if (!r.ok) { writeErr(500, r); return; }
-      // 重置企业字段为未配置 + onboarded=false → 前端进入引导 onboarding
-      const upd = updateUser(user.username, { enterpriseName: '', logo: '', industry: '', onboarded: false });
+      // 重置企业字段为未配置 + onboarded=false + kb 清空 → 前端进入引导 onboarding，
+      // 下次 onboarding 会用新建/重建的 kb，避免旧中文用户名遗留的 ent_______ 残留。
+      const upd = updateUser(user.username, { enterpriseName: '', logo: '', industry: '', onboarded: false, kb: '' });
       res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
       res.end(JSON.stringify({ ok: true, data: upd.ok ? upd.user : null, reset: r }));
     } catch (err) { writeErr(500, { ok: false, error: String(err.message || err) }); }

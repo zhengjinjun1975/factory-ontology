@@ -70,7 +70,8 @@ class EvalAgent(BaseAgent):
             ans = (r.data or {}).get("answer", "")
             # hit 判定: 答案须实质回答, 排除无实质兜底(暂不支持/无法确定/未找到等)
             _NON_ANS = ("暂不支持", "无法确定", "未找到", "无结果", "没有找到",
-                        "不存在", "不能回答", "拒绝回答", "没有查询到", "无相关")
+                        "不存在", "不能回答", "拒绝回答", "没有查询到", "无相关",
+                        "未能在当前知识库中找到确切答案", "可换一种问法")
             is_hit = bool(ans) and ans != _MISS_SENTINEL \
                 and not any(x in ans for x in _NON_ANS)
             if is_hit:

@@ -15,6 +15,19 @@
 
   let { kb = '' } = $props();    // 当前企业唯一 kb（只读 prop，跟随登录企业）
   let docs = $state([]);          // [{doc_id,title,chunks,ingested_at}]
+
+  // 入库时间戳(秒/毫秒) → "YYYY-MM-DD HH:mm" 可读格式；无/非法返回 ''
+  function fmtTime(v) {
+    if (!v) return '';
+    const n = Number(v);
+    if (!isFinite(n) || n <= 0) return '';
+    // 秒级(<1e12)统一乘1000转毫秒，毫秒级(>=1e12)直接用
+    const ms = n < 1e12 ? n * 1000 : n;
+    const d = new Date(ms);
+    if (isNaN(d.getTime())) return '';
+    const p = (x) => String(x).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
   let loading = $state(false);
   let loaded = $state(false);     // 是否已成功加载过一次（区分未加载空态 vs 真正空态）
   let error = $state('');
@@ -237,7 +250,7 @@
               <td class="mono">{d.doc_id}</td>
               <td>{d.title}</td>
               <td class="mono">{d.chunks}</td>
-              <td class="mono">{d.ingested_at || '—'}</td>
+              <td class="mono">{fmtTime(d.ingested_at) || '—'}</td>
               <td class="col-act">
                 <div class="row-actions">
                   <button class="btn-view" onclick={() => viewDoc(d)} disabled={viewLoading}>

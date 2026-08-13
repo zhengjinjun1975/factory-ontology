@@ -30,3 +30,4 @@ __pycache__/
 # 前端/节点
 node_modules/
 dist/
+web/sessions.json

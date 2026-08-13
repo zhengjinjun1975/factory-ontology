@@ -730,6 +730,26 @@ def _ask_impl(req: AskReq):
                 "no_basis": not g_ev, "kb": ctx["kb"]}
     # 3.5 混合检索(BM25 稀疏 + 向量语义, RRF 融合): 先暂存命中, 继续走知识库 doc 配合
     #     权重/阈值统一见 bm25_retrieval.HYBRID_CFG(放宽召回 + 倒数排名融合, 提升复杂问题命中)
+    # 3.4 咨询/建议型开放问题拦截: "有什么需要注意/建议/如何/风险"等是寻求建议, 不是列举实体。
+    #     这类问题即使字面匹配到实体(如"化工"→Chem_*), 语义也是咨询, 实体列举是错答。
+    #     直接走 LLM 兜底生成建议, 避免"（混合检索）找到相关实体: ..."误导。
+    _ADVICE_RE = re.compile(
+        r"有什么需要注意|注意事项|注意些什么|建议|应当注意|应该注意|需要警惕|"
+        r"如何(才能|有效|更好|避免|预防|防范|降低|减少|提高|确保)|怎么(才能|有效|避免|预防)|"
+        r"风险管理|安全事项|存在哪些风险|有哪些风险|风险有哪些|安全隐患|合规|规范要求|"
+        r"需要注意|怎么办|意义|作用|影响|注意什么|流程是|做法是|标准是|原则|"
+        r"风险(需要|应该|要)注意|注意(哪些|什么)", re.I)
+    # 咨询/建议型问题命中特征词 → 拦截(即便含"哪些/什么"等, 咨询语义优先)
+    _ADVICE_HIT = _ADVICE_RE.search(q)
+    # 排除"明确列举实体"类问题: 含具体实体对象词(设备/产品/客户/批次等) + 多少/哪些, 走正常检索
+    _ENTITY_LIST = re.search(
+        r"(设备|产品|客户|批次|原料|机器|项目|订单|班组|测线|炮点|机组|装置|台账)\s*(有哪些|有多少|几个|多少|类型)", q)
+    if _ADVICE_HIT and not _ENTITY_LIST:
+        fallback = _llm_fallback_answer(q, ctx["kb"])
+        if fallback:
+            return {"ok": True, "mode": "miss", "answer": fallback,
+                    "evidence": [], "engines": [], "structured": None,
+                    "no_basis": True, "kb": ctx["kb"]}
     hybrid_payload = None
     hit_engines = []
     try:
@@ -780,8 +800,27 @@ def _ask_impl(req: AskReq):
                         "structured": None, "no_basis": False, "kb": ctx["kb"]}
     except Exception:
         pass
-    # 知识库无有效答案: 若本体 hybrid 命中了相关实体, 回落返回 hybrid 占位(带 hits)
+    # 知识库无有效答案: 若本体 hybrid 命中了实体, 不再直接输出"找到相关实体"占位(那是调试信息, 用户不可读)。
+    # 把命中的实体作为线索喂给 LLM 兜底, 让它基于实体生成可读回答; 实体列表仅作为 evidence 溯源保留。
+    # 这样"功率最大的设备"(数据无功率字段)会得到诚实的自然语言回答, 而非罗列 Chem_equipment_*。
     if hybrid_payload is not None:
+        try:
+            from model_llm import llm_generate
+            _hint = "\n".join(f"- {f['entity']}" for f in (hybrid_payload.get("evidence") or [])[:8])
+            _prompt = (
+                f"知识库中可能相关的实体: {_hint or '(无)'}\n"
+                f"用户问题: {q}\n"
+                "请基于以上实体线索回答。若实体与问题无直接关系(如问题问极值/属性但实体是类名), "
+                "如实说明知识库中没有该数据, 不要编造数字。回答简洁。"
+            )
+            _llm_ans = llm_generate(_prompt)
+            if _llm_ans:
+                return {"ok": True, "mode": "hybrid", "answer": _llm_ans,
+                        "evidence": hybrid_payload.get("evidence", []),
+                        "engines": hit_engines, "structured": None,
+                        "no_basis": True, "kb": ctx["kb"]}
+        except Exception:
+            pass
         return hybrid_payload
     # 4. LLM 兜底: 全部检索答不上 → LLM 生成理解性回答, evidence 空数组(无依据)
     fallback = _llm_fallback_answer(q, ctx["kb"])

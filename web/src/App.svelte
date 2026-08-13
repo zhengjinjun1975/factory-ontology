@@ -72,12 +72,22 @@
   }
 
   // ─── 引导 onboarding（新企业未配置时）───
-  // 步骤: 1 确认企业(名/logo/行业) → 2 选行业示例建本体 → 3 完成解锁
+  // 步骤: 1 确认企业(名/logo/行业) → 2 用所选行业示例建本体 → 3 完成解锁
   let onboardStep = $state(1);          // 1 企业信息 | 2 建本体 | 3 完成
   let onboardForm = $state({ name: '', logo: '', industry: '' });
-  let onboardIndustry = $state('data_valve');   // 选中的行业示例目录
   let onboardBusy = $state(false);
   let onboardErr = $state('');
+  // 一企业一行业一数据唯一性：企业/行业在步骤1已锁定，步骤2不再重复选择
+  // 行业名(INDUSTRY_OPTIONS中文) → 示例数据目录(data_xxx)；通用制造/其他 → 默认阀门示例
+  const INDUSTRY_DIR_BY_NAME = {
+    '阀门制造': 'data_valve', '化工企业': 'data_chem', '机械加工': 'data_machining',
+    '精密加工': 'data_precision', '波纹管': 'data_bellows', '环保工程': 'data_eco',
+    '造船': 'data_ship', '地震勘探': 'data_seismic', '食品溯源': 'data_food_co',
+    '通用制造': 'data_valve', '其他': 'data_valve',
+  };
+  // 步骤2使用的数据目录：由步骤1锁定的行业派生（兜底阀门）
+  const onboardDataDir = $derived(INDUSTRY_DIR_BY_NAME[onboardForm.industry] || 'data_valve');
+  const onboardInd = $derived(INDUSTRIES.find(i => i.dir === onboardDataDir));
 
   // 进入 onboarding 时预填当前用户企业信息
   function initOnboard() {
@@ -94,7 +104,7 @@
     try {
       const res = await saveEnterprise({ name, logo: onboardForm.logo, industry: onboardForm.industry });
       if (res && res.ok && res.data) {
-        user = { ...user, enterpriseName: res.data.name, logo: res.data.logo, industry: res.data.industry };
+        user = { ...user, enterpriseName: res.data.enterpriseName, logo: res.data.logo, industry: res.data.industry };
         onboardStep = 2;
       } else {
         onboardErr = (res && res.error) || '保存失败';
@@ -103,29 +113,41 @@
     finally { onboardBusy = false; }
   }
 
-  // 步骤2：选行业示例 → 建本体到当前企业 kb（单企业唯一）
+  // 步骤2：用步骤1锁定的行业示例 → 建本体到当前企业 kb（单企业唯一，一企业一行业）
   async function onboardBuild() {
     if (onboardBusy) return;
     onboardBusy = true; onboardErr = '';
     setStatus('info', '正在为当前企业建本体…');
     try {
-      const ind = INDUSTRIES.find(i => i.dir === onboardIndustry);
-      const tables = INDUSTRY_TABLES[onboardIndustry] || INDUSTRY_TABLES.data_valve;
+      const dir = onboardDataDir;
+      const ind = onboardInd;
+      const tables = INDUSTRY_TABLES[dir] || INDUSTRY_TABLES.data_valve;
       const files = [];
       for (const t of tables) {
-        const r = await fetchExample(`${onboardIndustry}/${t}.csv`);
+        const r = await fetchExample(`${dir}/${t}.csv`);
         if (!r.ok || r.content == null) { onboardErr = `读取示例失败：${t}`; onboardBusy = false; return; }
         files.push({ name: `${t}.csv`, content: r.content });
       }
-      // 建本体到当前企业 kb（复用后端多租户 build）
-      const res = await setupOntologyMulti(files, currentKb);
-      if (!res.ok) { onboardErr = (res && res.error) || '建本体失败'; }
+      // 建本体到当前企业 kb：优先用行业对应的 kb(onboardInd.kb)，而非可能为空的 currentKb。
+      // 一企业一行业一数据：重置后 user.kb 为空，必须用所选行业 kb 建，否则后端拒"非法 kb 名"。
+      const targetKb = (onboardInd && onboardInd.kb) || currentKb;
+      const res = await setupOntologyMulti(files, targetKb);
+      if (!res.ok) {
+        // error 可能是对象({code,message})或字符串，统一转可读文本，避免显示 [object Object]
+        const e = res && res.error;
+        onboardErr = typeof e === 'string' ? e : (e && (e.message || e.error)) || '建本体失败';
+        onboardBusy = false;
+        return;
+      }
       else {
         modelResult = { table: res.table, attrs: res.attrs || [], tables: files.length, ts: Date.now() };
         status = 'ready';
-        // 完成 onboarding：标记已配置解锁功能
-        const ob = await onboardEnterprise({ name: (user && user.enterpriseName) || '', logo: (user && user.logo) || '', industry: (user && user.industry) || '', kb: currentKb });
-        if (ob.ok && ob.data) user = ob.data;
+        // 一企业一行业一数据：建本体成功后，企业唯一 kb 必须用实际建成的 kb(res.table)，
+        // 不能用仍是旧值的 currentKb，否则欢迎页/问答/看板全跟错行业(化工→阀门)。
+        const builtKb = res.table || targetKb;
+        const ob = await onboardEnterprise({ name: (user && user.enterpriseName) || '', logo: (user && user.logo) || '', industry: (user && user.industry) || '', kb: builtKb });
+        if (ob.ok && ob.data) user = ob.data; else user = { ...user, kb: builtKb };
+        await setKb(builtKb);
         await loadKbs();
         onboardStep = 3;
       }
@@ -296,9 +318,9 @@
     try {
       const res = await saveEnterprise({ name, logo: entForm.logo, industry: entForm.industry });
       if (res && res.ok && res.data) {
-        user = { ...user, enterpriseName: res.data.name, logo: res.data.logo, industry: res.data.industry };
+        user = { ...user, enterpriseName: res.data.enterpriseName, logo: res.data.logo, industry: res.data.industry };
         entOk = '已保存，顶部品牌已更新';
-        setStatus('ok', `企业信息已更新：${res.data.name}`);
+        setStatus('ok', `企业信息已更新：${res.data.enterpriseName}`);
       } else {
         entErr = (res && res.error) || '保存失败';
       }
@@ -799,19 +821,17 @@
             {onboardBusy ? '保存中…' : '下一步：选择行业并建本体 →'}
           </button>
         {:else if onboardStep === 2}
-          <h2 class="onboard-title">🧪 选择行业示例建本体</h2>
-          <p class="onboard-sub">为「{user && user.enterpriseName}」选择所属行业，系统将用该行业示例数据为您的企业建本体（唯一知识库）。</p>
+          <h2 class="onboard-title">🧪 为「{user && user.enterpriseName}」建本体</h2>
+          <p class="onboard-sub">行业「{onboardForm.industry}」已确定，系统将用该行业示例数据为您的企业建本体（唯一知识库，一企业一行业一数据）。</p>
           <div class="onboard-industries">
-            {#each INDUSTRIES as ind}
-              <button class="ob-industry" class:sel={onboardIndustry === ind.dir} onclick={() => { onboardIndustry = ind.dir; onboardErr = ''; }}>
-                <span class="ob-ind-icon">{ind.icon}</span>
-                <span class="ob-ind-name">{ind.name}</span>
-              </button>
-            {/each}
+            <button class="ob-industry sel">
+              <span class="ob-ind-icon">{onboardInd && onboardInd.icon}</span>
+              <span class="ob-ind-name">{onboardForm.industry}</span>
+            </button>
           </div>
           {#if onboardErr}<div class="login-err">✗ {onboardErr}</div>{/if}
           <button class="login-btn" onclick={onboardBuild} disabled={onboardBusy}>
-            {onboardBusy ? '正在建本体…' : '为当前企业建本体 🚀'}
+            {onboardBusy ? '正在建本体…' : `为「${onboardForm.industry}」企业建本体 🚀`}
           </button>
         {:else}
           <h2 class="onboard-title">🎉 配置完成</h2>
@@ -836,9 +856,11 @@
     </div>
     <div class="toolbar-right">
       {#if kbsLoaded && kbList.length > 0}
+        <!-- 一企业一行业一数据：顶部标签显示企业所属行业(industry)，而非专属kb名(ent_xxx)。
+             企业绑专属kb，用kb名会显示下划线乱码；用企业行业属性定位行业图标/名称。 -->
         <span class="cur-kb-tag" title="当前企业知识库">
-          <span class="kb-tag-icon">{kbList.find(k => k.key === currentKb)?.icon || '🗂️'}</span>
-          {kbList.find(k => k.key === currentKb)?.name || currentKb}
+          <span class="kb-tag-icon">{INDUSTRIES.find(i => i.name === (user && user.industry))?.icon || kbList.find(k => k.key === currentKb)?.icon || '🗂️'}</span>
+          {(user && user.industry) || kbList.find(k => k.key === currentKb)?.name || currentKb}
         </span>
       {/if}
       {#if modelList.length > 0}
@@ -926,31 +948,6 @@
               {localBusy ? '建模进行中…' : `确认并建模（${localFiles.length} 个文件）`}
             </button>
           {/if}
-        </div>
-      </div>
-
-      <!-- ─── 卡片② 行业示例建模 ─── -->
-      <div class="card">
-        <div class="card-head">
-          <span class="card-icon">🧪</span>
-          <div class="card-titles">
-            <div class="card-title">行业示例建模</div>
-            <div class="card-desc">一键体验九大行业示例数据</div>
-          </div>
-        </div>
-        <div class="card-body">
-          <label class="ind-select">
-            <span class="ind-label">行业示例</span>
-            <select bind:value={defaultIndustry} disabled={defaultBusy}>
-              {#each INDUSTRIES as ind}
-                <option value={ind.dir}>{ind.icon} {ind.name}</option>
-              {/each}
-            </select>
-          </label>
-          <button class="btn-action btn-example" onclick={doDefaultExample} disabled={defaultBusy}>
-            <span class="btn-icon">{defaultBusy ? '⏳' : '▸'}</span>
-            {defaultBusy ? '示例建模中…' : '使用示例数据建模'}
-          </button>
         </div>
       </div>
 
@@ -1147,8 +1144,8 @@
           <!-- refreshKey=ts：重新建模 ts 变 → ModelGraph 的 $effect 触发重新加载；kb=当前激活知识库，本体图跟随该 kb（非 food） -->
           <ModelGraph refreshKey={modelResult.ts} kb={currentKb} />
         {:else}
-          <!-- 未建模：科幻风格 SVG 企业欢迎页（企业欢迎词 + 建模示例），跟随当前激活 kb -->
-          <WelcomeModel kb={currentKb} kbList={kbList} industries={INDUSTRIES} onModel={(dir) => doDefaultExample(dir)} />
+          <!-- 未建模：科幻风格 SVG 企业欢迎页（企业欢迎词 + 建模示例），按企业所属行业识别 -->
+          <WelcomeModel kb={currentKb} kbList={kbList} industries={INDUSTRIES} industry={user && user.industry} onModel={(dir) => doDefaultExample(dir)} />
         {/if}
       </div>
     </section>

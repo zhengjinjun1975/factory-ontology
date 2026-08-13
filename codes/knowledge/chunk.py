@@ -61,8 +61,22 @@ def chunk_text(text, size=600, overlap=80):
                 pos = text.find(sec, offset)
                 if pos < 0:
                     pos = 0
-                chunks.append({"index": len(chunks), "text": sec,
-                               "char_start": pos, "char_end": pos + len(sec)})
+                # 超长章节（超过 size）再按固定大小拆分，避免单个块过大导致
+                # embedding/Ollama 超 token 限制失败（实测 ~1 万字符块 embed 返回空）。
+                # 结构优先 + 长度上限，兼顾语义完整与可向量化。
+                if len(sec) > size:
+                    step = max(1, size - overlap)
+                    for i in range(0, len(sec), step):
+                        piece = sec[i:i + size]
+                        if not piece:
+                            break
+                        chunks.append({"index": len(chunks), "text": piece,
+                                       "char_start": pos + i, "char_end": pos + i + len(piece)})
+                        if i + size >= len(sec):
+                            break
+                else:
+                    chunks.append({"index": len(chunks), "text": sec,
+                                   "char_start": pos, "char_end": pos + len(sec)})
                 offset = pos + len(sec)
             return chunks
 

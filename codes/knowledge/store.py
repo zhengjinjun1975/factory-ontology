@@ -18,6 +18,7 @@ PersistentClient 目录下的同名 collection，用 HNSW 索引做余弦语义�
 依赖: chromadb（若未安装则各方法安全返回空/False，不抛异常）。
 """
 import os
+import time
 
 try:
     import chromadb
@@ -88,6 +89,7 @@ class KnowledgeStore:
             docs = []
             metas = []
             embs = []
+            _now = time.time()
             for i, c in enumerate(chunks):
                 text = (c.get("text") or "") if isinstance(c, dict) else str(c)
                 docs.append(text)
@@ -97,6 +99,7 @@ class KnowledgeStore:
                     "chunk": i,
                     "char_start": c.get("char_start", 0) if isinstance(c, dict) else 0,
                     "char_end": c.get("char_end", 0) if isinstance(c, dict) else 0,
+                    "ingested_at": _now,
                 })
                 embs.append(vectors[i])
             self._col.upsert(
@@ -154,10 +157,12 @@ class KnowledgeStore:
                 if not did:
                     continue
                 if did not in agg:
-                    agg[did] = {"title": m.get("title", did), "chunks": 0}
+                    agg[did] = {"title": m.get("title", did), "chunks": 0,
+                                "ingested_at": m.get("ingested_at") or m.get("created_at") or 0}
                 agg[did]["chunks"] += 1
             return [
-                {"doc_id": did, "title": v["title"], "chunks": v["chunks"]}
+                {"doc_id": did, "title": v["title"], "chunks": v["chunks"],
+                 "ingested_at": v["ingested_at"]}
                 for did, v in agg.items()
             ]
         except Exception:

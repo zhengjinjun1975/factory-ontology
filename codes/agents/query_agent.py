@@ -91,6 +91,12 @@ class QueryAgent(BaseAgent):
             fused = rrf_fuse(bm_hits, vec_hits, HYBRID_CFG)
             if fused:
                 ents = "、".join(f["entity"] for f in fused)
+                # 评测路径(use_llm=False): 不输出"找到相关实体"占位(用户不可读), 返回友好提示。
+                # 混合检索命中实体≠回答了问题(如"功率最大"只命中设备类名), 应诚实告知未找到确切答案。
+                if not task.get("use_llm", True):
+                    return self._ok(_pack(q, "未能在当前知识库中找到确切答案（可换一种问法，或补充相关字段数据）",
+                                         engines=["rule", "graphrag", "hybrid"],
+                                         evidence={"hits": fused[:5], "no_basis": True}), "query")
                 return self._ok(_pack(q, f"（混合检索）找到相关实体: {ents}",
                                      engines=["rule", "graphrag", "hybrid"],
                                      evidence={"hits": fused[:5], "bm25_hits": bm_hits[:6],

@@ -14,7 +14,32 @@ const USERS_FILE = join(__dirname, '..', 'users.json');
 const SESSION_TTL = 12 * 3600 * 1000;
 
 // 内存会话表：token -> {username, expires}
-const sessions = new Map();
+// 同时持久化到 SESSIONS_FILE，node server 重启后仍能恢复登录（根治"重启即掉线"）。
+const SESSIONS_FILE = join(__dirname, '..', 'sessions.json');
+let sessions = new Map();
+
+/** 加载持久化会话（启动时恢复；清掉已过期项）。 */
+function loadSessions() {
+  try {
+    if (existsSync(SESSIONS_FILE)) {
+      const d = JSON.parse(readFileSync(SESSIONS_FILE, 'utf-8'));
+      const now = Date.now();
+      const fresh = {};
+      for (const [k, v] of Object.entries(d || {})) {
+        if (v && typeof v.expires === 'number' && v.expires > now) fresh[k] = v;
+      }
+      sessions = new Map(Object.entries(fresh));
+    }
+  } catch (e) { /* 损坏视为空 */ }
+}
+/** 保存会话到磁盘（整表覆盖）。 */
+function saveSessions() {
+  try {
+    writeFileSync(SESSIONS_FILE, JSON.stringify(Object.fromEntries(sessions)), 'utf-8');
+  } catch (e) { /* 写失败忽略 */ }
+}
+/** 供 index.js 启动时恢复会话。 */
+export function restoreSessions() { loadSessions(); }
 
 // ── 用户文件读写 ─────────────────────────────────────────────
 function loadUsers() {
@@ -101,7 +126,8 @@ export function updateUser(username, patch) {
   if (patch.enterpriseName !== undefined) u.enterpriseName = String(patch.enterpriseName).trim().slice(0, 50);
   if (patch.logo !== undefined) u.logo = String(patch.logo).trim().slice(0, 500);
   if (patch.industry !== undefined) u.industry = String(patch.industry).trim().slice(0, 30);
-  if (patch.kb !== undefined && patch.kb) u.kb = String(patch.kb).trim();
+  // kb 支持显式清空(null/'' 都视为清空)与更新——reset 场景需要把旧 kb 清掉重建
+  if (patch.kb !== undefined) u.kb = patch.kb === null || patch.kb === '' ? '' : String(patch.kb).trim();
   if (patch.onboarded !== undefined) u.onboarded = !!patch.onboarded;
   users[username] = u;
   saveUsers(users);
@@ -127,12 +153,13 @@ export function login(username, password) {
   }
   const token = randomBytes(32).toString('hex');
   sessions.set(token, { username: u.username, expires: Date.now() + SESSION_TTL });
+  saveSessions();
   return { ok: true, token, user: publicUser(u) };
 }
 
 /** 注销（使 token 失效）。 */
 export function logout(token) {
-  if (token) sessions.delete(token);
+  if (token) { sessions.delete(token); saveSessions(); }
   return { ok: true };
 }
 
@@ -141,7 +168,7 @@ export function resolveUser(token) {
   if (!token) return null;
   const s = sessions.get(token);
   if (!s) return null;
-  if (s.expires < Date.now()) { sessions.delete(token); return null; }
+  if (s.expires < Date.now()) { sessions.delete(token); saveSessions(); return null; }
   return publicUser(getUserByUsername(s.username));
 }
 

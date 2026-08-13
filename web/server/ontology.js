@@ -156,21 +156,20 @@ function loadKbs() {
 }
 
 /**
- * 取当前激活 kb: 优先前端自身状态(web_state.json 记录 Web 显式选择的 kb),
- * 但校验该 kb 已注册(避免陈旧/无效锁定); 否则回退 kbs.json 第一个注册的 kb,
- * 再否则后端默认 'food'。
+ * 取当前激活 kb：一企业一行业一数据。
+ * 只认当前登录企业绑定的 kb（index.js 每次请求已按 user.kb 调 setCurrentKb 写入 web_state）。
+ * 绝不兜底到注册表第一个或历史遗留 'food'——那会把 A 企业的本体错当成 B 企业。
+ * web.kb 失效/为空 → 返回空串，调用方据此引导重新配置，而非错用别的企业数据。
  * @returns {string}
  */
 export function getCurrentKb() {
   const web = loadWebState();
   if (web && web.kb) {
     const kbs = loadKbs();
-    // 前端显式选择的 kb 若仍注册则采用; 若已失效(注册表被改)则回退, 避免锁死旧值
+    // 前端/登录用户绑定的 kb 若仍注册则采用（不校验会锁定失效值）
     if (kbs[web.kb]) return web.kb;
   }
-  const kbs = loadKbs();
-  const keys = Object.keys(kbs);
-  return keys.length ? keys[0] : 'food';
+  return '';
 }
 
 /** 设置当前激活 kb, 持久化到前端自身状态 */
@@ -1068,7 +1067,7 @@ export async function saveModels(cfg) {
  */
 export function resetKb(kb) {
   const name = String(kb || '').trim();
-  if (!name || name === 'food') return { ok: false, error: '非法知识库名' };
+  if (!name) return { ok: false, error: '非法知识库名' };
   // 从 kbs.json 注册表移除
   try {
     const data = JSON.parse(readFileSync(KBS_FILE, 'utf-8'));

@@ -5,10 +5,17 @@
   // 建模示例可点击 → 复用 doDefaultExample 直接建模。
   import { onMount } from 'svelte';
 
-  let { kb = '', kbList = [], industries = [], onModel = () => {} } = $props();
+  let { kb = '', kbList = [], industries = [], industry = '', onModel = () => {} } = $props();
 
-  // 当前行业（由激活 kb 推断；兜底阀门制造）
-  const cur = $derived(industries.find(i => i.kb === kb) || industries[0] || { icon: '🔧', name: '阀门制造', dir: 'data_valve' });
+  // 当前行业：优先按企业所属行业(中文名)识别；其次按激活 kb 推断；兜底阀门制造。
+  // 一企业一行业一数据：企业绑定的是专属 kb(ent_xxx)，用 kb 匹配不到行业列表，
+  // 必须用企业行业属性(industry)定位，否则永远兜底到第一个(阀门制造)。
+  const cur = $derived(
+    industries.find(i => i.name === industry) ||
+    industries.find(i => i.kb === kb) ||
+    industries[0] ||
+    { icon: '🔧', name: '阀门制造', dir: 'data_valve' }
+  );
   // 行业 → 欢迎语/说明
   const WELCOME = $derived(cur.name.endsWith('企业') ? cur.name : cur.name + '企业');
 
