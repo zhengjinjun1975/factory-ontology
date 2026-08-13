@@ -1,6 +1,47 @@
 {
   "_说明": "多租户知识库注册表: 每个行业一个隔离的数据目录(数据/本体/词典各自独立)。kb 参数选择激活的知识库(替代 FOOD_KB 环境变量单库全局态, 根治串台)。name/icon/examples 供 APP 动态渲染品牌与示例问题。",
   "kbs": {
+    "energy_station": {
+      "name": "能源站问答",
+      "icon": "⚡",
+      "examples": [
+        "有多少台设备",
+        "设备类型有哪些",
+        "功率最大的设备"
+      ],
+      "data_dir": "data",
+      "lexicon": "lexicon_energy_station.json",
+      "nt": "output/energy_station.nt",
+      "_sync": "闭源 registry 已接入(能源站)"
+    },
+    "manufacturing": {
+      "name": "通用制造问答",
+      "icon": "🏭",
+      "examples": [
+        "有多少台设备",
+        "设备类型有哪些",
+        "功率最大的设备",
+        "客户总数"
+      ],
+      "data_dir": "data",
+      "lexicon": "lexicon_internal.json",
+      "nt": "output/equipment.nt",
+      "_sync": "闭源 registry 已接入(通用制造)"
+    },
+    "hardware": {
+      "name": "五金加工问答",
+      "icon": "🔩",
+      "examples": [
+        "有多少台设备",
+        "设备类型有哪些",
+        "功率最大的设备",
+        "客户总数"
+      ],
+      "data_dir": "data_hardware",
+      "lexicon": "lexicon_hardware.json",
+      "nt": "output/hardware.nt",
+      "_sync": "闭源 registry 已接入(五金加工)"
+    },
     "food": {
       "name": "食品企业溯源助手",
       "icon": "🥛",
