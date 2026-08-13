@@ -35,8 +35,8 @@
       "examples": [
         "有多少台设备",
         "设备类型有哪些",
-        "纯度为100%的产品",
-        "价格最高的产品"
+        "功率最大的设备",
+        "纯度最高的产品"
       ],
       "data_dir": "data_chem",
       "lexicon": "lexicon_chem.json",

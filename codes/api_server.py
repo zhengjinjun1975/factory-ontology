@@ -1465,6 +1465,37 @@ def _update_kbs(kb, nt_rel, lex_rel):
     KBS = _load_kbs()
 
 
+class KbsExamplesReq(BaseModel):
+    """更新某 kb 的评测示例问题(examples)。闭源/FDE 用 solo 起草的问题集写入。"""
+    examples: list[str]
+
+
+@app.post("/api/kbs/{kb}/examples", dependencies=[Depends(require_key)])
+def kbs_update_examples(kb: str, req: KbsExamplesReq):
+    """把 solo/闭源起草的评测问题写入 kb 的 examples，供 benchmark 基线使用。
+
+    一企业一行业一数据：examples 跟随该 kb 的行业，替换为 FDE 校准后的问题集。
+    空列表 = 清空该 kb 示例。
+    """
+    start = time.time()
+    kb = _safe_doc_id(kb or "")
+    if not kb:
+        return _err_env(4001, "非法 kb 名", start)
+    try:
+        data = json.load(open(KBS_FILE, encoding="utf-8"))
+        kbs = data.setdefault("kbs", {})
+        entry = kbs.setdefault(kb, {})
+        entry["examples"] = [str(q).strip() for q in req.examples if str(q).strip()]
+        with open(KBS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        global KBS
+        KBS = _load_kbs()
+    except Exception as e:
+        logger.warning(f"API内部错误[更新examples失败]: {e}")
+        return _err_env(5001, "更新示例问题失败", start)
+    return _ok_env({"kb": kb, "examples": entry.get("examples", [])}, start)
+
+
 def _set_active_kb(kb, nt_rel, lex_rel):
     """把 kb 设为当前激活, 持久化到 web/web_state.json(前端 getCurrentKb 优先读取该文件)。
 
