@@ -973,10 +973,10 @@ function isMaskedKey(k) {
 export async function getModels() {
   try {
     const cfg = JSON.parse(readFileSync(join(KIT, 'config', 'model_config.json'), 'utf-8'));
-    // 检查 Hermes .env 是否有云端 key（cloud 运行时从 .env 读）
+    // 检查用户 ~/.env 是否有云端 key（cloud 运行时从 .env 读）
     let envCloudKey = '';
     try {
-      const envFile = join(os.homedir(), 'AppData', 'Local', 'hermes', '.env');
+      const envFile = join(os.homedir(), '.env');
       if (existsSync(envFile)) {
         const envTxt = readFileSync(envFile, 'utf-8');
         const m = envTxt.match(/^\s*(?:export\s+)?DEEPSEEK_API_KEY\s*=\s*['"]?([^'"\s]+)/m);
