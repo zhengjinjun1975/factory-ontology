@@ -78,6 +78,8 @@
 - **向量混合检索**（`bm25_retrieval.py` + `vector_retrieval.py`）用 RRF 融合 BM25 稀疏命中和本地向量语义命中，覆盖“最贵的产品”“油轮有几艘”这类语义模糊查询。embedding 失败时回落到 BM25，不阻塞。
 - **LLM 兜底**区分两类：数据缺失的极值查询（如实说“知识库无该数据”不编数字）、咨询建议类问题（给专业建议，声明无唯一答案）。
 
+**本体与 RAG 的融合**不是"先检索后问答"两张皮，而是本体约束整个检索过程：本体限定可查的实体与属性（回答不越过 schema 圈定的范围），规则引擎给确定性结果，GraphRAG 沿本体关系路径扩展证据，混合检索做语义召回，最后证据溯源把答案钉回源数据。三层各自兜底，共同形成一条从确定到模糊、从规则到生成的完整链。
+
 ## 快速开始
 
 ```bash
@@ -132,6 +134,22 @@ python run.py setup data/your.xlsx 表名     # Excel（需 pip install openpyxl
 
 CSV / JSON / SQLite 用标准库实现，零第三方依赖。
 
+### 厂区数据库对接
+
+`db_loader.py` 直连厂区 ERP/数据库读表建模（MySQL / PostgreSQL），配置连接信息即可：
+
+```bash
+python run.py setup 数据库配置.json 表名   # 或用代码直连 load_db
+```
+
+```python
+from db_loader import load_db
+rows = load_db({"db_type": "mysql", "host": "127.0.0.1", "port": 3306,
+                "user": "root", "password": "***", "database": "mes", "table": "equipment"})
+```
+
+前端「数据库接入」面板可配 MySQL/PostgreSQL 连接后一键建模。MySQL 需 `pip install pymysql`，PostgreSQL 需 `pip install psycopg2-binary`，均为可选依赖。
+
 ## 核心概念
 
 | 概念 | 说明 |
@@ -179,7 +197,6 @@ data_loader → schema_ontology（schema 驱动统一建模 + suggest_schema 自
 
 ![系统级架构设计](docs/diagrams/architecture.svg)
 ![数据走向逻辑](docs/diagrams/dataflow.svg)
-![工厂落地路线图](docs/diagrams/roadmap.svg)
 
 ## 示例
 
@@ -245,7 +262,7 @@ npm start            # http://localhost:3001
 
 ## 实测数据
 
-以下数字均为仓库内 benchmark 实测（标准答案从源数据用确定性逻辑计算，不手写）：
+以下数字均为仓库内 benchmark 实测（标准答案从源数据用确定性逻辑计算，不手写）。**已用 18 个行业合成数据集 + UCI 公开数据集做全行业验证**（阀门/化工/机械加工/船舶/环保/食品/图书/能源电站/华能电力/汽车零部件/电子/家电/纺织/塑料/医疗器械/家具/五金/AI4I 预测性维护），换行业只换词典与 schema，规则引擎与检索链路代码不动。
 
 | 领域 | 数据集 | 规模 | 评测问题 | 本体命中率 |
 |------|--------|------|----------|-----------|
@@ -346,6 +363,8 @@ start.bat      # Windows
 - **数据不出厂**：建模、问答、评测、交付全部在工厂本地完成，甲方数据永不上传，语义资产沉淀在企业自己的环境里
 - **建模**：FDE（领域工程师）用配套工具导入企业真实数据（MES/ERP/台账或数据库直连），自动建模 + 人工校准词典，产出企业专属本体
 - **循环提升**：问答 → 人在环确认 → 反馈学习 → 资产版本化，本体与词典随使用持续精进，形成“越用越懂这家工厂”的循环
+
+闭源侧以 **harness 三循环**驱动这套自进化：加工循环负责建模与交付，服务循环接收现场问答与反馈，学习循环把反馈沉淀成假设、经人在环确认后合入本体或回滚，每次合入都生成资产版本。开源仓库给出确定性的问答内核，闭源 harness 完成数据的循环治理与交付编排。
 
 开源给出方法与确定性内核，闭源交付完整的服务能力。
 
