@@ -35,7 +35,7 @@
     try {
       const res = await authLogin(u, p);
       if (!res.ok) { loginErr = res.error || '登录失败'; }
-      else { await loadSessionUser(); }
+      else { if (await loadSessionUser()) await initAppData(); }
     } catch (e) { loginErr = String(e && e.message ? e.message : e); }
     finally { loginBusy = false; }
   }
@@ -48,7 +48,7 @@
     try {
       const res = await authRegister({ username: u, password: p });
       if (!res.ok) { loginErr = res.error || '注册失败'; }
-      else { await loadSessionUser(); }
+      else { if (await loadSessionUser()) await initAppData(); }
     } catch (e) { loginErr = String(e && e.message ? e.message : e); }
     finally { loginBusy = false; }
   }
@@ -396,15 +396,14 @@
     return false;
   }
 
-  // ─── 模型配置加载与切换 ───
-  onMount(async () => {
-    // 单企业：先校验登录会话（未登录/失效 → 跳登录页）
-    await loadSessionUser();
-    if (!user) { authLoading = false; return; }
-    authLoading = false;
+  // ─── 登录成功后/会话恢复时初始化数据（kb/模型/企业设置）───
+  // P0 修复：首次登录(非刷新)后也必须触发此初始化，否则 status 停留在"等待数据导入"，
+  // 问答输入框/按钮 disabled。刷新之所以正常，是因为 onMount 带会话 cookie 走了同一路径。
+  async function initAppData() {
+    if (!user) return;
     // 新企业未配置 → 初始化引导 onboarding
     if (needsOnboard) initOnboard();
-    // 加载当前企业唯一 kb（决定查询/看板/本体图检索哪个）
+    // 加载当前企业唯一 kb（决定查询/看板/本体图检索哪个）→ 注册 kb 放行问答输入（status → ready）
     await loadKbs();
     // 企业设置：读取登录企业用户的信息（顶部品牌跟随）
     await loadEnterprise();
@@ -420,6 +419,15 @@
       const v = await fetchVersion();
       if (v.ok && v.version) appVersion = v.version;
     } catch (e) { /* 忽略 */ }
+  }
+
+  // ─── 模型配置加载与切换 ───
+  onMount(async () => {
+    // 单企业：先校验登录会话（未登录/失效 → 跳登录页）
+    await loadSessionUser();
+    if (!user) { authLoading = false; return; }
+    authLoading = false;
+    await initAppData();
   });
 
   // ─── 用行业示例数据建模（可选九大行业，默认 data_valve 一键）───
