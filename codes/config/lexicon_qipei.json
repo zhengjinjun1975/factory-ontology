@@ -1,0 +1,142 @@
+{
+  "description": "自动生成词典（multi_model, suggest_schema 推断 + LLM 语义聚类同义词 + data profiling 映射）",
+  "attr_cn2en": {
+    "编号": "id",
+    "客户名称": "customer_name",
+    "区域": "region",
+    "行业": "industry",
+    "信用等级": "credit_level",
+    "设备名称": "device_name",
+    "设备类型": "device_type",
+    "车间": "workshop",
+    "功率(kW)": "power_kw",
+    "功率": "power_kw",
+    "状态": "status",
+    "振动(mm/s)": "vibration_mm_s",
+    "振动": "vibration_mm_s",
+    "温度(℃)": "temp_c",
+    "温度": "temp_c",
+    "电流(A)": "current_a",
+    "电流": "current_a",
+    "型号代码": "model_code",
+    "产品名称": "product_name",
+    "类型": "type",
+    "材质": "material",
+    "尺寸(mm)": "size_mm",
+    "尺寸": "size_mm",
+    "precisiongrade": "precision_grade",
+    "价格": "price",
+    "产品编号": "product_id",
+    "客户编号": "customer_id",
+    "数量": "quantity",
+    "销售日期": "sale_date",
+    "金额": "amount"
+  },
+  "attr_en2cn": {
+    "id": "编号",
+    "customer_name": "客户名称",
+    "region": "区域",
+    "industry": "行业",
+    "credit_level": "信用等级",
+    "device_name": "设备名称",
+    "device_type": "设备类型",
+    "workshop": "车间",
+    "power_kw": "功率(kW)",
+    "status": "状态",
+    "vibration_mm_s": "振动(mm/s)",
+    "temp_c": "温度(℃)",
+    "current_a": "电流(A)",
+    "model_code": "型号代码",
+    "product_name": "产品名称",
+    "type": "类型",
+    "material": "材质",
+    "size_mm": "尺寸(mm)",
+    "precision_grade": "precisiongrade",
+    "price": "价格",
+    "product_id": "产品编号",
+    "customer_id": "客户编号",
+    "quantity": "数量",
+    "sale_date": "销售日期",
+    "amount": "金额"
+  },
+  "status_cn2en": {
+    "运行中": "运行中",
+    "待机": "待机",
+    "报警": "alarm",
+    "维护中": "维护中",
+    "离线": "offline",
+    "合格": "pass",
+    "不合格": "fail"
+  },
+  "type_cn2en": {
+    "机加设备": "机加设备",
+    "特种加工": "特种加工",
+    "成型设备": "成型设备",
+    "轴类件": "轴类件",
+    "传动件": "传动件",
+    "盘类件": "盘类件",
+    "箱体件": "箱体件"
+  },
+  "zone_cn2en": {
+    "华东": "华东",
+    "华北": "华北",
+    "华南": "华南",
+    "西北": "西北",
+    "一车间": "一车间",
+    "二车间": "二车间",
+    "三车间": "三车间"
+  },
+  "synonym_map": {
+    "功率": [
+      "功率(kW)"
+    ],
+    "尺寸": [
+      "尺寸(mm)"
+    ],
+    "振动": [
+      "振动(mm/s)"
+    ],
+    "温度": [
+      "温度(℃)"
+    ],
+    "电流": [
+      "电流(A)"
+    ],
+    "机加设备": [
+      "机加工设备",
+      "机械加工设备"
+    ]
+  },
+  "entity_cn2en": {
+    "客户": "mach_customers",
+    "设备": "mach_equipment",
+    "产品": "mach_products",
+    "销售": "mach_sales"
+  },
+  "numeric_fields": {
+    "功率": "power_kw",
+    "振动": "vibration_mm_s",
+    "温度": "temp_c",
+    "电流": "current_a",
+    "尺寸": "size_mm",
+    "价格": "price",
+    "数量": "quantity",
+    "金额": "amount"
+  },
+  "field_aliases": {
+    "status": [
+      "status"
+    ],
+    "deviceType": [
+      "deviceType",
+      "device_type",
+      "type"
+    ],
+    "deviceName": [
+      "deviceName",
+      "device_name",
+      "name"
+    ]
+  },
+  "value_fields": []
+}

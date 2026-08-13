@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.0] - 2026-08-13
+
+### 生态插件基础框架（第三方可开发插件扩展系统）
+
+> 不改主程序，第三方即可通过「插件」为系统新增能力。核心框架纯标准库零依赖，完全离线可跑。
+
+- **插件加载器**（`codes/plugin_framework.py`）：扫描 `codes/plugins/` 目录 → 解析 `manifest.json`（`name/kind/version/entry/provides`）→ 按 `load → register → run → unload` 生命周期调度。清单缺字段/kind 非法/name 与目录名不符/入口缺失时逐个容错报告，不中断整体扫描
+- **扩展点注册表**（`ExtensionRegistry`）：四类扩展点 `decision`（决策规则）/ `data_source`（数据源）/ `push`（推送通道）/ `template`（模板渲染），按 `(kind, id)` 注册、调用、注销，重复占用抛冲突；卸载插件自动注销其扩展点
+- **CLI**（`run.py plugin`）：`plugin list [kind]` / `plugin run <名> ['<json>']` / `plugin ext <kind> <id> ['<json>']` / `plugin install <目录|zip|tar.gz> [--name 别名] [--force]` / `plugin remove <名>`；安装支持本地目录、zip、tar.gz 归档，别名安装自动改写 manifest
+- **示例插件**（`codes/plugins/example_decision/`）：决策类插件，按温度/磨损/转速阈值输出设备维护优先级（正常/关注/预警/紧急），登记 `decision/maintenance_priority` 与 `decision/failure_alert` 两个扩展点；提供独立运行自测（`python plugin.py`）
+- **测试**：`tests/test_plugin_framework.py` 6 项（扫描/生命周期/注册表/冲突/安装移除/zip 安装）；全量 pytest **35 passed**
+- **文档**：`docs/插件框架.md` 第三方开发指南（目录结构/manifest 字段/生命周期/扩展点/CLI/写插件步骤）
+
+
 ## [0.2.0] - 2026-08-13
 
 ### 功能累积升级（检索/评测/上传/前端全面增强）

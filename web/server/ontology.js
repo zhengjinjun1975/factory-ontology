@@ -627,6 +627,35 @@ export async function knowledgeIngest(contentType, rawBody) {
 }
 
 /**
+ * 甲方自助接入: 把前端 multipart body 原样透传后端 /api/ontology/self-onboard。
+ * 后端完成 上传落盘 → 自动建模 → 自动词典 → 自动 benchmark 自评 → 返回可用 kb。
+ * @param {string} contentType multipart Content-Type(含 boundary)
+ * @param {Buffer} rawBody 完整 multipart body(文件 + kb/name/industry 表单字段)
+ * @returns {Promise<{ok, data?, offline?, error?}>}
+ */
+export async function selfOnboard(contentType, rawBody, timeout = 180000) {
+  const headers = { 'Content-Type': contentType };
+  if (API_KEY) headers['X-API-Key'] = API_KEY;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeout);
+  try {
+    const resp = await fetch(API_URL + '/api/ontology/self-onboard', {
+      method: 'POST', headers, body: rawBody, signal: ctrl.signal,
+    });
+    const text = await resp.text();
+    let data = null;
+    try { data = JSON.parse(text); } catch (e) { /* 非 JSON */ }
+    if (!data) return { ok: false, offline: false, error: `后端返回非 JSON (HTTP ${resp.status})` };
+    return data;
+  } catch (e) {
+    const aborted = e && e.name === 'AbortError';
+    return { ok: false, offline: true, error: aborted ? '后端超时' : String((e && e.message) || e) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * 知识库：转发后端 POST /api/knowledge/delete（删除一篇文档，幂等）
  * @param {string} kb 知识库名
  * @param {string} doc_id 文档 id

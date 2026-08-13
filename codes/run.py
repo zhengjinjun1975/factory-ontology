@@ -8,6 +8,7 @@
   python run.py setup <数据文件> [表名]   # 自动建模(本体+词典+验证)，支持 csv/json/sqlite/xlsx
   python run.py ask "<问题>"              # 交互问答(规则+LLM兜底)
   python run.py test                       # 自检示例数据
+  python run.py plugin list                # 生态插件: list/run/ext/install/remove
 """
 
 import os
@@ -300,6 +301,10 @@ def main():
         ask(args[1])
     elif args[0] == "test":
         self_test()
+    elif args[0] == "plugin":
+        # 生态插件：list/run/ext/install/remove（见 plugin_framework.cmd_plugin）
+        from plugin_framework import cmd_plugin
+        return cmd_plugin(args[1:])
     else:
         print(__doc__)
 

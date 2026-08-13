@@ -1467,6 +1467,124 @@ def ontology_build(req: OntologyBuildReq):
                     "status": "built", "ask_ready": True}, start)
 
 
+@app.post("/api/ontology/self-onboard", dependencies=[Depends(require_key)])
+async def self_onboard(request: Request,
+                       files: list[UploadFile] = File(...),
+                       kb: str = Form(""),
+                       name: str = Form(""),
+                       industry: str = Form(""),
+                       auto_benchmark: bool = Form(True)):
+    """甲方自助接入: 上传多表数据 -> 自动建模 -> 自动词典 -> 自动 benchmark 自评 -> 返回可用kb。
+
+    免 FDE 补词闭环: 上传 CSV/JSON 多表 -> 存到 data/<kb>/ -> multi_model.build 建本体+自动词典
+    -> 从词典自动生成基准问题 -> EvalAgent 自评命中率 -> 把示例写入 kbs.json -> 返回 score + 可用 kb
+    (/api/ask 立即可问答)。词典待确认项(pending_review)仅提示不阻塞。
+    """
+    start = time.time()
+    kb = (kb or "").strip()
+    if not kb or kb.startswith(".") or any(c in kb for c in ("/", "\\", "..")):
+        return _err_env(4001, "非法 kb 名", start)
+    if not files:
+        return _err_env(4001, "未上传任何文件", start)
+    # 落盘到 codes/data/<kb>/ (白名单 data* 内, 满足 /api/ontology/build 防路径穿越)
+    data_dir = os.path.realpath(os.path.join(ROOT, "data", kb))
+    if not data_dir.startswith(os.path.realpath(os.path.join(ROOT, "data")) + os.sep):
+        return _err_env(4001, "非法 kb 数据目录", start)
+    os.makedirs(data_dir, exist_ok=True)
+    saved = []
+    for f in files:
+        fn = (f.filename or "").split("\\")[-1].split("/")[-1].strip()
+        if not fn:
+            continue
+        # 允许的数据扩展名(.csv/.json), 其余忽略
+        ext = os.path.splitext(fn)[1].lower()
+        if ext not in (".csv", ".json"):
+            continue
+        content = await f.read()
+        if not content:
+            continue
+        # 覆盖同名列(重新上传覆盖旧数据)
+        with open(os.path.join(data_dir, fn), "wb") as fp:
+            fp.write(content)
+        saved.append(fn)
+    if not saved:
+        return _err_env(4001, "无有效数据文件(.csv/.json)被保存", start)
+    # 1) 自动建模(复用 ontology_build 的数据目录路径逻辑: multi_model.build 产出 nt+lex)
+    import self_onboard as so_mod
+    import run as run_mod
+    try:
+        if len(saved) > 1 or any(s.endswith(".json") for s in saved):
+            import multi_model as mm_mod
+            mm_mod.build(data_dir, table=kb)
+            nt = os.path.join(ROOT, "output", f"{kb}.nt")
+            lex = os.path.join(ROOT, "config", f"lexicon_{kb}.json")
+        else:
+            # 单表 CSV: 复用 run.setup 单表建模
+            src = os.path.join(data_dir, saved[0])
+            nt, lex = run_mod.setup(src, table=kb, use_llm=True)
+    except Exception as e:
+        logger.warning(f"[self-onboard] 建模失败: {e}")
+        return _err_env(5001, f"建模失败: {e}", start)
+    if not nt or not lex or not os.path.exists(nt) or not os.path.exists(lex):
+        return _err_env(5001, "建模失败: 未产出 nt 或 lexicon", start)
+    nt_rel = os.path.relpath(nt, ROOT).replace("\\", "/")
+    lex_rel = os.path.relpath(lex, ROOT).replace("\\", "/")
+    # 2) 注册 kb + 激活 + 失效缓存(复用现有逻辑)
+    try:
+        _update_kbs(kb, nt_rel, lex_rel)
+        _set_active_kb(kb, nt_rel, lex_rel)
+        _invalidate_kb(kb)
+    except Exception as e:
+        logger.warning(f"[self-onboard] 注册/激活失败: {e}")
+    # 3) 自动生成词典待确认项(提示不阻塞)
+    D = v3.load_dict(lex)
+    review_items = so_mod.pending_review(D, data_dir)
+    # 4) 自动 benchmark 自评: 从词典生成问题 -> EvalAgent 基线
+    score, per_question = None, []
+    if auto_benchmark:
+        try:
+            questions = so_mod.gen_example_questions(data_dir, lex)
+            if questions:
+                r = None
+                from agents.eval_agent import EvalAgent
+                er = EvalAgent().run({"questions": questions, "nt_file": nt,
+                                      "lexicon": lex, "mode": "baseline"})
+                if er.ok and er.data:
+                    ed = er.data
+                    per_question = ed.get("per_question", [])
+                    score = ed.get("score")
+                # 把自动生成的问题写入 kbs.json examples, 供后续 /api/eval/benchmark 复用
+                try:
+                    data = json.load(open(KBS_FILE, encoding="utf-8"))
+                    kbs = data.setdefault("kbs", {})
+                    entry = kbs.setdefault(kb, {})
+                    entry["examples"] = questions
+                    if name:
+                        entry["name"] = name
+                    if industry:
+                        entry["industry"] = industry
+                    entry["data_dir"] = os.path.relpath(data_dir, ROOT).replace("\\", "/")
+                    entry["icon"] = entry.get("icon", "🏭")
+                    with open(KBS_FILE, "w", encoding="utf-8") as f:
+                        json.dump(data, f, ensure_ascii=False, indent=2)
+                    global KBS
+                    KBS = _load_kbs()
+                except Exception as e:
+                    logger.warning(f"[self-onboard] 写 examples 失败: {e}")
+        except Exception as e:
+            logger.warning(f"[self-onboard] benchmark 失败(不阻塞): {e}")
+    _audit_event("delivery", action="self_onboard", kb=kb, files=saved,
+                 score=score, questions_n=len(per_question))
+    return _ok_env({
+        "kb": kb, "nt": nt_rel, "lexicon": lex_rel, "data_dir": saved,
+        "status": "onboarded", "ask_ready": True,
+        "benchmark": {"score": score, "questions_n": len(per_question),
+                      "per_question": [{"q": p.get("q"), "hit": p.get("hit")}
+                                       for p in per_question]},
+        "review": review_items,
+    }, start)
+
+
 def _update_kbs(kb, nt_rel, lex_rel):
     """把 kb 的 nt/lexicon 写回 kbs.json(幂等)。"""
     data = json.load(open(KBS_FILE, encoding="utf-8"))

@@ -1,0 +1,5 @@
+﻿id,customer_name,region,industry,credit_level
+C001,华东装备,华东,工程机械,A
+C002,北方重工,华北,重型机械,B
+C003,华南精机,华南,精密机械,A
+C004,西部矿业,西北,矿山机械,C

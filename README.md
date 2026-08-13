@@ -193,6 +193,21 @@ data_loader → schema_ontology（schema 驱动统一建模 + suggest_schema 自
 
 周边能力（2.x 时代沉淀，保留可用）：`csv_to_owl.py`/`multi_table.py`（无 schema 的单表/多表建本体兼容路径）、`evidence.py`（证据提取）、`graph_store.py`（SQLite 图持久化）、`mcp_server.py`（MCP server，AI agent 可调用）、`voice_assistant.py`（语音助手）、`data_import.py`/`data_quality.py`/`monitor.py`（数据接入/质量校验/看门狗）、`new_kb.py`（新知识库骨架）、`agents/lexicon_agent.py`（自动词典生成）、`config/`（模型配置 + 词典 + schema + 多租户注册表）。
 
+### 生态插件（第三方扩展）
+
+不改主程序，第三方即可通过「插件」为系统新增能力。插件 = 一个目录（`manifest.json` + 入口模块），按 `load → register → run → unload` 生命周期被调度；扩展点注册表统一管理四类能力：`decision`（决策规则）/ `data_source`（数据源）/ `push`（推送通道）/ `template`（模板渲染）。核心框架纯标准库零依赖，可完全离线。
+
+```bash
+cd codes
+python run.py plugin list                       # 列出插件（可加类型过滤）
+python run.py plugin run example_decision '{"records":[{"device_id":"D001","air_temperature":302,"tool_wear":205,"rotational_speed":980}]}'
+python run.py plugin ext decision maintenance_priority '{"records":[...]}'   # 调已登记扩展点
+python run.py plugin install /path/to/my_plugin[.zip] [--name 别名] [--force] # 安装
+python run.py plugin remove my_plugin           # 移除
+```
+
+内置示例插件 `codes/plugins/example_decision/`：按温度/磨损/转速阈值输出设备维护优先级。第三方开发指南见 `docs/插件框架.md`。
+
 ### 架构图
 
 ![系统级架构设计](docs/diagrams/architecture.svg)

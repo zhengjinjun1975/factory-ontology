@@ -1,0 +1,9 @@
+{
+  "name": "example_decision",
+  "kind": "decision",
+  "version": "1.0.0",
+  "entry": "plugin.py",
+  "description": "设备维护决策规则插件：按温度/磨损/转速阈值输出维护优先级建议",
+  "author": "factory-ontology-kit",
+  "provides": ["maintenance_priority", "failure_alert"]
+}

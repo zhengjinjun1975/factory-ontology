@@ -1,0 +1,478 @@
+{
+  "description": "自动生成词典（multi_model, suggest_schema 推断 + LLM 语义聚类同义词 + data profiling 映射）",
+  "attr_cn2en": {
+    "客户编号": "customer_id",
+    "客户名称": "customer_name",
+    "customer类型": "customer_type",
+    "contractvolumegwh": "contract_volume_gwh",
+    "信用等级": "credit_level",
+    "equipment编号": "equipment_id",
+    "设备名称": "device_name",
+    "设备类型": "device_type",
+    "状态": "status",
+    "车间": "workshop",
+    "功率(kW)": "power_kw",
+    "功率": "power_kw",
+    "振动(mm/s)": "vibration_mm_s",
+    "振动": "vibration_mm_s",
+    "温度(℃)": "temp_c",
+    "温度": "temp_c",
+    "电流(A)": "current_a",
+    "电流": "current_a",
+    "fuel编号": "fuel_id",
+    "fuel类型": "fuel_type",
+    "consumptiont": "consumption_t",
+    "calorificvaluekj": "calorific_value_kj",
+    "库存t": "stock_t",
+    "供应商": "supplier",
+    "ashpct": "ash_pct",
+    "sulfurpct": "sulfur_pct",
+    "maintenance编号": "maintenance_id",
+    "repair类型": "repair_type",
+    "repairdate": "repair_date",
+    "content": "content",
+    "responsible": "responsible",
+    "record编号": "record_id",
+    "unit编号": "unit_id",
+    "date": "date",
+    "grossoutputmwh": "gross_output_mwh",
+    "loadmw": "load_mw",
+    "mainsteamtempc": "main_steam_temp_c",
+    "mainsteampressurempa": "main_steam_pressure_mpa",
+    "feedwatertempc": "feed_water_temp_c",
+    "condenservacuumkpa": "condenser_vacuum_kpa",
+    "heatratekjkwh": "heat_rate_kj_kwh",
+    "unit名称": "unit_name",
+    "unit类型": "unit_type",
+    "capacitymw": "capacity_mw",
+    "commissiondate": "commission_date",
+    "manufacturer": "manufacturer",
+    "容量": "capacity_mw",
+    "装机容量": "capacity_mw"
+  },
+  "attr_en2cn": {
+    "customer_id": "客户编号",
+    "customer_name": "客户名称",
+    "customer_type": "customer类型",
+    "contract_volume_gwh": "contractvolumegwh",
+    "credit_level": "信用等级",
+    "equipment_id": "equipment编号",
+    "device_name": "设备名称",
+    "device_type": "设备类型",
+    "status": "状态",
+    "workshop": "车间",
+    "power_kw": "功率(kW)",
+    "vibration_mm_s": "振动(mm/s)",
+    "temp_c": "温度(℃)",
+    "current_a": "电流(A)",
+    "fuel_id": "fuel编号",
+    "fuel_type": "fuel类型",
+    "consumption_t": "consumptiont",
+    "calorific_value_kj": "calorificvaluekj",
+    "stock_t": "库存t",
+    "supplier": "供应商",
+    "ash_pct": "ashpct",
+    "sulfur_pct": "sulfurpct",
+    "maintenance_id": "maintenance编号",
+    "repair_type": "repair类型",
+    "repair_date": "repairdate",
+    "content": "content",
+    "responsible": "responsible",
+    "record_id": "record编号",
+    "unit_id": "unit编号",
+    "date": "date",
+    "gross_output_mwh": "grossoutputmwh",
+    "load_mw": "loadmw",
+    "main_steam_temp_c": "mainsteamtempc",
+    "main_steam_pressure_mpa": "mainsteampressurempa",
+    "feed_water_temp_c": "feedwatertempc",
+    "condenser_vacuum_kpa": "condenservacuumkpa",
+    "heat_rate_kj_kwh": "heatratekjkwh",
+    "unit_name": "unit名称",
+    "unit_type": "unit类型",
+    "capacity_mw": "容量",
+    "commission_date": "commissiondate",
+    "manufacturer": "manufacturer"
+  },
+  "status_cn2en": {
+    "运行中": "运行中",
+    "待机": "待机",
+    "报警": "alarm",
+    "维护中": "maintenance",
+    "离线": "offline",
+    "合格": "pass",
+    "不合格": "fail",
+    "检修": "检修",
+    "备用": "备用"
+  },
+  "type_cn2en": {
+    "电网公司": "电网公司",
+    "内部交易": "内部交易",
+    "工业用户": "工业用户",
+    "商业用户": "商业用户",
+    "公共用户": "公共用户",
+    "锅炉设备": "锅炉设备",
+    "汽轮机": "汽轮机",
+    "发电机": "发电机",
+    "变压器": "变压器",
+    "辅助设备": "辅助设备",
+    "环保设备": "环保设备",
+    "输煤设备": "输煤设备",
+    "褐煤": "褐煤",
+    "烟煤": "烟煤",
+    "天然气": "天然气",
+    "定期保养": "定期保养",
+    "大修": "大修",
+    "临修": "临修",
+    "燃煤机组": "燃煤机组",
+    "燃气轮机": "燃气轮机",
+    "抽水蓄能机组": "抽水蓄能机组"
+  },
+  "zone_cn2en": {
+    "锅炉车间": "锅炉车间",
+    "汽机车间": "汽机车间",
+    "主厂房": "主厂房",
+    "升压站": "升压站",
+    "环保车间": "环保车间",
+    "输煤车间": "输煤车间"
+  },
+  "synonym_map": {
+    "ashpct": [
+      "灰分百分比",
+      "灰分含量",
+      "灰分"
+    ],
+    "calorificvaluekj": [
+      "热值",
+      "发热量",
+      "热值(kJ)"
+    ],
+    "capacitymw": [
+      "容量",
+      "装机容量",
+      "容量(MW)"
+    ],
+    "commissiondate": [
+      "投产日期",
+      "投运日期",
+      "并网日期"
+    ],
+    "condenservacuumkpa": [
+      "凝汽器真空",
+      "真空度",
+      "凝汽器真空(kPa)"
+    ],
+    "consumptiont": [
+      "消耗量",
+      "耗量",
+      "消耗(t)"
+    ],
+    "contractvolumegwh": [
+      "合同电量",
+      "合约电量",
+      "合同量(GWh)"
+    ],
+    "customer类型": [
+      "客户类型",
+      "用户类型"
+    ],
+    "equipment编号": [
+      "设备编号",
+      "设备编码"
+    ],
+    "feedwatertempc": [
+      "给水温度",
+      "给水温度(℃)"
+    ],
+    "fuel类型": [
+      "燃料类型",
+      "燃料种类"
+    ],
+    "fuel编号": [
+      "燃料编号",
+      "燃料编码"
+    ],
+    "grossoutputmwh": [
+      "总发电量",
+      "毛出力",
+      "总出力(MWh)"
+    ],
+    "heatratekjkwh": [
+      "热耗率",
+      "热耗",
+      "热耗率(kJ/kWh)"
+    ],
+    "loadmw": [
+      "负荷",
+      "负载",
+      "负荷(MW)"
+    ],
+    "mainsteampressurempa": [
+      "主蒸汽压力",
+      "主汽压力",
+      "主蒸汽压力(MPa)"
+    ],
+    "mainsteamtempc": [
+      "主蒸汽温度",
+      "主汽温度",
+      "主蒸汽温度(℃)"
+    ],
+    "maintenance编号": [
+      "检修编号",
+      "维护编号"
+    ],
+    "repairdate": [
+      "修理日期",
+      "维修日期"
+    ],
+    "repair类型": [
+      "修理类型",
+      "维修类型"
+    ],
+    "sulfurpct": [
+      "硫分",
+      "硫含量",
+      "硫分百分比"
+    ],
+    "unit名称": [
+      "机组名称",
+      "单元名称"
+    ],
+    "unit类型": [
+      "机组类型",
+      "单元类型"
+    ],
+    "unit编号": [
+      "机组编号",
+      "单元编号"
+    ],
+    "临修": [
+      "临时检修",
+      "临时维修"
+    ],
+    "主厂房": [
+      "主车间",
+      "主厂房区域"
+    ],
+    "供应商": [
+      "供货商",
+      "厂家"
+    ],
+    "信用等级": [
+      "资信等级",
+      "信用评级"
+    ],
+    "公共用户": [
+      "公用用户",
+      "公共客户"
+    ],
+    "内部交易": [
+      "内部结算",
+      "内部买卖"
+    ],
+    "功率": [
+      "有功功率",
+      "出力"
+    ],
+    "功率(kW)": [
+      "功率(千瓦)",
+      "电功率(kW)"
+    ],
+    "升压站": [
+      "升压变电站",
+      "升压变电所"
+    ],
+    "发电机": [
+      "发电机组",
+      "发电机设备"
+    ],
+    "变压器": [
+      "主变",
+      "变压器设备"
+    ],
+    "商业用户": [
+      "商业客户",
+      "商户"
+    ],
+    "备用": [
+      "备用状态",
+      "备用中"
+    ],
+    "大修": [
+      "大修理",
+      "全面检修"
+    ],
+    "天然气": [
+      "燃气",
+      "天然气燃料"
+    ],
+    "定期保养": [
+      "定期维护",
+      "例行保养"
+    ],
+    "客户名称": [
+      "用户名称",
+      "客户名"
+    ],
+    "客户编号": [
+      "用户编号",
+      "客户编码"
+    ],
+    "工业用户": [
+      "工业客户",
+      "工厂用户"
+    ],
+    "库存t": [
+      "库存量",
+      "库存(t)"
+    ],
+    "待机": [
+      "待机状态",
+      "备用待机"
+    ],
+    "抽水蓄能机组": [
+      "抽蓄机组",
+      "抽水蓄能单元"
+    ],
+    "振动": [
+      "振动值",
+      "振动量"
+    ],
+    "振动(mm/s)": [
+      "振动速度",
+      "振动(毫米/秒)"
+    ],
+    "检修": [
+      "维修",
+      "修理"
+    ],
+    "汽机车间": [
+      "汽轮机车间",
+      "汽机厂房"
+    ],
+    "汽轮机": [
+      "汽轮机组",
+      "蒸汽轮机"
+    ],
+    "温度": [
+      "温度值",
+      "温度量"
+    ],
+    "温度(℃)": [
+      "温度(摄氏度)",
+      "摄氏温度"
+    ],
+    "烟煤": [
+      "烟煤炭",
+      "烟煤燃料"
+    ],
+    "燃气轮机": [
+      "燃机",
+      "燃气轮机组"
+    ],
+    "燃煤机组": [
+      "燃煤发电机组",
+      "煤电机组"
+    ],
+    "状态": [
+      "运行状态",
+      "工况"
+    ],
+    "环保设备": [
+      "环保设施",
+      "环保装置"
+    ],
+    "环保车间": [
+      "环保厂房",
+      "环保区域"
+    ],
+    "电流": [
+      "电流值",
+      "电流量"
+    ],
+    "电流(A)": [
+      "电流(安培)",
+      "安培电流"
+    ],
+    "电网公司": [
+      "电力公司",
+      "电网企业"
+    ],
+    "褐煤": [
+      "褐煤炭",
+      "褐煤燃料"
+    ],
+    "设备名称": [
+      "设备名",
+      "设备称呼"
+    ],
+    "设备类型": [
+      "设备种类",
+      "设备类别"
+    ],
+    "车间": [
+      "厂房",
+      "生产车间"
+    ],
+    "辅助设备": [
+      "辅机设备",
+      "辅助设施"
+    ],
+    "输煤设备": [
+      "输煤系统",
+      "输煤装置"
+    ],
+    "输煤车间": [
+      "输煤厂房",
+      "输煤区域"
+    ],
+    "运行中": [
+      "运行状态",
+      "正在运行"
+    ],
+    "锅炉设备": [
+      "锅炉系统",
+      "锅炉装置"
+    ],
+    "锅炉车间": [
+      "锅炉厂房",
+      "锅炉区域"
+    ]
+  },
+  "entity_cn2en": {
+    "客户": "power_customers",
+    "电力客户": "power_customers",
+    "设备": "power_equipment",
+    "电力设备": "power_equipment",
+    "电力燃料": "power_fuel",
+    "电力维护": "power_maintenance",
+    "电力运营": "power_operation",
+    "电力机组": "power_units",
+    "发电机组": "power_units",
+    "机组": "power_units"
+  },
+  "numeric_fields": {
+    "功率": "power_kw",
+    "振动": "vibration_mm_s",
+    "温度": "temp_c",
+    "电流": "current_a",
+    "库存": "stock_t",
+    "容量": "capacity_mw"
+  },
+  "field_aliases": {
+    "status": [
+      "status"
+    ],
+    "deviceType": [
+      "deviceType",
+      "device_type",
+      "type"
+    ],
+    "deviceName": [
+      "deviceName",
+      "device_name",
+      "name"
+    ]
+  },
+  "value_fields": []
+}
