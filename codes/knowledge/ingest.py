@@ -53,26 +53,67 @@ def _get_rapid_ocr():
         return None
 
 
-def _ocr_page_image(page, dpi=150):
-    """把 PDF 页渲染为图片，用 RapidOCR 识别，返回拼接文本。失败返回 None。"""
+def _winsdk_ocr(png_path):
+    """Windows 自带 OCR(winsdk, 免装模型) 识别中文。返回文本或 None。"""
+    import asyncio
     try:
-        ocr = _get_rapid_ocr()
-        if ocr is None:
-            return None
-        # 渲染为高分辨率位图（dpi=150，兼顾识别率与速度）
+        from winsdk.windows.media.ocr import OcrEngine
+        from winsdk.windows.graphics.imaging import BitmapDecoder
+        from winsdk.windows.storage import StorageFile, FileAccessMode
+        from winsdk.windows.globalization import Language
+
+        async def _ocr():
+            file = await StorageFile.get_file_from_path_async(png_path)
+            stream = await file.open_async(FileAccessMode.READ)
+            decoder = await BitmapDecoder.create_async(stream)
+            bitmap = await decoder.get_software_bitmap_async()
+            engine = OcrEngine.try_create_from_language(Language("zh-CN"))
+            if engine is None:
+                engine = OcrEngine.try_create_from_user_profile_languages()
+            if engine is None:
+                return None
+            result = await engine.recognize_async(bitmap)
+            return result.text.strip() if result and result.text else None
+        return asyncio.run(_ocr())
+    except Exception:
+        return None
+
+
+def _ocr_page_image(page, dpi=150):
+    """把 PDF 页渲染为图片，用 Windows 自带 OCR(winsdk, 免装模型) 识别中文；
+    winsdk 不可用时回退 RapidOCR。失败返回 None。"""
+    import os, tempfile
+    img_bytes = None
+    try:
         pix = page.get_pixmap(dpi=dpi)
         img_bytes = pix.tobytes("png")
-        # RapidOCR 1.4.4 为可调用对象：ocr(img_bytes) -> (result, elapsed)
+        tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+        try:
+            tmp.write(img_bytes)
+            tmp.close()
+            text = _winsdk_ocr(tmp.name)
+            if text:
+                return text
+        finally:
+            try:
+                os.unlink(tmp.name)
+            except OSError:
+                pass
+    except Exception:
+        pass
+    # 回退 RapidOCR
+    try:
+        ocr = _get_rapid_ocr()
+        if ocr is None or img_bytes is None:
+            return None
         result, _elapsed = ocr(img_bytes)
         if not result:
             return None
-        # RapidOCR 1.4.4 返回形如 [[box, text_str, conf], ...]，直接取索引1的文本
         lines = []
         for item in result or []:
             if isinstance(item, (list, tuple)) and len(item) >= 2:
                 txt = item[1]
                 if isinstance(txt, (list, tuple)):
-                    # 兼容部分版本 [(text, conf), ...] 结构
                     txt = txt[0] if txt else ""
                 if txt:
                     lines.append(str(txt))
