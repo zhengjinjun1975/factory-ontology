@@ -484,6 +484,17 @@ def answer(q, data, D):
 
     # ---- 单极值 (属性最大/最小/最长/最贵等) ----
     if attr_en and _EXTREME.search(q):
+        # 语义陷阱拦截: "最X的Y" 里 Y 是抽象概念(安全/风险/措施/问题等)而非数值实体时,
+        # 极值推断会把"最大的安全问题"误当成"容量最大"(只因为"最大"+数值字段匹配)。
+        # 若问题含抽象概念词且无具体实体/属性指称, 不触发极值, 返回"暂不支持"走上层LLM兜底。
+        _ABSTRACT_EXTREME = ("安全", "风险", "措施", "问题", "隐患", "方案", "建议", "原因",
+                             "意义", "价值", "影响", "作用", "注意", "管理", "工作", "经验",
+                             "挑战", "机会", "优势", "劣势", "趋势", "情况", "现状", "方向")
+        _has_abstract = any(w in q for w in _ABSTRACT_EXTREME)
+        _has_entity_ref = any(cn in q for cn in (D.get("entity_cn2en", {}) or {}))
+        _has_attr_ref = any(cn in q for cn in (D.get("attr_cn2en", {}) or {}))
+        if _has_abstract and not _has_entity_ref and not _has_attr_ref:
+            return "暂不支持该问题"
         items = [(d, _num(_field(d, attr_en, aliases))) for d in data.values()]
         items = [(d, v) for d, v in items if v is not None]
         if items:

@@ -31,3 +31,4 @@ __pycache__/
 node_modules/
 dist/
 web/sessions.json
+web/users.json
