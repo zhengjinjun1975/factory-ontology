@@ -70,7 +70,10 @@
       <div class="skel skel-line-lg"></div>
     </div>
   {:else if empty}
-    <div class="dash-empty dash-nodata">尚未建模，请先在「数据建模」页上传数据</div>
+    <div class="dash-empty dash-nodata">
+      <span class="empty-icon">📊</span>
+      <span class="empty-text">尚未建模，请先在「数据建模」页上传数据</span>
+    </div>
   {:else if error}
     <div class="dash-empty dash-err">
       {error}
@@ -135,19 +138,19 @@
       <div class="chart-title">产线设备统计（含负责人/区域）</div>
       <table class="line-table">
         <thead>
-          <tr><th>产线</th><th>名称</th><th>区域</th><th>负责人</th><th>设备数</th><th>运行</th><th>异常</th><th>总功率(kW)</th></tr>
+          <tr><th>产线</th><th>名称</th><th>区域</th><th>负责人</th><th class="col-num">设备数</th><th class="col-num">运行</th><th class="col-num">异常</th><th class="col-num">总功率(kW)</th></tr>
         </thead>
         <tbody>
           {#each stats.line_stats as l}
             <tr>
-              <td class="mono">{l.line}</td>
+              <td class="id-col">{l.line}</td>
               <td>{l.name}</td>
               <td>{l.area}</td>
               <td>{l.supervisor}</td>
-              <td class="mono">{l.device_count}</td>
-              <td class="mono" style="color:#10b981">{l.running}</td>
-              <td class="mono" style="color:{l.alarm > 0 ? '#ef4444' : '#94a3b8'}">{l.alarm}</td>
-              <td class="mono">{l.total_power_kw}</td>
+              <td class="num-col">{l.device_count}</td>
+              <td class="num-col" style="color:{l.running > 0 ? 'var(--success)' : 'var(--text-muted)'}">{l.running}</td>
+              <td class="num-col" style="color:{l.alarm > 0 ? 'var(--danger)' : 'var(--text-muted)'}">{l.alarm}</td>
+              <td class="num-col">{l.total_power_kw}</td>
             </tr>
           {/each}
         </tbody>
@@ -158,7 +161,12 @@
 
 <style>
   .dash { display: flex; flex-direction: column; gap: 12px; }
-  .dash-empty { color: #94a3b8; font-size: 13px; text-align: center; padding: 30px; }
+  .dash-empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; padding: 48px 20px; text-align: center; color: var(--text-muted); font-size: 13px;
+  }
+  .dash-empty .empty-icon { font-size: 28px; line-height: 1; }
+  .dash-empty .empty-text { color: var(--text-muted); }
 
   /* 骨架屏 */
   @keyframes shimmer { 0% { background-position: -360px 0; } 100% { background-position: 360px 0; } }
@@ -171,63 +179,72 @@
   .skel-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .skel-kpi { height: 74px; }
   .skel-line-lg { height: 14px; width: 100%; }
-  .dash-nodata { color: #64748b; }   /* 未建模空态：中性灰，非红色 */
-  .dash-err { color: #dc2626; }
+  .dash-nodata { color: var(--text-muted); }   /* 未建模空态：中性灰，非红色 */
+  .dash-err { color: var(--danger); }
   .dash-retry {
-    margin-left: 10px; background: #fff; color: #2563eb;
-    border: 1px solid #cbd5e1; border-radius: 4px;
+    margin-left: 10px; background: var(--bg-card); color: var(--brand);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
     padding: 4px 12px; font-size: 12px; cursor: pointer;
-    transition: all 0.15s;
+    transition: background 150ms ease-out;
   }
-  .dash-retry:hover { border-color: #3b82f6; background: #f8fafc; }
+  .dash-retry:hover { border-color: var(--brand-line); background: var(--bg-hover); }
 
   /* KPI 迷你卡片 + 告警 */
   .alert-banner {
     display: flex; align-items: center; gap: 8px;
-    background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
-    border-radius: 6px; padding: 10px 14px; font-size: 13px;
+    background: var(--danger-bg); border: 1px solid var(--border); color: var(--danger-fg);
+    border-radius: var(--radius-md); padding: 10px 14px; font-size: 13px;
   }
   .alert-ico { font-size: 15px; }
   .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
   .mini-card {
     position: relative; overflow: hidden;
-    background: #fff; border: 1px solid #e2e8f0; border-radius: 6px;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md);
     padding: 16px 12px 12px; text-align: center;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    box-shadow: var(--shadow-card);
   }
-  .mini-card.alert { border-color: #ef4444; box-shadow: 0 0 0 1px #ef4444; }
+  .mini-card.alert { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
   .mini-card.lead { padding: 20px 12px 16px; }
   .mini-card.lead .mc-accent { height: 4px; }
   .mini-card.lead .mc-num { font-size: 30px; }
   .mc-accent { position: absolute; top: 0; left: 0; right: 0; height: 3px; }
-  .mc-num { font-size: 24px; font-weight: 700; line-height: 1.1; font-family: 'Consolas', monospace; }
-  .mc-label { font-size: 11px; color: #64748b; margin-top: 4px; }
+  .mc-num { font-size: 24px; font-weight: 700; line-height: 1.1; font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-variant-numeric: tabular-nums; }
+  .mc-label { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
 
   /* Charts */
   .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .chart-card {
-    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px;
-    padding: 14px;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md);
+    padding: 14px; box-shadow: var(--shadow-card);
   }
-  .chart-title { font-size: 12px; font-weight: 700; color: #1e293b; margin-bottom: 12px; letter-spacing: 0.3px; }
+  .chart-title { font-size: 12px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px; letter-spacing: 0.3px; }
 
   .bars { display: flex; flex-direction: column; gap: 8px; }
   .bar-row { display: flex; align-items: center; gap: 8px; }
-  .bar-label { width: 70px; font-size: 12px; color: #334155; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .bar-track { flex: 1; height: 16px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
-  .bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; min-width: 2px; }
-  .bar-val { width: 30px; font-size: 12px; font-weight: 600; color: #475569; font-family: 'Consolas', monospace; }
+  .bar-label { width: 70px; font-size: 12px; color: var(--text-primary); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-track { flex: 1; height: 16px; background: var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: var(--radius-sm); transition: width 150ms ease-out; min-width: 2px; }
+  .bar-val { width: 30px; font-size: 12px; font-weight: 600; color: var(--text-secondary); font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-variant-numeric: tabular-nums; }
 
   /* Line table */
   .line-card { padding: 14px; }
   .line-table { width: 100%; border-collapse: collapse; }
-  .line-table th, .line-table td {
-    padding: 6px 8px; font-size: 12px; text-align: left;
-    border-bottom: 1px solid #e2e8f0;
+  .line-table thead th {
+    position: sticky; top: 0; z-index: 1;
+    padding: 8px 10px; font-size: 12px; font-weight: 600; text-align: left;
+    color: var(--text-secondary); background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border);
   }
-  .line-table th { color: #64748b; font-weight: 600; background: #f1f5f9; }
-  .line-table td { color: #334155; }
-  .mono { font-family: 'Consolas', monospace; }
+  .line-table tbody td {
+    padding: 0 10px; font-size: 13px; text-align: left; color: var(--text-primary);
+    border-bottom: 1px solid var(--border);
+    height: 40px; transition: background 150ms ease-out;
+  }
+  .line-table tbody tr:last-child td { border-bottom: none; }
+  .line-table tbody tr:hover td { background: var(--bg-hover); }
+  .id-col { font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; color: var(--text-secondary); }
+  .num-col { text-align: right; font-variant-numeric: tabular-nums; font-family: ui-monospace, 'SF Mono', Consolas, monospace; }
+  .col-num { text-align: right; }
 
   @media (max-width: 720px) {
     .chart-grid { grid-template-columns: 1fr; }

@@ -220,8 +220,8 @@
     data_food_co: ['food_products', 'food_batches', 'food_equipment', 'food_raw_materials', 'food_batch_ingredient', 'food_qc'],
   };
   let defaultIndustry = $state('data_valve'); // 当前选中的行业示例
-  // 本地文件建模折叠区
-  let localModelOpen = $state(true);
+  // 本地文件建模折叠区（默认收起，保持左侧干净大功能卡排队）
+  let localModelOpen = $state(false);
   // 数据库接入
   let dbOpen = $state(false);
   let dbBusy = $state(false);
@@ -882,11 +882,11 @@
       <button class="ent-btn" onclick={openEnterprise} title="企业设置">
         <span class="btn-icon">⚙️</span> 企业设置
       </button>
-      <button class="ent-btn" onclick={() => (resetOpen = true)} title="重置当前企业数据" style="border-color:#fca5a5;color:#dc2626;">
+      <button class="ent-btn ent-btn-danger" onclick={() => (resetOpen = true)} title="重置当前企业数据">
         <span class="btn-icon">🔄</span> 重置企业
       </button>
       <button class="ent-btn" onclick={doLogout} title="退出登录">
-        <span class="btn-icon">🚪</span> 退出
+        <span class="btn-icon">⎋</span> 退出
       </button>
     </div>
   </header>
@@ -918,7 +918,7 @@
     {#if activeTab === 'model'}
     <!-- ─── 左栏：数据建模 ─── -->
     <section class="pane pane-left">
-      <div class="pane-title">数据建模</div>
+      <div class="pane-title">数据建模<span class="pane-sub">上传数据、连接数据库或配置模型，构建企业专属本体</span></div>
 
       {#if defaultBusy || localBusy || dbBusy}
         <div class="model-busy-overlay">
@@ -931,8 +931,8 @@
 
       <!-- ─── 卡片① 本地文件建模（折叠式，对齐模型配置管理）─── -->
       <div class="card">
-        <button class="card-head card-head-btn" onclick={() => (localModelOpen = !localModelOpen)}>
-          <span class="card-icon">📁</span>
+        <button class="card-head card-head-btn" class:expanded={localModelOpen} onclick={() => (localModelOpen = !localModelOpen)}>
+          <span class="card-icon ic-file">📄</span>
           <div class="card-titles">
             <div class="card-title">本地文件建模</div>
             <div class="card-desc">{localModelOpen ? '点击收起' : '点击展开'}上传 CSV / JSON 文件建模</div>
@@ -1011,8 +1011,8 @@
 
       <!-- ─── 卡片③ 数据库接入（折叠式，对齐模型配置管理）─── -->
       <div class="card">
-        <button class="card-head card-head-btn" onclick={() => (dbOpen = !dbOpen)}>
-          <span class="card-icon">🗄️</span>
+        <button class="card-head card-head-btn" class:expanded={dbOpen} onclick={() => (dbOpen = !dbOpen)}>
+          <span class="card-icon ic-db">🗄️</span>
           <div class="card-titles">
             <div class="card-title">数据库接入</div>
             <div class="card-desc">{dbOpen ? '点击收起' : '点击展开'}连接 MES / ERP / 台账数据库</div>
@@ -1083,8 +1083,8 @@
 
       <!-- ─── 卡片④ 模型配置管理（查看/编辑/增删/设 active，api_key 脱敏）─── -->
       <div class="card">
-        <button class="card-head card-head-btn" onclick={() => (modelOpen = !modelOpen)}>
-          <span class="card-icon">🤖</span>
+        <button class="card-head card-head-btn" class:expanded={modelOpen} onclick={() => (modelOpen = !modelOpen)}>
+          <span class="card-icon ic-model">⚙️</span>
           <div class="card-titles">
             <div class="card-title">模型配置管理</div>
             <div class="card-desc">{modelOpen ? '点击收起' : '点击展开'}模型/向量配置</div>
@@ -1174,7 +1174,7 @@
     {:else if activeTab === 'query'}
     <!-- ─── 查询分析（独立标签页）─── -->
     <section class="pane pane-full">
-      <div class="pane-title">查询分析</div>
+      <div class="pane-title">查询分析<span class="pane-sub">用自然语言查询企业知识库，每个答案带证据溯源</span></div>
       <div class="query-body">
         <div class="query-bar">
           <input
@@ -1256,7 +1256,7 @@
     </section>
     {:else if activeTab === 'dashboard'}
     <section class="pane pane-full">
-      <div class="pane-title">数据看板</div>
+      <div class="pane-title">数据看板<span class="pane-sub">企业关键数据的可视化概览</span></div>
       <div class="dashboard-body">
         <DashboardPanel kb={currentKb} />
       </div>
@@ -1264,7 +1264,7 @@
     {:else if activeTab === 'eval'}
     <!-- ─── 评测（问答命中率基线）─── -->
     <section class="pane pane-full">
-      <div class="pane-title">评测基线</div>
+      <div class="pane-title">评测基线<span class="pane-sub">用示例题目评测知识库的问答命中率</span></div>
       <div class="dashboard-body">
         <EvalPanel kb={currentKb} />
       </div>
@@ -1272,7 +1272,7 @@
     {:else if activeTab === 'knowledge'}
     <!-- ─── 知识库管理（文档列表）─── -->
     <section class="pane pane-full">
-      <div class="pane-title">知识库管理</div>
+      <div class="pane-title">知识库管理<span class="pane-sub">上传文档，构建企业知识库</span></div>
       <div class="dashboard-body">
         <KnowledgePanel kb={currentKb} />
       </div>
@@ -1280,7 +1280,7 @@
     {:else if activeTab === 'assets'}
     <!-- ─── 资产版本（版本链）─── -->
     <section class="pane pane-full">
-      <div class="pane-title">资产版本</div>
+      <div class="pane-title">资产版本<span class="pane-sub">管理语义资产快照，支持版本回滚与交付</span></div>
       <div class="dashboard-body">
         <AssetPanel kb={currentKb} />
       </div>
@@ -1386,31 +1386,61 @@
 <style>
   /* ─── 企业品牌色（统一视觉系统）─── */
   :root {
-    --brand:        #2563eb;   /* 主品牌蓝 */
-    --brand-dark:   #1d4ed8;   /* hover/深 */
-    --brand-deep:   #1e293b;   /* 深色按钮/强调 */
-    --brand-soft:   #eff6ff;   /* 品牌浅底 */
-    --brand-soft-bd:#bfdbfe;   /* 品牌浅描边 */
-    --ok:           #10b981;
-    --warn:         #f59e0b;
-    --err:          #dc2626;
-    --bg:           #eef1f5;   /* 工业浅灰底 */
-    --card:         #ffffff;
-    --line:         #d5dbe3;
-    --line-soft:    #e2e8f0;
-    --txt:          #1e293b;
-    --txt-sub:      #64748b;
-    --txt-muted:    #94a3b8;
+    /* ── 中性阶（zinc 系，替换 #eef1f5 的蓝调） ── */
+    --bg-page:      #f6f7f8;   /* 页面底 */
+    --bg-elevated:  #fafbfc;   /* 次级块 / 表头 / 折叠卡底 */
+    --bg-card:      #ffffff;   /* 卡片 */
+    --bg-hover:     #f8fafc;   /* 行 hover */
+    --bg-selected:  #eff4ff;   /* 选中态（浅品牌蓝） */
+
+    /* ── 边框 ── */
+    --border:       #e5e8ec;   /* 卡片/表分隔 */
+    --border-strong:#d3d9e0;   /* 强调分隔（标签栏下、工具栏底） */
+
+    /* ── 文字 ── */
+    --text-primary:   #17181a; /* zinc-900 */
+    --text-secondary: #5d6673;
+    --text-muted:     #98a2b3;
+
+    /* ── 品牌与焦点 ── */
+    --brand:       #2563eb;
+    --brand-dark:  #1d4ed8;
+    --brand-soft:  #eff4ff;   /* 选中/激活浅蓝底 */
+    --brand-line:  #bfdbfe;
+    --ring:        #93c5fd;   /* focus-visible 焦点环 */
+
+    /* ── 语义色（只给状态） ── */
+    --success: #16a34a; --success-bg: #f0fdf4; --success-fg: #15803d;
+    --warning: #d97706; --warning-bg: #fffbeb; --warning-fg: #b45309;
+    --danger:  #dc2626; --danger-bg:  #fef2f2; --danger-fg:  #b91c1c;
+    --info:    #2563eb; --info-bg:    #eff4ff; --info-fg:    #1d4ed8;
+
+    /* ── 圆角与阴影 ── */
+    --radius-sm: 6px;  --radius-md: 8px;  --radius-lg: 10px;  --radius-xl: 12px;
+    --shadow-card:    0 1px 2px rgba(16,24,40,.05);
+    --shadow-hover:   0 2px 8px  rgba(16,24,40,.07);
+    --shadow-popover: 0 4px 16px rgba(16,24,40,.12);
+
+    /* 兼容旧变量名（迁移过渡期） */
+    --txt: var(--text-primary);
+    --txt-sub: var(--text-secondary);
+    --txt-muted: var(--text-muted);
+    --line: var(--border);
+    --line-soft: var(--bg-elevated);
+    --card: var(--bg-card);
+    --bg: var(--bg-page);
+    --brand-soft-bd: var(--brand-line);
+    --ok: var(--success); --warn: var(--warning); --err: var(--danger);
   }
   :global(*) { box-sizing: border-box; }
   :global(body) {
     margin: 0;
     font-family: 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
-    background: var(--bg);  /* 工业浅灰底 */
-    color: #2d3436;
+    background: var(--bg-page);
+    color: var(--text-primary);
     min-height: 100vh;
   }
-  :global(:focus-visible) { outline: 2px solid var(--brand); outline-offset: 1px; }
+  :global(:focus-visible) { outline: 2px solid var(--ring); outline-offset: 1px; }
 
 
   .app { min-height: 100vh; display: flex; flex-direction: column; }
@@ -1539,36 +1569,52 @@
   /* ─── 企业设置按钮 ─── */
   .ent-btn {
     display: inline-flex; align-items: center; gap: 5px;
-    background: #fff; color: #1e293b; border: 1px solid #d5dbe3; border-radius: 6px;
-    padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: pointer;
+    background: #fff; color: #475569; border: 1px solid #d5dbe3; border-radius: 8px;
+    padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer;
     transition: all 0.15s; white-space: nowrap;
   }
-  .ent-btn:hover { background: #eff6ff; border-color: #3b82f6; color: #2563eb; }
+  .ent-btn .btn-icon { font-size: 13px; opacity: 0.85; }
+  .ent-btn:hover { background: #eff6ff; border-color: #93c5fd; color: #2563eb; }
+  .ent-btn:hover .btn-icon { opacity: 1; }
+  /* 危险操作(重置)：柔和深红而非刺眼亮红，商用软件的低调危险色 */
+  .ent-btn-danger { color: #9f1239; border-color: #fecdd3; background: #fff5f6; }
+  .ent-btn-danger:hover { background: #ffe4e6; border-color: #fda4af; color: #be123c; }
 
   /* ─── 卡片化功能分区（建模 tab）─── */
   .card {
-    background: #ffffff; border: 1px solid #e4e9f0; border-radius: 10px;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
-    overflow: hidden; transition: box-shadow 0.15s;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    overflow: hidden; transition: box-shadow 0.2s;
   }
-  .card:hover { box-shadow: 0 4px 14px rgba(15, 23, 42, 0.09); }
+  .card:hover { box-shadow: var(--shadow-hover); }
   .card-head {
     display: flex; align-items: center; gap: 10px;
-    padding: 11px 13px; background: #f8fafc;
-    border-bottom: 1px solid #eef1f6;
+    padding: 12px 14px; background: var(--bg-elevated);
+    border-bottom: 1px solid var(--bg-hover);
   }
   .card-head-btn {
     width: 100%; border: none; text-align: left; cursor: pointer;
-    background: #f8fafc; font: inherit;
+    background: var(--bg-elevated); font: inherit;
+    transition: background 0.15s;
   }
-  .card-head-btn:hover { background: #eff6ff; }
-  .card-head-btn:hover .card-title { color: #2563eb; }
-  .card-icon { font-size: 20px; flex-shrink: 0; }
+  .card-head-btn:hover { background: var(--bg-hover); }
+  .card-head-btn:hover .card-title { color: var(--brand); }
+  /* 折叠卡展开态：左侧品牌色指示条 */
+  .card-head-btn.expanded { box-shadow: inset 3px 0 0 0 var(--brand); }
+  .card-icon {
+    font-size: 18px; flex-shrink: 0;
+    width: 34px; height: 34px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--brand-soft); border: 1px solid var(--brand-line);
+  }
+  .card-icon.ic-file  { background: var(--info-bg); border-color: var(--brand-line); }
+  .card-icon.ic-db    { background: #f0f9ff; border-color: #e0f2fe; }
+  .card-icon.ic-model { background: #f5f3ff; border-color: #ede9fe; }
   .card-titles { flex: 1; display: flex; flex-direction: column; gap: 1px; }
-  .card-title { font-size: 13px; font-weight: 700; color: #1e293b; }
-  .card-desc { font-size: 11px; color: #94a3b8; }
-  .card-body { padding: 12px 13px; display: flex; flex-direction: column; gap: 10px; }
-  .btn-example { background: #1e293b; }
+  .card-title { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+  .card-desc { font-size: 11px; color: var(--text-muted); }
+  .card-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .btn-example { background: var(--text-primary); }
   .btn-example:hover:not(:disabled) { background: #0f172a; }
 
   .status-indicator {
@@ -1592,26 +1638,30 @@
   /* ─── 标签栏 ─── */
   .tabbar {
     display: flex; gap: 4px; padding: 10px 18px 0;
-    flex-shrink: 0;
+    flex-shrink: 0; border-bottom: 1px solid var(--border-strong);
   }
   .tab {
     display: flex; align-items: center; gap: 6px;
-    background: #e2e8f0; border: 1px solid #d5dbe3; border-bottom: none;
-    border-radius: 6px 6px 0 0;
-    padding: 8px 18px; font-size: 13px; font-weight: 600; color: #64748b;
-    cursor: pointer; transition: all 0.15s;
+    background: transparent; border: none;
+    border-radius: 8px 8px 0 0;
+    padding: 9px 18px; font-size: 13px; font-weight: 600; color: var(--text-secondary);
+    cursor: pointer; transition: color 0.15s, background 0.15s; position: relative;
   }
-  .tab:hover { color: #1e293b; background: #eef2f7; }
+  .tab:hover { color: var(--text-primary); background: var(--bg-hover); }
   .tab.active {
-    background: #ffffff; color: #2563eb; border-color: #d5dbe3;
-    box-shadow: 0 -2px 6px rgba(0,0,0,0.04);
+    background: var(--bg-card); color: var(--brand); font-weight: 700;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.05);
+  }
+  .tab.active::after {
+    content: ''; position: absolute; left: 14px; right: 14px; bottom: 0;
+    height: 3px; border-radius: 3px 3px 0 0; background: var(--brand);
   }
   .tab-icon { font-size: 14px; }
 
   /* ─── 主区域 ─── */
   .workspace {
     flex: 1; display: grid;
-    grid-template-columns: minmax(300px, 360px) 1fr;
+    grid-template-columns: minmax(200px, 240px) 1fr;
     gap: 14px; padding: 14px 18px;
     min-height: 0;
   }
@@ -1633,13 +1683,18 @@
     display: flex; flex-direction: column;
     min-height: 0;
   }
+  /* ─── 页头（商用惯例：20px 标题 + 13px 副标题说明） ─── */
   .pane-title {
-    padding: 9px 14px;
-    font-size: 12px; font-weight: 700; color: #1e293b;
-    background: #f8fafc;
-    border-bottom: 1px solid #e2e8f0;
-    letter-spacing: 0.5px;
+    padding: 14px 18px;
+    font-size: 16px; font-weight: 700; color: var(--text-primary);
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border);
+    letter-spacing: 0.3px;
     flex-shrink: 0;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .pane-title .pane-sub {
+    font-size: 12px; font-weight: 400; color: var(--text-muted); letter-spacing: 0;
   }
 
   /* ─── 左栏表单 ─── */
@@ -2123,4 +2178,27 @@
     .tab { padding: 7px 10px; }
   }
 
+  /* ─── 统一动效（Linear/Vercel 标准：120-200ms ease-out） ─── */
+  :global(*) { transition-timing-function: cubic-bezier(0.16,1,0.3,1); }
+  @media (prefers-reduced-motion: reduce) {
+    :global(*) { transition: none !important; animation: none !important; }
+  }
+
+  /* ─── 深色模式（可选，prefers-color-scheme） ─── */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-page: #16181d; --bg-elevated: #1e2128; --bg-card: #22262e;
+      --bg-hover: #2a2e37; --bg-selected: #1e2a45;
+      --border: #2e333d; --border-strong: #3a404c;
+      --text-primary: #e8eaed; --text-secondary: #a6aeb9; --text-muted: #6b7380;
+      --brand-soft: #1e2a45; --brand-line: #33507a;
+      --success-bg: #14301f; --success-fg: #4ade80;
+      --warning-bg: #33290f; --warning-fg: #fbbf24;
+      --danger-bg: #33131a;  --danger-fg: #f87171;
+      --info-bg: #1e2a45;    --info-fg: #60a5fa;
+      --shadow-card: 0 1px 2px rgba(0,0,0,.4);
+      --shadow-hover: 0 2px 8px rgba(0,0,0,.5);
+      --shadow-popover: 0 4px 16px rgba(0,0,0,.6);
+    }
+  }
 </style>

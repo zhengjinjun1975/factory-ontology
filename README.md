@@ -255,7 +255,7 @@ python valve_demo.py
 
 规则能答的走规则（省 token、快、准、可复现），规则未命中才走 LLM。本地 Ollama 可全离线运行，数据不出厂。
 
-**如何填 `api_key`（不依赖 Hermes 或任何外部 Agent 框架）**：
+**如何填 `api_key`（不依赖任何外部 Agent 框架）**：
 - **云端（`cloud`/DeepSeek）**：直接在 `api_key` 字段填入密钥；留空时自动尝试环境变量 `DEEPSEEK_API_KEY` 或 `ZHIPU_API_KEY`（`export DEEPSEEK_API_KEY=sk-xxx`）。两者都没有时，云端调用会明确返回 `[模型错误] 云端模型未配置 API Key`，不会静默失败。
 - **本地（`local`/Ollama）**：无需 key，`api_key` 保持空即可。
 - **切换模型**：改 `active` 字段，或用环境变量 `FOOD_MODEL` 覆盖（如 `FOOD_MODEL=cloud`），无需改配置文件。
@@ -303,7 +303,7 @@ v0.2.x 为当前版本线（功能累积升级：检索/评测/上传/前端全�
 | 版本 | 内容 |
 |------|------|
 | **v0.2.0** | 功能累积升级：多租户企业绑定修复（food 兜底移除/一企一行业一数据）、检索增强（咨询/建议题走 LLM、极值语义陷阱拦截、评测友好兜底+命中判定）、文档上传增强（超长块切分修 embedding、入库时间、会话持久化）、前端（资产快照入口、企业行业识别、UI 审美调优） |
-| **v0.1.6** | 工程化收尾：版本号统一、模型 key 配置说明（不依赖 Hermes）、文档对齐 fail-closed 鉴权 |
+| **v0.1.6** | 工程化收尾：版本号统一、模型 key 配置说明（不依赖外部 Agent）、文档对齐 fail-closed 鉴权 |
 | **v0.1.5** | 综合方案：9 大行业泛化建模（建库自动生成实体/极值/类型映射）+ 向量混合检索（BM25+语义）+ 极值词映射 + 向量模型配置——换任何行业数据即用、命中率 100% |
 | **v0.1.4** | 厂区数据真实化（GB/T 32808 型号编码、材料牌号、API 598 试压矩阵）+ 检索容错（同义词扩展，问"不锈钢"命中 CF8/304） |
 | **v0.1.3** | 安全加固：建模失败报告、SQL 注入白名单、编码正确性 |
@@ -335,3 +335,5 @@ v0.2.x 为当前版本线（功能累积升级：检索/评测/上传/前端全�
 ## License
 
 [Apache License 2.0](LICENSE)
+
+部分机制借鉴自开源项目（详见 [NOTICE](NOTICE)）：schema 驱动建模借鉴 [sme-decision-ontology](https://github.com/zhengjinjun1975/sme-decision-ontology)，逻辑推理桥借鉴 [OpenSPG/KAG](https://github.com/OpenSPG/KAG)，均为 Apache-2.0。

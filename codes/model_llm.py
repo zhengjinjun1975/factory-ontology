@@ -63,8 +63,8 @@ def _load_env_key(name):
         return v
     # 尝试读 团队 Agent .env 文件
     env_candidates = [
-        os.path.join(os.path.expanduser("~"), "AppData", "Local", "hermes", ".env"),
         os.path.join(os.path.expanduser("~"), ".env"),
+        os.path.join(os.getcwd(), ".env"),
     ]
     for env_path in env_candidates:
         if os.path.exists(env_path):

@@ -190,7 +190,10 @@
     {/if}
 
     {#if empty}
-      <div class="asset-empty asset-nodata">知识库「{curKb}」暂无资产版本，点击上方「📸 创建快照」生成首个版本（语义资产存档，用于版本回滚与交付）。</div>
+      <div class="asset-empty asset-nodata">
+        <span class="empty-icon">🧬</span>
+        <span class="empty-text">知识库「{curKb}」暂无资产版本，点击上方「📸 创建快照」生成首个版本（语义资产存档，用于版本回滚与交付）。</span>
+      </div>
     {:else if loaded}
     <div class="asset-meta">
       <span class="meta-kb">知识库：<b>{curKb}</b></span>
@@ -295,73 +298,88 @@
   .btn-snap:hover { background: #047857; }
   .btn-snap:disabled { background: #6ee7b7; cursor: not-allowed; }
   .asset-opmsg {
-    font-size: 12px; color: #065f46; background: #ecfdf5;
-    border: 1px solid #a7f3d0; border-radius: 4px; padding: 6px 10px;
+    font-size: 12px; color: var(--success-fg); background: var(--success-bg);
+    border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px;
   }
 
   /* 空态 / 错误 */
-  .asset-empty { color: #94a3b8; font-size: 13px; text-align: center; padding: 30px; }
-  .asset-nodata { color: #64748b; }
-  .asset-err { color: #dc2626; }
-  .asset-retry {
-    margin-left: 10px; background: #fff; color: #2563eb;
-    border: 1px solid #cbd5e1; border-radius: 4px;
-    padding: 4px 12px; font-size: 12px; cursor: pointer; transition: all 0.15s;
+  .asset-empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; padding: 48px 20px; text-align: center; color: var(--text-muted); font-size: 13px;
   }
-  .asset-retry:hover { border-color: #3b82f6; background: #f8fafc; }
+  .asset-empty .empty-icon { font-size: 28px; line-height: 1; }
+  .asset-empty .empty-text { color: var(--text-muted); max-width: 420px; line-height: 1.6; }
+  .asset-nodata { color: var(--text-muted); }
+  .asset-err { color: var(--danger); }
+  .asset-retry {
+    margin-left: 10px; background: var(--bg-card); color: var(--brand);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 4px 12px; font-size: 12px; cursor: pointer;
+    transition: background 150ms ease-out;
+  }
+  .asset-retry:hover { border-color: var(--brand-line); background: var(--bg-hover); }
 
   /* 元信息 */
-  .asset-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: #475569; }
-  .meta-kb b { color: #1e293b; }
-  .meta-count { color: #2563eb; }
-  .meta-active b { color: #0ea5e9; }
+  .asset-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); }
+  .meta-kb b { color: var(--text-primary); }
+  .meta-count { color: var(--brand); }
+  .meta-active b { color: var(--brand); }
 
   /* 版本链表格 */
   .asset-card {
-    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 14px;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md);
+    padding: 14px; box-shadow: var(--shadow-card);
   }
-  .asset-card-title { font-size: 12px; font-weight: 700; color: #1e293b; margin-bottom: 12px; letter-spacing: 0.3px; }
+  .asset-card-title { font-size: 12px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px; letter-spacing: 0.3px; }
   .asset-table { width: 100%; border-collapse: collapse; }
-  .asset-table th, .asset-table td {
-    padding: 7px 8px; font-size: 12px; text-align: left;
-    border-bottom: 1px solid #e2e8f0;
+  .asset-table thead th {
+    position: sticky; top: 0; z-index: 1;
+    padding: 8px 10px; font-size: 12px; font-weight: 600; text-align: left;
+    color: var(--text-secondary); background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border);
   }
-  .asset-table th { color: #64748b; font-weight: 600; background: #f1f5f9; }
-  .asset-table td { color: #334155; }
-  .mono { font-family: 'Consolas', monospace; }
-  .version-name { font-weight: 600; color: #1e293b; }
-  .hash-cell { color: #64748b; }
+  .asset-table tbody td {
+    padding: 0 10px; font-size: 13px; text-align: left; color: var(--text-primary);
+    border-bottom: 1px solid var(--border);
+    height: 40px; transition: background 150ms ease-out;
+  }
+  .asset-table tbody tr:last-child td { border-bottom: none; }
+  .asset-table tbody tr:hover td { background: var(--bg-hover); }
+  .mono { font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .version-name { font-weight: 600; color: var(--text-primary); }
+  .hash-cell { color: var(--text-secondary); }
   .col-active { width: 64px; }
   .col-op { width: 56px; text-align: center; }
 
   /* 当前激活版本醒目行 */
-  .row-active { background: #ecfeff; }
-  .row-active td { border-bottom-color: #a5f3fc; }
+  .row-active { background: var(--bg-selected); }
+  .row-active:hover td { background: var(--bg-selected); }
+  .row-active td { border-bottom-color: var(--brand-line); }
   .active-badge {
     display: inline-block;
-    font-size: 11px; font-weight: 700; color: #0e7490;
-    background: #cffafe; border: 1px solid #67e8f9;
-    border-radius: 10px; padding: 1px 8px; white-space: nowrap;
+    font-size: 11px; font-weight: 700; color: var(--success-fg);
+    background: var(--success-bg); border: 1px solid var(--brand-line);
+    border-radius: var(--radius-sm); padding: 2px 8px; white-space: nowrap;
   }
 
   /* 资产状态可视化（词典/本体/知识库是否含） */
   .asset-status { display: flex; gap: 4px; flex-wrap: wrap; }
   .status-chip {
-    font-size: 11px; border-radius: 10px; padding: 1px 7px; white-space: nowrap;
+    font-size: 11px; border-radius: var(--radius-sm); padding: 2px 8px; white-space: nowrap;
   }
-  .chip-on { color: #065f46; background: #d1fae5; border: 1px solid #6ee7b7; }
-  .chip-off { color: #94a3b8; background: #f1f5f9; border: 1px solid #e2e8f0; }
+  .chip-on { color: var(--success-fg); background: var(--success-bg); border: 1px solid var(--border); }
+  .chip-off { color: var(--text-muted); background: var(--bg-elevated); border: 1px solid var(--border); }
 
   /* 回滚按钮 */
   .btn-rollback {
-    background: #fff; color: #d97706; border: 1px solid #fcd34d;
-    border-radius: 4px; padding: 3px 10px; font-size: 12px; cursor: pointer;
-    transition: all 0.15s; white-space: nowrap;
+    background: var(--bg-card); color: var(--warning); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 3px 10px; font-size: 12px; cursor: pointer;
+    transition: background 150ms ease-out; white-space: nowrap;
   }
-  .btn-rollback:hover { background: #fffbeb; border-color: #f59e0b; color: #b45309; }
-  .btn-rollback:disabled { color: #d6d3d1; border-color: #e7e5e4; cursor: not-allowed; background: #fafaf9; }
+  .btn-rollback:hover { background: var(--warning-bg); border-color: var(--warning); color: var(--warning-fg); }
+  .btn-rollback:disabled { color: var(--text-muted); border-color: var(--border); cursor: not-allowed; background: var(--bg-elevated); }
 
-  .asset-hint { font-size: 11px; color: #94a3b8; }
+  .asset-hint { font-size: 11px; color: var(--text-muted); }
 
   @media (max-width: 600px) {
     .asset-toolbar { flex-wrap: wrap; }

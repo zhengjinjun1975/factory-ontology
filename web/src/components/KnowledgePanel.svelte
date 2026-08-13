@@ -237,20 +237,23 @@
       <div class="skel skel-line-md"></div>
     </div>
   {:else if loaded && docs.length === 0}
-    <div class="dash-empty dash-nodata">暂无文档，可通过上方「选择文件 + 上传文档」添加</div>
+    <div class="dash-empty dash-nodata">
+      <span class="empty-icon">🗂️</span>
+      <span class="empty-text">暂无文档，可通过上方「选择文件 + 上传文档」添加</span>
+    </div>
   {:else if loaded}
     <div class="doc-table-wrap">
       <table class="doc-table">
         <thead>
-          <tr><th>文档 ID</th><th>标题</th><th>分块数</th><th>入库时间</th><th class="col-act">操作</th></tr>
+          <tr><th>文档 ID</th><th>标题</th><th class="col-num">分块数</th><th>入库时间</th><th class="col-act">操作</th></tr>
         </thead>
         <tbody>
           {#each docs as d}
             <tr>
-              <td class="mono">{d.doc_id}</td>
+              <td class="id-col">{d.doc_id}</td>
               <td>{d.title}</td>
-              <td class="mono">{d.chunks}</td>
-              <td class="mono">{fmtTime(d.ingested_at) || '—'}</td>
+              <td class="num-col">{d.chunks}</td>
+              <td class="time-col">{fmtTime(d.ingested_at) || '—'}</td>
               <td class="col-act">
                 <div class="row-actions">
                   <button class="btn-view" onclick={() => viewDoc(d)} disabled={viewLoading}>
@@ -353,7 +356,12 @@
   }
   .btn-clear:hover { border-color: #94a3b8; }
 
-  .dash-empty { color: #94a3b8; font-size: 13px; text-align: center; padding: 30px; }
+  .dash-empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; padding: 48px 20px; text-align: center; color: var(--text-muted); font-size: 13px;
+  }
+  .dash-empty .empty-icon { font-size: 28px; line-height: 1; }
+  .dash-empty .empty-text { color: var(--text-muted); }
 
   /* 骨架屏 */
   @keyframes shimmer { 0% { background-position: -360px 0; } 100% { background-position: 360px 0; } }
@@ -376,45 +384,57 @@
   .dash-retry:hover { border-color: #3b82f6; background: #f8fafc; }
 
   .doc-table-wrap {
-    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px;
-    padding: 14px;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md);
+    padding: 14px; box-shadow: var(--shadow-card);
   }
   .doc-table { width: 100%; border-collapse: collapse; }
-  .doc-table th, .doc-table td {
-    padding: 6px 8px; font-size: 12px; text-align: left;
-    border-bottom: 1px solid #e2e8f0;
+  .doc-table thead th {
+    position: sticky; top: 0; z-index: 1;
+    padding: 8px 10px; font-size: 12px; font-weight: 600; text-align: left;
+    color: var(--text-secondary); background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border);
   }
-  .doc-table th { color: #64748b; font-weight: 600; background: #f1f5f9; }
-  .doc-table td { color: #334155; }
-  .mono { font-family: 'Consolas', monospace; }
+  .doc-table tbody td {
+    padding: 0 10px; font-size: 13px; text-align: left; color: var(--text-primary);
+    border-bottom: 1px solid var(--border);
+    height: 40px; transition: background 150ms ease-out;
+  }
+  .doc-table tbody tr:last-child td { border-bottom: none; }
+  .doc-table tbody tr:hover td { background: var(--bg-hover); }
+  .id-col { font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; color: var(--text-secondary); }
+  .num-col { text-align: right; font-variant-numeric: tabular-nums; font-family: ui-monospace, 'SF Mono', Consolas, monospace; }
+  .time-col { font-variant-numeric: tabular-nums; }
+  .col-num { text-align: right; }
   .col-act { width: 130px; }
-  .doc-count { margin-top: 8px; font-size: 11px; color: #94a3b8; }
+  .doc-count { margin-top: 8px; font-size: 11px; color: var(--text-muted); }
 
   .row-actions { display: flex; gap: 6px; }
   .btn-view {
     padding: 3px 10px; font-size: 12px; cursor: pointer;
-    color: #1d4ed8; background: #eff6ff;
-    border: 1px solid #bfdbfe; border-radius: 4px; transition: all 0.15s;
+    color: var(--brand-dark); background: var(--brand-soft);
+    border: 1px solid var(--brand-line); border-radius: var(--radius-sm);
+    transition: background 150ms ease-out;
   }
-  .btn-view:hover:not(:disabled) { background: #dbeafe; }
+  .btn-view:hover:not(:disabled) { background: var(--bg-selected); }
   .btn-view:disabled { opacity: 0.6; cursor: not-allowed; }
   .btn-del {
     padding: 3px 10px; font-size: 12px; cursor: pointer;
-    color: #b91c1c; background: #fef2f2;
-    border: 1px solid #fecaca; border-radius: 4px; transition: all 0.15s;
+    color: var(--danger-fg); background: var(--danger-bg);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    transition: background 150ms ease-out;
   }
-  .btn-del:hover:not(:disabled) { background: #fee2e2; }
+  .btn-del:hover:not(:disabled) { background: var(--bg-hover); }
   .btn-del:disabled { opacity: 0.6; cursor: not-allowed; }
 
-  .view-row td { background: #f1f5f9; }
+  .view-row td { background: var(--bg-elevated); }
   .chunk-list { display: flex; flex-direction: column; gap: 8px; }
   .chunk-item {
-    background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px 10px;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px;
   }
-  .chunk-head { font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 4px; }
-  .chunk-score { font-weight: 400; color: #94a3b8; margin-left: 8px; }
+  .chunk-head { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
+  .chunk-score { font-weight: 400; color: var(--text-muted); margin-left: 8px; }
   .chunk-text {
     margin: 0; white-space: pre-wrap; word-break: break-word;
-    font-family: inherit; font-size: 12px; line-height: 1.6; color: #334155;
+    font-family: inherit; font-size: 12px; line-height: 1.6; color: var(--text-primary);
   }
 </style>

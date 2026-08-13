@@ -21,7 +21,7 @@
 - **极值词映射**：`_EXTREME_WORD_FIELDS` + `_extreme_field`，"最贵/最便宜"→price、"大/小"→容量/"高/低"→温度功率，通用极值词自动推断字段
 - **模型配置增加向量模型**：model_config.json 加 `embedding` 配置（默认本地 nomic-embed-text），`get_embedding_config()` + vector_retrieval 读配置
 - **9 行业数据**（`data_valve/data_machining/data_food_co/data_chem/data_seismic/data_precision/data_bellows/data_eco/data_ship`）
-- **验证**：9 行业 40/40 = 100% 命中（实体计数/极值/类型/材质全泛化）；pytest 29 passed；hermes verify ok:True
+- **验证**：9 行业 40/40 = 100% 命中（实体计数/极值/类型/材质全泛化）；pytest 29 passed；CI verify ok:True
 - **方法论**（`docs/方法论-两阶段泛化建模.md`）：两阶段（规则+LLM 自动建模 → 人工辅助精细化）+ 分层架构（结构层通用 + 映射层随行业）+ 混合检索
 
 ## [0.1.4] — 2026-08-11
@@ -33,7 +33,7 @@
 - **真实化示例数据**（`data_valve/`，基于研究《阀门制造工厂数据特征-真实化.md》）：产品用 GB/T 32808 型号编码（Z41H-16C/Q641F-40P）+ 材料牌号（WCB/CF8/CF8M）+ 标准号/温度范围；设备含传感器（振动/温度/电流）；质检用 API 598 试压矩阵（壳体/密封压力、保压、泄漏率气泡/min）；含真实噪声（材质别名 1Cr18Ni9Ti≈304≈CF8、缺失值、泄漏超标异常）
 - **schema 更新**（`ontology_schema.json`）：匹配真实 BOM 字段（model_code/pressure_grade/connection/seal_material/body_material/standard_no/temp_range）+ 设备传感器 + 质检试压字段
 - **检索容错**（`graph_rag.py`）：材质/单位/类型同义词扩展——`_expand_synonyms` + `_SYNONYM_GROUPS`，查询"不锈钢"能命中 CF8/CF8M/304/1Cr18Ni9Ti（子串匹配兼容 CF8(304) 带括号格式）；缺失值/异常值检索不崩
-- **验证**：真实化数据建模 1066 行 NT（142 节点/173 边）；检索容错 8/8（"不锈钢"命中 CF8 产品 P004）；pytest 29 passed；hermes verify ok:True
+- **验证**：真实化数据建模 1066 行 NT（142 节点/173 边）；检索容错 8/8（"不锈钢"命中 CF8 产品 P004）；pytest 29 passed；CI verify ok:True
 - **修复（同日）**：过滤计数模板优先级：属性名含"故障"时被状态模板劫持（"机器故障标签=0 的数量"答成"有 339 故障的"），模板前置后 ai4i benchmark 82% → **61/61 = 100%**（四领域全 100% 复现）；极值回答显示修正（"最扭矩的记录" → "扭矩最大的记录"）；移除 run.py 对已删除 ontology_depth.py 的失效调用
 
 ## [0.1.3] — 2026-08-11
@@ -45,7 +45,7 @@
 - **本体建模失败报告**（`schema_ontology.py` / `run.py setup-schema`）：建模各步骤失败时报告清晰原因（`[建模失败] 数据目录不存在` / `schema JSON 非法` / `实体id重复` / `关系引用不存在`），不裸抛异常。`load_schema` 的 assert 改为显式 ValueError（报告具体错误项）
 - **SQL 注入加固**（`db_loader.py`）：表名白名单校验（`re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*")`），拦截 `products; DROP TABLE x` 类注入，与 data_loader 一致
 - **编码正确性验证**：核心文件全 UTF-8；中文 label 无乱码、BM25 中文检索正常、find_seeds 中文匹配、parse_nt 中文 label 正确保留
-- **验证**：错误报告 6/6 + 编码正确性 7/7 + pytest 29 passed + hermes verify ok:True
+- **验证**：错误报告 6/6 + 编码正确性 7/7 + pytest 29 passed + CI verify ok:True
 
 ## [0.1.2] — 2026-08-11
 

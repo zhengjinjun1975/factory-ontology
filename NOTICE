@@ -1,0 +1,26 @@
+NOTICE
+======
+
+factory-ontology is licensed under Apache License 2.0 (see LICENSE).
+
+本项目中部分机制/方法借鉴自以下开源项目，特此声明与致谢：
+
+1. sme-decision-ontology
+   - 来源: https://github.com/zhengjinjun1975/sme-decision-ontology
+   - 版权: zhengjinjun1975
+   - 许可: Apache License 2.0
+   - 借鉴内容: schema 驱动统一建模机制（schema 显式声明实体/关系/约束、
+     属性语义角色 identifier/reference/measure/category/timestamp、
+     类型体系 Enterprise→BusinessObject→域类→实体、
+     validate 约束校验、traverse 跨域图遍历、build_graph 跨表统一实例图）。
+     落地于 codes/schema_ontology.py。
+
+2. OpenSPG KAG (Knowledge Augmented Generation)
+   - 来源: https://github.com/OpenSPG/KAG
+   - 版权: Ant Group / OpenSPG 社区
+   - 许可: Apache License 2.0
+   - 借鉴内容: "逻辑推理桥"机制（LLM 将自然语言转成逻辑查询形式，
+     再由确定性执行器执行）。落地于 codes/logical_qa.py。
+     此为机制级方法借鉴，非代码复制。
+
+以上项目的许可全文见各来源仓库 LICENSE 文件。本项目的实现代码为独立原创。

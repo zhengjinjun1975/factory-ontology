@@ -2,7 +2,7 @@
 """mcp_server.py — 轻量 MCP (Model Context Protocol) server（纯标准库零依赖）
 
 暴露 factory-ontology 知识库给任意 MCP-native AI agent：问答/溯源/统计/导出。
-AI 原生：任何支持 MCP 的 agent（Hermes/Claude/Cursor/自研）都能调用本工厂知识库。
+AI 原生：任何支持 MCP 的 agent（Claude/Cursor/自研等）都能调用本工厂知识库。
 
 协议：MCP over stdio，JSON-RPC 2.0（最小实现，无需 mcp SDK）。
 支持：initialize, tools/list, tools/call。
