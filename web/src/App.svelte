@@ -820,12 +820,12 @@
             </div>
           </div>
           <div class="form-group">
-            <label class="form-label">企业名称</label>
-            <input class="db-input" placeholder="如：示例制造公司" bind:value={onboardForm.name} />
+            <label class="form-label" for="ob-name">企业名称</label>
+            <input id="ob-name" class="db-input" placeholder="如：示例制造公司" bind:value={onboardForm.name} />
           </div>
           <div class="form-group">
-            <label class="form-label">所属行业</label>
-            <select class="db-input" bind:value={onboardForm.industry}>
+            <label class="form-label" for="ob-industry">所属行业</label>
+            <select id="ob-industry" class="db-input" bind:value={onboardForm.industry}>
               <option value="">请选择行业</option>
               {#each INDUSTRY_OPTIONS as ind}
                 <option value={ind}>{ind}</option>
@@ -1309,7 +1309,7 @@
 
   <!-- ═══ 企业设置弹窗 ═══ -->
   {#if entOpen}
-  <div class="ent-overlay" onclick={(e) => { if (e.target === e.currentTarget) closeEnterprise(); }}>
+  <div class="ent-overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) closeEnterprise(); }}>
     <div class="ent-modal" role="dialog" aria-modal="true" aria-label="企业设置">
       <div class="ent-head">
         <span class="card-icon">⚙️</span>
@@ -1373,7 +1373,7 @@
 
   <!-- ═══ 企业重置确认弹窗 ═══ -->
   {#if resetOpen}
-  <div class="ent-overlay" onclick={(e) => { if (e.target === e.currentTarget) resetOpen = false; }}>
+  <div class="ent-overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) resetOpen = false; }}>
     <div class="ent-modal reset-modal" role="dialog" aria-modal="true" aria-label="重置企业">
       <div class="ent-head">
         <span class="card-icon">🔄</span>
