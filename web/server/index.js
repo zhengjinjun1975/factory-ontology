@@ -11,6 +11,19 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
 const DIST_DIR = join(__dirname, '..', 'public');
 
+// 行业→kb 映射(与前端 INDUSTRIES 一致, 一企业一行业一数据: 改行业联动改 kb)
+const INDUSTRIES = [
+  { dir: 'data_valve',     kb: 'valve',     name: '阀门制造', icon: '🔧' },
+  { dir: 'data_chem',      kb: 'chem',      name: '化工企业', icon: '🧪' },
+  { dir: 'data_machining', kb: 'machining', name: '机械加工', icon: '⚙️' },
+  { dir: 'data_precision', kb: 'precision', name: '精密加工', icon: '🔩' },
+  { dir: 'data_bellows',   kb: 'bellows',   name: '波纹管',   icon: '🌀' },
+  { dir: 'data_eco',       kb: 'eco',       name: '环保工程', icon: '♻️' },
+  { dir: 'data_ship',      kb: 'ship',      name: '造船',     icon: '🚢' },
+  { dir: 'data_seismic',   kb: 'seismic',   name: '地震勘探', icon: '🌍' },
+  { dir: 'data_food_co',   kb: 'food_co',   name: '食品溯源', icon: '🥛' },
+];
+
 const MIME = {
   '.html': 'text/html;charset=utf-8',
   '.js':   'application/javascript',
@@ -238,9 +251,14 @@ const server = createServer(async (req, res) => {
     try {
       const body = JSON.parse((await readBody(req)) || '{}');
       const user = req.user;
-      const result = updateUser(user.username, {
-        enterpriseName: body.name, logo: body.logo, industry: body.industry,
-      });
+      // 数据驱动: 行业变更 → kb 联动更新(一企业一行业一数据)。
+      // 改行业时把企业唯一 kb 同步为对应行业 kb, 避免"行业已改但问答/看板/资产仍旧 kb"串台。
+      const patch = { enterpriseName: body.name, logo: body.logo, industry: body.industry };
+      if (body.industry) {
+        const ind = INDUSTRIES.find(i => i.name === body.industry);
+        if (ind && ind.kb) patch.kb = ind.kb; // 行业→kb 映射(kbs.json 已注册)
+      }
+      const result = updateUser(user.username, patch);
       if (!result.ok) { writeErr(500, result); return; }
       const d = result.user;
       res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
