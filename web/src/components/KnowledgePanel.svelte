@@ -65,7 +65,7 @@
    batchDeleting = false;
    selDocs = new Set(); selAllDocs = false;
    flash(okCount > 0 ? 'ok' : 'err', '批量删除完成：成功 ' + okCount + '，失败 ' + failCount);
-   await loadDocs();
+   await load();
  }
  let batchDeleting = $state(false);
 
@@ -284,12 +284,6 @@
     </div>
   {:else if loaded}
     <div class="doc-table-wrap">
-      <div class="batch-del-bar" class:show={selDocs.size > 0}>
-        <span>已选 {selDocs.size} 篇</span>
-        <button class="btn-del" onclick={batchDeleteDocs} disabled={batchDeleting}>
-          {batchDeleting ? '批量删除中…' : '批量删除'}
-        </button>
-      </div>
       <table class="doc-table">
         <thead>
           <tr>
@@ -346,6 +340,13 @@
   {:else}
     <div class="dash-empty dash-nodata">点击「加载」查看该知识库的文档列表</div>
   {/if}
+  <!-- 批量删除浮动栏(fixed, 不随表格滚动, 始终可点) -->
+  <div class="batch-del-bar" class:show={selDocs.size > 0}>
+    <span>已选 {selDocs.size} 篇</span>
+    <button class="btn-del" onclick={batchDeleteDocs} disabled={batchDeleting || !selDocs.size}>
+      {batchDeleting ? '批量删除中…' : '批量删除'}
+    </button>
+  </div>
 </div>
 
 <style>
@@ -487,8 +488,8 @@
     margin: 0; white-space: pre-wrap; word-break: break-word;
     font-family: inherit; font-size: 12px; line-height: 1.6; color: var(--text-primary);
   }
-  /* 批量删除 */
-  .batch-del-bar { display: none; position: sticky; top: 0; z-index: 5; align-items: center; gap: 8px; margin: 0 0 8px; padding: 6px 10px; background: var(--bg-hover, #f8fafc); border: 1px solid var(--border, #e5e8ec); border-radius: 6px; font-size: 12px; font-weight: 600; box-shadow: 0 1px 3px rgba(16,24,40,.06); }
+  /* 批量删除(浮动栏, fixed右下角, 不随表格滚动, 始终可点) */
+  .batch-del-bar { display: none; position: fixed; bottom: 24px; right: 32px; z-index: 100; align-items: center; gap: 8px; padding: 8px 14px; background: var(--bg-card, #fff); border: 1px solid var(--border, #e5e8ec); border-radius: 8px; font-size: 12px; font-weight: 600; box-shadow: 0 4px 16px rgba(16,24,40,.14); }
   .batch-del-bar.show { display: flex; }
   .batch-del-bar .btn-del { padding: 3px 10px; font-size: 12px; border: none; border-radius: 4px; background: var(--danger, #dc2626); color: #fff; cursor: pointer; }
   .batch-del-bar .btn-del:disabled { opacity: .5; cursor: not-allowed; }
