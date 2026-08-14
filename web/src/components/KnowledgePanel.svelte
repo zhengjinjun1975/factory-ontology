@@ -39,6 +39,34 @@
 
   // 删除
   let deletingDoc = $state('');
+ // 批量选择: selDocs=选中文档id集合, selAllDocs=全选标记
+ let selDocs = $state(new Set());
+ let selAllDocs = $state(false);
+ function toggleDoc(id) { selDocs.has(id) ? selDocs.delete(id) : selDocs.add(id); selDocs = new Set(selDocs); updateSelAll(); }
+ function toggleAllDocs(e) { const on = e.target.checked; selDocs = on ? new Set(docs.map(d => d.doc_id)) : new Set(); selAllDocs = on; }
+ function updateSelAll() { selAllDocs = docs.length > 0 && selDocs.size === docs.length; }
+ async function batchDeleteDocs() {
+   if (!selDocs.size) return;
+   if (!window.confirm('确定删除选中的 ' + selDocs.size + ' 篇文档？此操作不可恢复。')) return;
+   batchDeleting = true;
+   let okCount = 0, failCount = 0;
+   for (const id of Array.from(selDocs)) {
+     const d = docs.find(x => x.doc_id === id);
+     try {
+       const resp = await authedFetch('/api/ontology/knowledge-delete', {
+         method: 'POST', headers: JSON_HEADERS,
+         body: JSON.stringify({ kb: kb.trim(), doc_id: id }),
+       });
+       const res = await resp.json();
+       if (res && res.ok) okCount++; else failCount++;
+     } catch (e) { failCount++; }
+   }
+   batchDeleting = false;
+   selDocs = new Set(); selAllDocs = false;
+   flash(okCount > 0 ? 'ok' : 'err', '批量删除完成：成功 ' + okCount + '，失败 ' + failCount);
+   await loadDocs();
+ }
+ let batchDeleting = $state(false);
 
   // 查看
   let viewingDoc = $state('');
@@ -242,14 +270,24 @@
       <span class="empty-text">暂无文档，可通过上方「选择文件 + 上传文档」添加</span>
     </div>
   {:else if loaded}
+    <div class="batch-del-bar" class:show={selDocs.size > 0}>
+      <span>已选 {selDocs.size} 篇</span>
+      <button class="btn-del" onclick={batchDeleteDocs} disabled={batchDeleting}>
+        {batchDeleting ? '批量删除中…' : '批量删除'}
+      </button>
+    </div>
     <div class="doc-table-wrap">
       <table class="doc-table">
         <thead>
-          <tr><th>文档 ID</th><th>标题</th><th class="col-num">分块数</th><th>入库时间</th><th class="col-act">操作</th></tr>
+          <tr>
+            <th style="width:32px"><input type="checkbox" title="选择全部" onchange={toggleAllDocs} checked={selAllDocs}></th>
+            <th>文档 ID</th><th>标题</th><th class="col-num">分块数</th><th>入库时间</th><th class="col-act">操作</th>
+          </tr>
         </thead>
         <tbody>
           {#each docs as d}
-            <tr>
+            <tr class:row-selected={selDocs.has(d.doc_id)}>
+              <td style="text-align:center"><input type="checkbox" checked={selDocs.has(d.doc_id)} onchange={() => toggleDoc(d.doc_id)}></td>
               <td class="id-col">{d.doc_id}</td>
               <td>{d.title}</td>
               <td class="num-col">{d.chunks}</td>
@@ -436,4 +474,11 @@
     margin: 0; white-space: pre-wrap; word-break: break-word;
     font-family: inherit; font-size: 12px; line-height: 1.6; color: var(--text-primary);
   }
+  /* 批量删除 */
+  .batch-del-bar { display: none; align-items: center; gap: 8px; margin: 6px 0 8px; padding: 6px 10px; background: var(--bg-hover, #f8fafc); border-radius: 6px; font-size: 12px; font-weight: 600; }
+  .batch-del-bar.show { display: flex; }
+  .batch-del-bar .btn-del { padding: 3px 10px; font-size: 12px; border: none; border-radius: 4px; background: var(--danger, #dc2626); color: #fff; cursor: pointer; }
+  .batch-del-bar .btn-del:disabled { opacity: .5; cursor: not-allowed; }
+  .row-selected { background: var(--bg-selected, #eff4ff) !important; }
+  .doc-table thead th:first-child, .doc-table tbody td:first-child { width: 32px; text-align: center; }
 </style>
