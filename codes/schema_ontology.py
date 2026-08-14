@@ -216,17 +216,23 @@ def _match_target(raw: str, table: str, data: dict):
 
 
 def _infer_relations(data: dict) -> list:
-    """外键推断（自动）：`*_id`/`*_code`/`*_key` 列指向另一实体主键 → 关系（N:1）。
+    """关系发现（自动）：不只显式外键，还发现语义关联，增密关系链。
 
-    修正：一个 FK 列只对应一个目标实体（_match_target 单复数词干匹配 + 排除自身），
-    不再因子串匹配产生重复/错向（如 batch_id 只指向 Valve_batches）。
-    关系 id 用 {表}_{列}（无 auto_ 前缀），label 用中文（product_id→生产产品）。
+    分三层发现（确定性、零依赖、可解释）：
+    1. 显式外键：`*_id`/`*_code`/`*_key` 列 → N:1（原逻辑保留）
+    2. 隐式外键：非 `_id` 后缀但列名词干命中某表实体（如 owner_team→teams 表）→ N:1
+    3. 同域值域重叠：两表共享维度列（列名+值域高度重叠，如 region 在 lines/teams）→ 关联
+
+    关系 id 用 {表}_{列}，label 用中文（product_id→生产产品）。
     """
     inferred = []
-    for table, rows in data.items():
-        if not rows:
-            continue
-        sample = rows[0]
+    seen_ids = set()
+    tables = [t for t in data if data.get(t)]
+    _sample = lambda t: (data[t][0] if data[t] else {})
+
+    # 1. 显式外键（原逻辑）
+    for table in tables:
+        sample = _sample(table)
         for col in sample:
             if not (col.endswith("_id") or col.endswith("_code") or col.endswith("_key")):
                 continue
@@ -235,11 +241,138 @@ def _infer_relations(data: dict) -> list:
             if target is None:
                 continue
             label = _REL_CN.get(raw) or _REL_CN.get(_singular(raw)) or "关联" + _entity_cn_label(target)
+            rid = f"{table}_{col}"
             inferred.append({
-                "id": f"{table}_{col}", "from": _cap(table), "to": target,
+                "id": rid, "from": _cap(table), "to": target,
                 "fk": f"{table}.{col}", "cardinality": "N:1", "label": label, "auto": True,
+                "source": "fk",
             })
+            seen_ids.add(rid)
+
+    # 2. 隐式外键：非 `_id` 后缀但词干命中表实体（owner_team→teams, workshop→?）
+    #   避免与显式外键重复；排除 id/name/status/type 等通用列(易误连)
+    _GENERIC_COLS = {"id", "name", "status", "type", "category", "created_at", "updated_at",
+                     "timestamp", "date", "time", "remark", "note", "description", "comment"}
+    for table in tables:
+        sample = _sample(table)
+        for col in sample:
+            if col.endswith(("_id", "_code", "_key")) or col in _GENERIC_COLS:
+                continue
+            target = _match_target(col, table, data)
+            if target is None or target == _cap(table):
+                continue
+            # 确认列值域与目标实体主键值有重叠(隐式外键判定), 否则跳过
+            vals = {str(r.get(col, "")).strip() for r in data[table] if r.get(col)}
+            pk_col = _primary_key_col(data[target])
+            if not pk_col or not vals:
+                continue
+            target_vals = {str(r.get(pk_col, "")).strip() for r in data[target]}
+            overlap = vals & target_vals
+            if not overlap:
+                continue
+            rid = f"{table}_{col}"
+            if rid in seen_ids:
+                continue
+            label = _REL_CN.get(col) or _REL_CN.get(_singular(col)) or "关联" + _entity_cn_label(target)
+            inferred.append({
+                "id": rid, "from": _cap(table), "to": target,
+                "fk": f"{table}.{col}", "cardinality": "N:1", "label": label, "auto": True,
+                "source": "implicit_fk",
+            })
+            seen_ids.add(rid)
+
+    # 3. 同域值域重叠：两表共享维度列(列名相同或词干相同 + 值域重叠≥阈值) → 关联
+    _col_key = lambda c: c.lower().replace("_", "").replace(" ", "")
+    for i, ta in enumerate(tables):
+        sa = _sample(ta)
+        for tb in tables[i + 1:]:
+            sb = _sample(tb)
+            for ca in sa:
+                for cb in sb:
+                    if ca == cb and _col_key(ca) in {"region", "zone", "area", "location", "workshop",
+                                                     "plant", "site", "district", "position", "place"}:
+                        # 共享空间/位置维度列 → 同域关联
+                        vals_a = {str(r.get(ca, "")).strip() for r in data[ta] if r.get(ca)}
+                        vals_b = {str(r.get(cb, "")).strip() for r in data[tb] if r.get(cb)}
+                        if vals_a and vals_b and len(vals_a & vals_b) >= 1:
+                            rid = f"{ta}_{tb}_{ca}"
+                            if rid in seen_ids:
+                                continue
+                            inferred.append({
+                                "id": rid, "from": _cap(ta), "to": _cap(tb),
+                                "fk": f"{ta}.{ca}={tb}.{cb}", "cardinality": "N:M",
+                                "label": f"同属{_cn_dim(ca)}", "auto": True, "source": "shared_dim",
+                            })
+                            seen_ids.add(rid)
     return inferred
+
+
+def _primary_key_col(table_rows: list) -> str:
+    """找表的主键列：优先 id/xx_id，否则首列。"""
+    if not table_rows:
+        return ""
+    cols = list(table_rows[0].keys())
+    for c in cols:
+        if c == "id" or c.endswith("_id"):
+            return c
+    return cols[0] if cols else ""
+
+
+def _cn_dim(col: str) -> str:
+    """维度列中文名(共享空间/位置列的简单映射)。"""
+    return {
+        "region": "区域", "zone": "区域", "area": "区域", "location": "位置",
+        "workshop": "车间", "plant": "厂区", "site": "站点", "district": "区",
+    }.get(col.lower(), col)
+
+
+def _infer_relations_llm(data: dict, rules_rels: list) -> list:
+    """LLM 兜底关系发现：规则关系稀疏时，用远端大模型分析表结构识别语义关系。
+
+    规则发现不到、但表间存在明显语义关联时（跨表共享语义、业务关系），用 LLM 补。
+    离线/无 key/调用失败 → 静默返回 []（不阻断建模，保持确定性优先）。
+    仅当规则关系数 < 表数时触发（稀疏才兜底），避免过度依赖模型。
+    """
+    tables = [t for t in data if data.get(t)]
+    if len(tables) < 2 or len(rules_rels) >= len(tables):
+        return []  # 不稀疏则不兜底
+    try:
+        import model_llm as ml
+        # 构造表结构摘要
+        summary_lines = []
+        for t in tables:
+            cols = list(data[t][0].keys()) if data[t] else []
+            summary_lines.append(f"{t}({'/'.join(cols)})")
+        prompt = (
+            "你是企业本体建模专家。下面是一个工厂的多个数据表（表名(列名)）。\n"
+            + "\n".join(summary_lines) +
+            "\n\n请识别表之间的**语义关系**（不只显式外键，包括同域、业务关联、主从关系）。"
+            "只输出 JSON 数组，每项 {from, to, label(中文关系名), reason}，from/to 用表名。"
+            "若无额外关系输出 []。"
+        )
+        raw = ml.llm_generate(prompt, temperature=0.2, max_tokens=400)
+        if not raw or raw.startswith("[模型不可用]"):
+            return []
+        import re, json as _json
+        m = re.search(r"\[.*\]", raw, re.DOTALL)
+        if not m:
+            return []
+        items = _json.loads(m.group(0))
+        out = []
+        for it in items:
+            frm, to = str(it.get("from", "")), str(it.get("to", ""))
+            if frm and to and frm != to:
+                # 规范化表名为实体(首字母大写)
+                out.append({
+                    "id": f"llm_{frm}_{to}", "from": _cap(frm), "to": _cap(to),
+                    "fk": "", "cardinality": "N:M", "label": str(it.get("label", "语义关联")),
+                    "auto": True, "source": "llm", "reason": str(it.get("reason", "")),
+                })
+        # 去重(过滤与规则已发现的重复)
+        seen = {(r["from"], r["to"]) for r in rules_rels}
+        return [r for r in out if (r["from"], r["to"]) not in seen]
+    except Exception:
+        return []
 
 
 def _cap(name: str) -> str:
@@ -407,7 +540,7 @@ def suggest_schema(data: dict) -> dict:
         "version": "1.0",
         "name": "auto-inferred-ontology",
         "entities": entities,
-        "relations": _infer_relations(data),
+        "relations": (_rels := _infer_relations(data)) + _infer_relations_llm(data, _rels),
         "constraints": constraints,
     }
     # 与 load_schema 对齐：注入 {id: entity} 索引，供 build_graph/validate/to_nt 直接消费
