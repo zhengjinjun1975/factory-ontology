@@ -195,6 +195,7 @@
 
   // ─── 状态 ───
   let activeTab = $state('model');   // model | query | dashboard | eval | knowledge | assets
+  let showModel = $state(false);      // 数据建模右栏：默认欢迎界面，点"显示本体模型"才显示模型图
   // ─── 文件浏览框（学习 solo-agent-kit /api/browse，默认 data_valve 示例目录）───
   let browseDir = $state('data_valve');    // 当前目录（相对 codes/）
   let browseParent = $state('');           // 上级目录（空=根）
@@ -1171,15 +1172,20 @@
       </div>
     </section>
 
-    <!-- ─── 右栏：模型结构图 ─── -->
+    <!-- ─── 右栏：模型结构图（默认欢迎界面，点"显示本体模型"才显示模型图）─── -->
     <section class="pane pane-right">
-      <div class="pane-title">{modelResult ? '模型结构' : (user && user.enterpriseName ? `${user.enterpriseName} · 本体问答系统` : '本体问答系统')}</div>
+      <div class="pane-title">
+        {showModel ? (modelResult ? '模型结构' : (user && user.enterpriseName ? `${user.enterpriseName} · 本体问答系统` : '本体问答系统')) : (user && user.enterpriseName ? `${user.enterpriseName} · 本体问答系统` : '本体问答系统')}
+        <button class="btn-model-toggle" onclick={() => (showModel = !showModel)}>
+          {showModel ? '← 返回欢迎界面' : '显示本体模型'}
+        </button>
+      </div>
       <div class="graph-body">
-        {#if modelResult}
+        {#if showModel}
           <!-- refreshKey=ts：重新建模 ts 变 → ModelGraph 的 $effect 触发重新加载；kb=当前激活知识库，本体图跟随该 kb（非 food） -->
-          <ModelGraph refreshKey={modelResult.ts} kb={currentKb} />
+          <ModelGraph refreshKey={modelResult ? modelResult.ts : Date.now()} kb={currentKb} />
         {:else}
-          <!-- 未建模：科幻风格 SVG 企业欢迎页（企业欢迎词 + 建模示例），按企业所属行业识别 -->
+          <!-- 未点显示模型：科幻风格 SVG 企业欢迎页（企业欢迎词 + 建模示例），按企业所属行业识别 -->
           <WelcomeModel kb={currentKb} kbList={kbList} industries={INDUSTRIES} industry={user && user.industry} onModel={(dir) => doDefaultExample(dir)} />
         {/if}
       </div>
@@ -1715,6 +1721,13 @@
   .pane-title .pane-sub {
     font-size: 12px; font-weight: 400; color: var(--text-muted); letter-spacing: 0;
   }
+  .pane-title .btn-model-toggle {
+    margin-left: auto; font-size: 12px; font-weight: 600;
+    padding: 4px 12px; border-radius: 6px; border: 1px solid var(--brand-line);
+    background: var(--brand-soft); color: var(--brand); cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .pane-title .btn-model-toggle:hover { background: var(--brand); color: #fff; }
 
   /* ─── 左栏表单 ─── */
   .pane-left { padding: 14px; gap: 14px; overflow-y: auto; }
