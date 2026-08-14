@@ -25,6 +25,15 @@
   const needsOnboard = $derived(!!user && !user.onboarded);
   // 单企业收敛：当前企业唯一 kb = 登录用户的 kb
   const currentKb = $derived((user && user.kb) || '');
+  // 本地文件建模的目标 kb: currentKb 优先; 为空(如重置后/未绑定)则用用户 industry 对应 kb
+  function resolveTargetKb() {
+    if (currentKb) return currentKb;
+    if (user && user.industry) {
+      const ind = INDUSTRIES.find(i => i.name === user.industry);
+      if (ind && ind.kb) return ind.kb;
+    }
+    return '';
+  }
 
   // 登录
   async function doLogin() {
@@ -489,7 +498,7 @@
         const content = await readFileAsText(lf.file);
         files.push({ name: lf.name, content });
       }
-      const res = await setupOntologyMulti(files);
+      const res = await setupOntologyMulti(files, resolveTargetKb());
       if (!res.ok) {
         setStatus('err', formatError(res, null) || '建模失败');
       } else {
