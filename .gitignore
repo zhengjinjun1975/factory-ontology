@@ -43,3 +43,6 @@ codes/config/lexicon_internal.json
 # 后端API密钥配置文件(含明文admin key), 不发布
 web/server/apiserver.config.json
 codes/data/.multi_*
+
+# 模型配置(含云端api_key, 不发布避免泄露)
+codes/config/model_config.json
