@@ -491,6 +491,7 @@
   .batch-del-bar { display: none; align-items: center; gap: 8px; margin: 0 0 8px; padding: 6px 10px; background: var(--bg-hover, #f8fafc); border: 1px solid var(--border, #e5e8ec); border-radius: 6px; font-size: 12px; font-weight: 600; }
   .batch-del-bar.show { display: flex; }
   .batch-del-bar .btn-del { padding: 3px 10px; font-size: 12px; border: none; border-radius: 4px; background: var(--danger, #dc2626); color: #fff; cursor: pointer; }
+  .batch-del-bar .btn-del:hover:not(:disabled) { background: var(--danger-dark, #b91c1c); }  /* hover保持红色加深, 不被bg-hover覆盖 */
   .batch-del-bar .btn-del:disabled { opacity: .5; cursor: not-allowed; }
   .row-selected { background: var(--bg-selected, #eff4ff) !important; }
   .doc-table thead th:first-child, .doc-table tbody td:first-child { width: 32px; text-align: center; }
