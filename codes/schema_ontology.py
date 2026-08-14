@@ -352,10 +352,10 @@ def _cn_dim(col: str) -> str:
     }.get(col.lower(), col)
 
 
-def _infer_relations_llm(data: dict, rules_rels: list) -> list:
-    """LLM 兜底关系发现：规则关系稀疏时，用远端大模型分析表结构识别语义关系。
+def _infer_relations_llm(data: dict, rules_rels: list, model_key: str = None) -> list:
+    """LLM 兜底关系发现：规则关系稀疏时，用大模型分析表结构识别语义关系。
 
-    规则发现不到、但表间存在明显语义关联时（跨表共享语义、业务关系），用 LLM 补。
+    model_key: 'local'(本地ornith)/'cloud'(云端DeepSeek)/None(自动路由+降级)。
     离线/无 key/调用失败 → 静默返回 []（不阻断建模，保持确定性优先）。
     仅当规则关系数 < 表数时触发（稀疏才兜底），避免过度依赖模型。
     """
@@ -376,24 +376,40 @@ def _infer_relations_llm(data: dict, rules_rels: list) -> list:
             "只输出 JSON 数组，每项 {from, to, label(中文关系名), reason}，from/to 用表名。"
             "若无额外关系输出 []。"
         )
-        raw = ml.llm_generate(prompt, temperature=0.2, max_tokens=400)
-        if not raw or raw.startswith("[模型不可用]"):
+        # 用 llm_generate_auto(自动路由 local/cloud + 降级), force_key 便于对比本地/云端
+        raw, _route = ml.llm_generate_auto(prompt, question="本体关系发现",
+                                           temperature=0.2, max_tokens=900, force_key=model_key)
+        if not raw or raw.startswith("[模型错误]") or raw.startswith("[模型不可用]"):
             return []
         import re, json as _json
-        m = re.search(r"\[.*\]", raw, re.DOTALL)
-        if not m:
-            return []
-        items = _json.loads(m.group(0))
+        # 容错解析: 优先匹配完整 JSON 数组; 失败则尝试提取单个 {...} 对象(容忍截断/不完整)
         out = []
-        for it in items:
-            frm, to = str(it.get("from", "")), str(it.get("to", ""))
-            if frm and to and frm != to:
-                # 规范化表名为实体(首字母大写)
-                out.append({
-                    "id": f"llm_{frm}_{to}", "from": _cap(frm), "to": _cap(to),
-                    "fk": "", "cardinality": "N:M", "label": str(it.get("label", "语义关联")),
-                    "auto": True, "source": "llm", "reason": str(it.get("reason", "")),
-                })
+        m = re.search(r"\[.*\]", raw, re.DOTALL)
+        if m:
+            try:
+                items = _json.loads(m.group(0))
+                for it in items:
+                    frm, to = str(it.get("from", "")), str(it.get("to", ""))
+                    if frm and to and frm != to:
+                        out.append({
+                            "id": f"llm_{frm}_{to}", "from": _cap(frm), "to": _cap(to),
+                            "fk": "", "cardinality": "N:M", "label": str(it.get("label", "语义关联")),
+                            "auto": True, "source": "llm", "reason": str(it.get("reason", "")),
+                        })
+            except Exception:
+                out = []
+        if not out:
+            # 降级: 逐个匹配 {from,to,label} 对象(容忍截断的不完整JSON)
+            for om in re.finditer(r"\{\s*\"from\"\s*:\s*\"([^\"]+)\"\s*,\s*\"to\"\s*:\s*\"([^\"]+)\"([^}]*)\}", raw):
+                frm, to = om.group(1), om.group(2)
+                label_m = re.search(r"\"label\"\s*:\s*\"([^\"]*)\"", om.group(3))
+                label = label_m.group(1) if label_m else "语义关联"
+                if frm and to and frm != to:
+                    out.append({
+                        "id": f"llm_{frm}_{to}", "from": _cap(frm), "to": _cap(to),
+                        "fk": "", "cardinality": "N:M", "label": label,
+                        "auto": True, "source": "llm",
+                    })
         # 去重(过滤与规则已发现的重复)
         seen = {(r["from"], r["to"]) for r in rules_rels}
         return [r for r in out if (r["from"], r["to"]) not in seen]
