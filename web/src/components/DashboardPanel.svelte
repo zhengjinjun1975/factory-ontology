@@ -24,7 +24,9 @@
   // 诊断式：异常汇总 + 关键指标（黄金三角置顶）
   const total = $derived(stats?.total_devices ?? 0);
   const running = $derived(stats?.status_dist?.find(s => s.status === 'running')?.count ?? 0);
-  const anomalyCount = $derived((stats?.status_dist || []).filter(s => ['alarm', 'maintenance', 'offline'].includes(s.status)).reduce((sum, s) => sum + (s.count || 0), 0));
+  // 异常/故障设备数：与后端 ontology_stats FAULT_STATUS 同一口径(含中文状态词)
+  const FAULT_STATUS = ['alarm','maintenance','offline','fault','fail','failed','error','报警','维护','离线','故障','停机','异常','检修'];
+  const anomalyCount = $derived((stats?.status_dist || []).filter(s => FAULT_STATUS.includes((s.status||'').toLowerCase())).reduce((sum, s) => sum + (s.count || 0), 0));
   const faultPct = $derived(Math.round((stats?.fault_rate ?? 0) * 100));
   const anomalyPct = $derived(total ? Math.round(anomalyCount / total * 100) : 0);
   const faultAlert = $derived(faultPct > 5 || anomalyCount > 0);
