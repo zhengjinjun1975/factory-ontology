@@ -138,6 +138,42 @@ def _type_matches(d, ty_en, aliases):
     return False
 
 
+def _status_matches(d, st_en, aliases, dict_data=None):
+    """记录 d 的状态是否等于 st_en（值级判定，跨行业泛化增强）。
+
+    数据里状态可能存中文（运行中/待机）或英文（running/idle），而 _find_enum 解析出的
+    st_en 可能是英文规范值（running，来自 _COMMON_ZH_STATUS 兜底）或中文取值。
+    这里先按规范字段精确匹配，未命中再用状态词典（status_cn2en / _COMMON_ZH_STATUS）
+    把数据取值归一化到英文规范后与 st_en 比较，保证中文数据+英文兜底词也能命中。
+    返回 True/False。
+    """
+    val = _field(d, "status", aliases)
+    if not val:
+        return False
+    val_s = str(val).strip()
+    if val_s == st_en:
+        return True
+    # 数据取值为中文：用内置状态词典(中文->英文规范)归一化再比。
+    # 注意：status_cn2en 可能是恒等映射(运行中->运行中)，会覆盖英文规范，
+    # 故英文归一化优先用内置 _COMMON_ZH_STATUS，status_cn2en 仅作补充。
+    from lexicon import get_common_zh_status
+    _zh_status = dict(get_common_zh_status())
+    # 数据自定义状态词补充进归一化表（但不覆盖内置规范词）
+    for _c, _e in (dict_data.get("status_cn2en", {}) or {}).items():
+        _zh_status.setdefault(_c, _e)
+    _canon = _zh_status.get(val_s)  # 中文值 -> 英文规范
+    if _canon and _canon == st_en:
+        return True
+    # st_en 若是中文取值，反向归一化比较
+    _rev = {e: c for c, e in _zh_status.items() if c != e}
+    if st_en in _rev and val_s == _rev[st_en]:
+        return True
+    # 英文值之间大小写不敏感比较
+    if val_s.lower() == str(st_en).lower():
+        return True
+    return False
+
+
 # 常见数值/极值字段的中文别名 -> 规范英文字段名（跨行业泛化，非硬编码具体行业）。
 # 词典 attr_cn2en 缺失时兜底，覆盖高频中文口语：保质期/质保/寿命等。
 # 数据来源 lexicon.get_attr_cn_aliases()（与原 _ATTR_CN_ALIASES 键值逐一一致）。
@@ -544,7 +580,7 @@ def answer(q, data, D):
     ty_en, ty_cn = _find_enum(D, q, "type")
     if st_en and ty_en:
         matched = [(n, d) for n, d in data.items()
-                   if _field(d, "status", aliases) == st_en and _type_matches(d, ty_en, aliases)]
+                   if _status_matches(d, st_en, aliases, D) and _type_matches(d, ty_en, aliases)]
         nm = names(matched)
         if "多少" in q:
             return "有 %d %s的%s" % (len(nm), st_cn, ty_cn)
@@ -606,10 +642,21 @@ def answer(q, data, D):
     # 计数量词：按实体词选择合适量词（测线→条 / 船→艘 / 项目→个 / 设备→台），缺省"个"
     _MEASURE = {"设备": "台", "测线": "条", "线": "条", "船": "艘", "产品": "个", "书": "本",
                 "图书": "本", "项目": "个", "订单": "个", "批次": "批", "客户": "家", "炮点": "个", "质检": "个"}
+    # 跨行业泛化守卫：若问题含 状态/类型/区域 枚举词，则这是"过滤计数"而非"实体总数"，
+    # 不得在此返回实体总数（否则"有多少台设备在运行"会被误答成"有 6 台设备"），
+    # 须落空继续走到下方的状态/类型计数分支。
+    _guard_st, _ = _find_enum(D, q, "status")
+    _guard_ty, _ = _find_enum(D, q, "type")
+    _guard_zo, _ = _find_enum(D, q, "zone")
+    _guard_filtered = bool(_guard_st or _guard_ty or _guard_zo)
+
     for cn in sorted(_entity_map, key=len, reverse=True):
         if (re.search(r'多少[台个条艘本]?' + cn, q)          # 有多少台设备 / 有多少本书
                 or re.search(cn + r'(总数|共有多少|有多少|共多少)', q)  # 设备总数 / 炮点总数
                 or re.search(r'共\s*多少\s*' + cn, q)):   # 共多少设备
+            # 跨行业泛化守卫：被状态/类型/区域词修饰时跳过实体总数（走下方过滤计数）
+            if _guard_filtered:
+                continue
             uri_sub = _entity_map[cn]
             n = sum(1 for k in data if uri_sub.lower() in k.lower())
             if "总数" in q:
@@ -617,10 +664,24 @@ def answer(q, data, D):
             return "有 %d %s%s" % (n, _MEASURE.get(cn, "个"), cn)
 
     # ---- 数量: 状态/类型/区域 ----
+    # 跨行业泛化增强：\"多少种/多少类\" = 某实体类下类型值去重计数
+    # （\"一共有多少种产品\" → 产品类型的去重个数，而非产品记录总数）
+    if re.search(r'(多少|几)(种|类)', q):
+        _sub = _entity_subset(q, D, data)
+        _ty_cols = [a for a in aliases.get("deviceType", [])] + ["category", "type", "kind"]
+        _ty_vals = set()
+        for _d in _sub.values():
+            for _c in _ty_cols:
+                _v = str(_d.get(_c) or "").strip()
+                if _v:
+                    _ty_vals.add(_v)
+                    break
+        if _ty_vals:
+            return "共有 %d 种%s" % (len(_ty_vals), "类型")
     st_en, st_cn = _find_enum(D, q, "status")
     if st_en and ("多少" in q or "数量" in q):
         sub = _entity_subset(q, D, data)  # 实体消歧: 只在该实体类实例中过滤
-        n = sum(1 for d in sub.values() if _field(d, "status", aliases) == st_en)
+        n = sum(1 for d in sub.values() if _status_matches(d, st_en, aliases, D))
         return "有 %d %s的" % (n, st_cn)
     ty_en, ty_cn = _find_enum(D, q, "type")
     if ty_en and ("多少" in q or "数量" in q):
@@ -647,7 +708,7 @@ def answer(q, data, D):
         st_en, st_cn = _find_enum(D, q, "status")
         if st_en:
             sub = _entity_subset(q, D, data)  # 实体消歧
-            matched = [(n, d) for n, d in sub.items() if _field(d, "status", aliases) == st_en]
+            matched = [(n, d) for n, d in sub.items() if _status_matches(d, st_en, aliases, D)]
             return "列出所有%s:\n%s" % (st_cn, _fmt_names(names(matched))) if matched else "无%s" % st_cn
         ty_en, ty_cn = _find_enum(D, q, "type")
         if ty_en:
