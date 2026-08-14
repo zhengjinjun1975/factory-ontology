@@ -283,7 +283,7 @@
       ],
       "data_dir": "data_tpl_power",
       "lexicon": "lexicon_tpl_power.json",
-      "nt": "output/huaneng.nt",
+      "nt": "output/tpl_power.nt",
       "_template": "power"
     },
     "qipei_2": {
