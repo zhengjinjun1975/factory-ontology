@@ -223,3 +223,18 @@ export async function saveEnterprise(cfg) {
     body: JSON.stringify(cfg),
   });
 }
+
+// ── 行业清单与行业切换（事件驱动无死角）──
+// 行业下拉动态加载：从后端 kbs.json 全量读取全部可建模行业 {kb,name,icon,dir}。
+export async function fetchIndustries() {
+  return fetchRetry('/api/ontology/industries', { cache: 'no-store' });
+}
+
+// 行业切换（显式触发自动建模）：后端用该行业数据目录自动建本体并联动企业 kb/激活 kb。
+export async function switchIndustry(industry) {
+  return fetchRetry('/api/ontology/industry-switch', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ industry }),
+  });
+}

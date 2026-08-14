@@ -4,25 +4,15 @@ import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, graphOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, evalBenchmark, evalIsolate, knowledgeList, assetsList, assetsSnapshot, assetsRollback, knowledgeIngest, knowledgeDelete, knowledgeQuery, getEnterprise, saveEnterprise, resetKb } from './ontology.js';
+import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, graphOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, listIndustries, buildIndustry, evalBenchmark, evalIsolate, knowledgeList, assetsList, assetsSnapshot, assetsRollback, knowledgeIngest, knowledgeDelete, knowledgeQuery, getEnterprise, saveEnterprise, resetKb } from './ontology.js';
 import { login as authLogin, logout as authLogout, me as authMe, createUser, updateUser, seedUsersIfEmpty, restoreSessions } from './auth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
 const DIST_DIR = join(__dirname, '..', 'public');
 
-// 行业→kb 映射(与前端 INDUSTRIES 一致, 一企业一行业一数据: 改行业联动改 kb)
-const INDUSTRIES = [
-  { dir: 'data_valve',     kb: 'valve',     name: '阀门制造', icon: '🔧' },
-  { dir: 'data_chem',      kb: 'chem',      name: '化工企业', icon: '🧪' },
-  { dir: 'data_machining', kb: 'machining', name: '机械加工', icon: '⚙️' },
-  { dir: 'data_precision', kb: 'precision', name: '精密加工', icon: '🔩' },
-  { dir: 'data_bellows',   kb: 'bellows',   name: '波纹管',   icon: '🌀' },
-  { dir: 'data_eco',       kb: 'eco',       name: '环保工程', icon: '♻️' },
-  { dir: 'data_ship',      kb: 'ship',      name: '造船',     icon: '🚢' },
-  { dir: 'data_seismic',   kb: 'seismic',   name: '地震勘探', icon: '🌍' },
-  { dir: 'data_food_co',   kb: 'food_co',   name: '食品溯源', icon: '🥛' },
-];
+// 行业→kb 映射：事件驱动无死角，不再硬编码 9 个，而是从 kbs.json 注册表全量动态读取。
+// listIndustries() 返回全部可建模行业 [{kb,name,icon,dir}]，行业下拉/改行业联动都以此为准。
 
 const MIME = {
   '.html': 'text/html;charset=utf-8',
@@ -247,25 +237,71 @@ const server = createServer(async (req, res) => {
     return;
   }
   // ── API: 企业设置（存：企业名/logo/行业，写回当前登录用户）──
+  // 事件驱动无死角：改行业 → 自动用新行业数据建模（buildIndustry），并把企业唯一 kb
+  // 联动更新到新行业 kb，问答/看板/资产全部跟随。行业名用 kbs.json 注册表全量动态解析。
   if (req.method === 'POST' && url === '/api/ontology/enterprise') {
     try {
       const body = JSON.parse((await readBody(req)) || '{}');
       const user = req.user;
-      // 数据驱动: 行业变更 → kb 联动更新(一企业一行业一数据)。
-      // 改行业时把企业唯一 kb 同步为对应行业 kb, 避免"行业已改但问答/看板/资产仍旧 kb"串台。
       const patch = { enterpriseName: body.name, logo: body.logo, industry: body.industry };
+      let ind = null;
       if (body.industry) {
-        const ind = INDUSTRIES.find(i => i.name === body.industry);
-        if (ind && ind.kb) patch.kb = ind.kb; // 行业→kb 映射(kbs.json 已注册)
+        const all = listIndustries();
+        ind = all.find(i => i.name === body.industry) || all.find(i => i.kb === body.industry) || null;
+        if (ind && ind.kb) patch.kb = ind.kb; // 行业→kb 联动（kbs.json 已注册）
+      }
+      // 改行业 → 自动建模（事件驱动）：用新行业数据目录重建该行业 kb 的本体/词典，
+      // 使界面显示的"已就绪"是新行业的真实模型，而非旧行业残留。
+      if (ind && ind.dir && body.industry !== (user && user.industry)) {
+        const built = await buildIndustry(ind.dir, ind.kb);
+        if (!built.ok) {
+          // 建模失败不放行保存（否则界面"已就绪"但模型是旧的，属死角）
+          writeErr(500, { ok: false, error: `行业「${ind.name}」自动建模失败：${built.error || ''}` });
+          return;
+        }
       }
       const result = updateUser(user.username, patch);
       if (!result.ok) { writeErr(500, result); return; }
       const d = result.user;
+      // 改行业后把前端激活 kb 一并切到新行业 kb，问答/看板/资产随行
+      if (ind && ind.kb) { try { setCurrentKb(ind.kb); } catch (e) { /* 忽略 */ } }
       res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
-      res.end(JSON.stringify({ ok: true, data: d }));
+      res.end(JSON.stringify({ ok: true, data: d, industry: ind ? { kb: ind.kb, name: ind.name, icon: ind.icon, dir: ind.dir } : null }));
     } catch (err) { writeErr(500, { ok: false, error: String(err.message || err) }); }
     return;
   }
+
+  // ── API: 行业清单（数据驱动，前端行业下拉动态加载）──
+  // 返回全部可建模行业 {kb,name,icon,dir}，不再由前端硬编码 7/9 个。
+  if (req.method === 'GET' && url === '/api/ontology/industries') {
+    res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+    res.end(JSON.stringify({ ok: true, industries: listIndustries(), current: (req.user && req.user.kb) || '' }));
+    return;
+  }
+
+  // ── API: 行业切换（显式触发自动建模，供 onboarding/欢迎页/一键建示例用）──
+  // body: {industry} 行业名（kbs.json 全量解析）→ 自动用该行业数据建模并联动 kb。
+  if (req.method === 'POST' && url === '/api/ontology/industry-switch') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const user = req.user;
+      const industry = String(body.industry || '').trim();
+      if (!industry) { writeErr(400, { ok: false, error: 'industry 必填' }); return; }
+      const all = listIndustries();
+      const ind = all.find(i => i.name === industry) || all.find(i => i.kb === industry);
+      if (!ind) { writeErr(400, { ok: false, error: `未知行业：${industry}` }); return; }
+      const built = await buildIndustry(ind.dir, ind.kb);
+      if (!built.ok) { writeErr(500, { ok: false, error: `行业「${ind.name}」自动建模失败：${built.error || ''}` }); return; }
+      // 联动：企业唯一 kb + 行业 + 前端激活 kb 全部更新到新行业
+      const upd = updateUser(user.username, { industry: ind.name, kb: ind.kb });
+      if (!upd.ok) { writeErr(500, upd); return; }
+      try { setCurrentKb(ind.kb); } catch (e) { /* 忽略 */ }
+      res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: true, data: { ...upd.user, industry: ind.name, kb: ind.kb }, industry: { kb: ind.kb, name: ind.name, icon: ind.icon, dir: ind.dir }, table: built.table, attrs: built.attrs || [] }));
+    } catch (err) { writeErr(500, { ok: false, error: String(err.message || err) }); }
+    return;
+  }
+
 
   // ── API: 企业重置（清空当前企业数据 → 重新 onboarding）──
   if (req.method === 'POST' && url === '/api/enterprise/reset') {

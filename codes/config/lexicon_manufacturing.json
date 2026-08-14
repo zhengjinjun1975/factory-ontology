@@ -1,0 +1,190 @@
+{
+  "description": "自动生成词典（multi_model, suggest_schema 推断 + LLM 语义聚类同义词 + data profiling 映射）",
+  "attr_cn2en": {
+    "编号": "id",
+    "contractno": "contract_no",
+    "customer": "customer",
+    "供应商": "supplier",
+    "金额": "amount",
+    "signdate": "sign_date",
+    "deliverdate": "deliver_date",
+    "payment状态": "payment_status",
+    "owner": "owner",
+    "设备名称": "device_name",
+    "model": "model",
+    "尺寸(mm)": "size_mm",
+    "尺寸": "size_mm",
+    "pressurempa": "pressure_mpa",
+    "材质": "material",
+    "installdate": "install_date",
+    "warrantymonths": "warranty_months",
+    "状态": "status"
+  },
+  "attr_en2cn": {
+    "id": "编号",
+    "contract_no": "contractno",
+    "customer": "customer",
+    "supplier": "供应商",
+    "amount": "金额",
+    "sign_date": "signdate",
+    "deliver_date": "deliverdate",
+    "payment_status": "payment状态",
+    "owner": "owner",
+    "device_name": "设备名称",
+    "model": "model",
+    "size_mm": "尺寸(mm)",
+    "pressure_mpa": "pressurempa",
+    "material": "材质",
+    "install_date": "installdate",
+    "warranty_months": "warrantymonths",
+    "status": "状态"
+  },
+  "status_cn2en": {
+    "运行中": "运行中",
+    "待机": "idle",
+    "报警": "alarm",
+    "维护中": "maintenance",
+    "离线": "offline",
+    "合格": "pass",
+    "不合格": "fail",
+    "待检修": "待检修",
+    "保修期内": "保修期内"
+  },
+  "type_cn2en": {},
+  "zone_cn2en": {},
+  "synonym_map": {
+    "payment状态": [
+      "付款状态",
+      "支付状态",
+      "付款情况",
+      "支付情况"
+    ],
+    "保修期内": [
+      "在保",
+      "保修期",
+      "质保期内",
+      "在保修期"
+    ],
+    "待检修": [
+      "待维修",
+      "需检修",
+      "待修理",
+      "等待检修"
+    ],
+    "运行中": [
+      "运行状态",
+      "正在运行",
+      "运转中",
+      "工作中"
+    ],
+    "供应商": [
+      "供货商",
+      "供应方",
+      "卖方",
+      "厂家"
+    ],
+    "设备名称": [
+      "设备名",
+      "机器名称",
+      "设备型号名称"
+    ],
+    "尺寸": [
+      "规格",
+      "大小",
+      "外形尺寸"
+    ],
+    "尺寸(mm)": [
+      "尺寸毫米",
+      "尺寸单位mm",
+      "毫米尺寸"
+    ],
+    "材质": [
+      "材料",
+      "材料材质",
+      "用料"
+    ],
+    "状态": [
+      "状况",
+      "当前状态",
+      "情况"
+    ],
+    "编号": [
+      "编码",
+      "序号",
+      "代码"
+    ],
+    "金额": [
+      "价格",
+      "费用",
+      "金额数",
+      "总金额"
+    ],
+    "pressurempa": [
+      "压力MPa",
+      "压力值MPa",
+      "压强MPa"
+    ],
+    "warrantymonths": [
+      "保修月数",
+      "质保月数",
+      "保修月份"
+    ],
+    "deliverdate": [
+      "交货日期",
+      "交付日期",
+      "发货日期"
+    ],
+    "installdate": [
+      "安装日期",
+      "安装时间"
+    ],
+    "signdate": [
+      "签订日期",
+      "签署日期",
+      "签约日期"
+    ],
+    "contractno": [
+      "合同编号",
+      "合同号"
+    ],
+    "model": [
+      "型号",
+      "规格型号"
+    ],
+    "owner": [
+      "负责人",
+      "所有者",
+      "归属人"
+    ],
+    "customer": [
+      "客户",
+      "顾客",
+      "买方"
+    ]
+  },
+  "entity_cn2en": {
+    "内部合同": "internal_contracts",
+    "设备": "internal_equipment",
+    "内部设备": "internal_equipment"
+  },
+  "numeric_fields": {
+    "金额": "amount",
+    "尺寸": "size_mm"
+  },
+  "field_aliases": {
+    "status": [
+      "status"
+    ],
+    "deviceType": [
+      "deviceType",
+      "device_type",
+      "type"
+    ],
+    "deviceName": [
+      "deviceName",
+      "device_name",
+      "name"
+    ]
+  },
+  "value_fields": []
+}

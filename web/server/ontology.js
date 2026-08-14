@@ -211,6 +211,73 @@ export function listKbs() {
   return { ok: true, kbs: arr, current: getCurrentKb() };
 }
 
+// ── 行业清单（数据驱动，kbs.json 为单一事实来源）─────────────────────────────
+// 事件驱动无死角：行业下拉不再前端硬编码，而是从 kbs.json 全量动态读取。
+// 每个行业 = 一个已注册 kb，绑定专属数据目录 data_<dir>（用于改行业后自动建模）。
+// 展示名优先用「简洁名」（去掉"问答"等后缀，符合原前端习惯），其次 kbs.json 的 name。
+const INDUSTRY_DISPLAY = {
+  manufacturing: '通用制造', valve: '阀门制造', chem: '化工企业', machining: '机械加工',
+  precision: '精密加工', bellows: '波纹管', eco: '环保工程', ship: '造船',
+  seismic: '地震勘探', food: '食品溯源', hardware: '五金加工', auto_parts: '汽车零部件',
+  electronics: '电子元件', appliance: '家电制造', textile: '纺织服装', plastics: '塑料制品',
+  medical_dev: '医疗器械', furniture: '家具制造', tpl_power: '阳光电力',
+};
+// kb 无专属 data_<kb> 目录时的兜底目录（kbs.json 里 data_dir 指向通用 data 的 kb 用）
+const INDUSTRY_DIR_FALLBACK = { manufacturing: 'data_internal', food: 'data_food_co' };
+
+/** 判断 codes/ 下目录是否为含 CSV 的行业数据目录 */
+function isDataDirWithCsv(dir) {
+  if (!dir) return false;
+  const abs = join(KIT, dir);
+  try {
+    if (!existsSync(abs) || !statSync(abs).isDirectory()) return false;
+    return readdirSync(abs).some(f => /\.csv$/i.test(f));
+  } catch (e) { return false; }
+}
+
+/**
+ * 返回全部可建模行业（kbs.json 驱动）: [{kb, name, icon, dir}]
+ * dir 为 codes/ 下该行业的专属数据目录（data_<dir>），供改行业后自动建模。
+ * 无专属目录且无兜底目录的 kb 不返回（无法用示例数据建模，避免"已就绪但无模型"）。
+ * @returns {{kb:string, name:string, icon:string, dir:string}[]}
+ */
+export function listIndustries() {
+  const kbs = loadKbs(); // {kb: cfg}
+  const arr = [];
+  for (const [kb, v] of Object.entries(kbs)) {
+    let dir = null;
+    const dedicated = `data_${kb}`;
+    if (isDataDirWithCsv(dedicated)) dir = dedicated;                                   // data_<kb>
+    else if (INDUSTRY_DIR_FALLBACK[kb] && isDataDirWithCsv(INDUSTRY_DIR_FALLBACK[kb])) dir = INDUSTRY_DIR_FALLBACK[kb]; // 兜底
+    else if (v.data_dir && v.data_dir !== 'data' && isDataDirWithCsv(v.data_dir)) dir = v.data_dir; // kbs.json 显式 data_dir
+    if (!dir) continue;
+    const name = INDUSTRY_DISPLAY[kb] || (v.name ? String(v.name).replace(/问答$/u, '') : kb);
+    arr.push({ kb, name, icon: v.icon || '🗂️', dir });
+  }
+  return arr;
+}
+
+/**
+ * 用行业示例数据自动建模（改行业事件驱动的核心动作）。
+ * 读取 codes/<dir> 下全部 CSV → 复用 setupOntologyMulti 多表统一建本体到该行业 kb。
+ * @param {string} dir 行业数据目录（相对 codes/），如 data_valve
+ * @param {string} kb 目标知识库（行业 kb）
+ * @returns {Promise<{ok, table?, attrs?, error?}>}
+ */
+export async function buildIndustry(dir, kb) {
+  const abs = join(KIT, dir);
+  if (!isDataDirWithCsv(dir)) return { ok: false, error: `行业数据目录不存在或无 CSV: ${dir}` };
+  const files = [];
+  let names = [];
+  try { names = readdirSync(abs).filter(f => /\.csv$/i.test(f)).sort(); } catch (e) { return { ok: false, error: '读取行业数据目录失败' }; }
+  for (const n of names) {
+    try { files.push({ name: n, content: readFileSync(join(abs, n), 'utf-8') }); } catch (e) { /* 单文件读取失败跳过 */ }
+  }
+  if (!files.length) return { ok: false, error: '行业数据目录无可用 CSV' };
+  return await setupOntologyMulti(files, kb);
+}
+
+
 /**
  * 从词典文件提取字段映射作为 attrs(best-effort, 仅 REST 建本体后展示用)
  * 词典形如 {attr_en2cn: {field: 中文名}} → [{field, cn}]

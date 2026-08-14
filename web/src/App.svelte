@@ -1,7 +1,7 @@
 <script>
   // 工厂智能体 · 本体问答 — 独立 Web 应用（工业软件浅色风格）
   import { onMount } from 'svelte';
-  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, setModel, getModels, saveModels, fetchVersion, browseFiles, readDataFile, fetchExample, fetchKbs, setKb, fetchEnterprise, saveEnterprise, authLogin, authRegister, authMe, authLogout, onboardEnterprise, resetEnterprise, getToken, setToken } from './lib/api.js';
+  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, setModel, getModels, saveModels, fetchVersion, browseFiles, readDataFile, fetchExample, fetchKbs, setKb, fetchEnterprise, saveEnterprise, authLogin, authRegister, authMe, authLogout, onboardEnterprise, resetEnterprise, getToken, setToken, fetchIndustries, switchIndustry } from './lib/api.js';
   import DashboardPanel from './components/DashboardPanel.svelte';
   import ModelGraph from './components/ModelGraph.svelte';
   import WelcomeModel from './components/WelcomeModel.svelte';
@@ -87,16 +87,29 @@
   let onboardBusy = $state(false);
   let onboardErr = $state('');
   // 一企业一行业一数据唯一性：企业/行业在步骤1已锁定，步骤2不再重复选择
-  // 行业名(INDUSTRY_OPTIONS中文) → 示例数据目录(data_xxx)；通用制造/其他 → 默认阀门示例
-  const INDUSTRY_DIR_BY_NAME = {
-    '阀门制造': 'data_valve', '化工企业': 'data_chem', '机械加工': 'data_machining',
-    '精密加工': 'data_precision', '波纹管': 'data_bellows', '环保工程': 'data_eco',
-    '造船': 'data_ship', '地震勘探': 'data_seismic', '食品溯源': 'data_food_co',
-    '通用制造': 'data_valve', '其他': 'data_valve',
-  };
-  // 步骤2使用的数据目录：由步骤1锁定的行业派生（兜底阀门）
-  const onboardDataDir = $derived(INDUSTRY_DIR_BY_NAME[onboardForm.industry] || 'data_valve');
-  const onboardInd = $derived(INDUSTRIES.find(i => i.dir === onboardDataDir));
+  // ─── 行业清单（数据驱动，事件驱动无死角）───
+  // 行业下拉/建模目标不再硬编码 7/9 个，而是从后端 kbs.json 全量动态读取 {kb,name,icon,dir}。
+  let industries = $state([]);        // 全部可建模行业 [{kb,name,icon,dir}]
+  let industriesLoaded = $state(false);
+  async function loadIndustries() {
+    try {
+      const res = await fetchIndustries();
+      if (res && res.ok && Array.isArray(res.industries)) {
+        industries = res.industries;
+        industriesLoaded = true;
+      }
+    } catch (e) { /* 后端不可达则降级为空，行业下拉暂空 */ }
+  }
+  // 行业名(中文) → 示例数据目录(data_xxx)；找不到时兜底默认阀门
+  const industryDirByName = $derived((() => {
+    const m = {};
+    for (const i of industries) m[i.name] = i.dir;
+    return m;
+  })());
+  const onboardDataDir = $derived(industryDirByName[onboardForm.industry] || 'data_valve');
+  const onboardInd = $derived(industries.find(i => i.dir === onboardDataDir));
+  // 行业名列表（下拉选项，全量动态）
+  const INDUSTRY_OPTIONS = $derived(industries.map(i => i.name));
 
   // 进入 onboarding 时预填当前用户企业信息
   function initOnboard() {
@@ -122,40 +135,31 @@
     finally { onboardBusy = false; }
   }
 
-  // 步骤2：用步骤1锁定的行业示例 → 建本体到当前企业 kb（单企业唯一，一企业一行业）
+  // 步骤2：用步骤1锁定的行业 → 自动建模（后端读该行业数据目录建本体，事件驱动无死角）
   async function onboardBuild() {
     if (onboardBusy) return;
     onboardBusy = true; onboardErr = '';
     setStatus('info', '正在为当前企业建本体…');
     try {
-      const dir = onboardDataDir;
-      const ind = onboardInd;
-      const tables = INDUSTRY_TABLES[dir] || INDUSTRY_TABLES.data_valve;
-      const files = [];
-      for (const t of tables) {
-        const r = await fetchExample(`${dir}/${t}.csv`);
-        if (!r.ok || r.content == null) { onboardErr = `读取示例失败：${t}`; onboardBusy = false; return; }
-        files.push({ name: `${t}.csv`, content: r.content });
-      }
-      // 建本体到当前企业 kb：优先用行业对应的 kb(onboardInd.kb)，而非可能为空的 currentKb。
-      // 一企业一行业一数据：重置后 user.kb 为空，必须用所选行业 kb 建，否则后端拒"非法 kb 名"。
-      const targetKb = (onboardInd && onboardInd.kb) || currentKb;
-      const res = await setupOntologyMulti(files, targetKb);
+      const industry = onboardForm.industry;
+      if (!industry) { onboardErr = '请选择行业'; onboardBusy = false; return; }
+      const ind = industries.find(i => i.name === industry);
+      if (!ind) { onboardErr = `未知行业：${industry}`; onboardBusy = false; return; }
+      // 显式行业切换：后端用该行业数据自动建模并联动企业 kb/激活 kb
+      const res = await switchIndustry(industry);
       if (!res.ok) {
-        // error 可能是对象({code,message})或字符串，统一转可读文本，避免显示 [object Object]
         const e = res && res.error;
         onboardErr = typeof e === 'string' ? e : (e && (e.message || e.error)) || '建本体失败';
         onboardBusy = false;
         return;
       }
       else {
-        modelResult = { table: res.table, attrs: res.attrs || [], tables: files.length, ts: Date.now() };
+        modelResult = { table: res.table || ind.kb, attrs: res.attrs || [], tables: 0, ts: Date.now() };
         status = 'ready';
-        // 一企业一行业一数据：建本体成功后，企业唯一 kb 必须用实际建成的 kb(res.table)，
-        // 不能用仍是旧值的 currentKb，否则欢迎页/问答/看板全跟错行业(化工→阀门)。
-        const builtKb = res.table || targetKb;
-        const ob = await onboardEnterprise({ name: (user && user.enterpriseName) || '', logo: (user && user.logo) || '', industry: (user && user.industry) || '', kb: builtKb });
-        if (ob.ok && ob.data) user = ob.data; else user = { ...user, kb: builtKb };
+        // 一企业一行业一数据：企业唯一 kb 用实际建成的行业 kb
+        const builtKb = res.industry && res.industry.kb ? res.industry.kb : ind.kb;
+        const ob = await onboardEnterprise({ name: (user && user.enterpriseName) || '', logo: (user && user.logo) || '', industry, kb: builtKb });
+        if (ob.ok && ob.data) user = ob.data; else user = { ...user, kb: builtKb, industry };
         await setKb(builtKb);
         await loadKbs();
         onboardStep = 3;
@@ -204,30 +208,9 @@
   let localFiles = $state([]);       // [{name, content}] 本地选择文件
   let localBusy = $state(false);
   let defaultBusy = $state(false);   // 默认示例建模中
-  // 九大行业示例：目录 → 建模目标 kb + 展示名 + 表清单
-  const INDUSTRIES = [
-    { dir: 'data_valve',     kb: 'valve',     name: '阀门制造', icon: '🔧' },
-    { dir: 'data_chem',      kb: 'chem',      name: '化工企业', icon: '🧪' },
-    { dir: 'data_machining', kb: 'machining', name: '机械加工', icon: '⚙️' },
-    { dir: 'data_precision', kb: 'precision', name: '精密加工', icon: '🔩' },
-    { dir: 'data_bellows',   kb: 'bellows',   name: '波纹管',   icon: '🌀' },
-    { dir: 'data_eco',       kb: 'eco',       name: '环保工程', icon: '♻️' },
-    { dir: 'data_ship',      kb: 'ship',      name: '造船',     icon: '🚢' },
-    { dir: 'data_seismic',   kb: 'seismic',   name: '地震勘探', icon: '🌍' },
-    { dir: 'data_food_co',   kb: 'food_co',   name: '食品溯源', icon: '🥛' },
-  ];
-  // 各行业示例表文件（data_<行业> 目录下的 CSV，读取后多表建模）
-  const INDUSTRY_TABLES = {
-    data_valve: ['valve_products', 'valve_equipment', 'valve_customers', 'valve_batches', 'valve_raw_materials', 'valve_sales'],
-    data_chem: ['chem_products', 'chem_equipment', 'chem_raw_materials', 'chem_batches'],
-    data_machining: ['mach_products', 'mach_equipment', 'mach_customers', 'mach_sales'],
-    data_precision: ['pre_products', 'pre_equipment'],
-    data_bellows: ['bell_products', 'bell_equipment'],
-    data_eco: ['eco_projects', 'eco_equipment'],
-    data_ship: ['ship_vessels', 'ship_orders', 'ship_equipment'],
-    data_seismic: ['seis_teams', 'seis_lines', 'seis_shots', 'seis_equipment'],
-    data_food_co: ['food_products', 'food_batches', 'food_equipment', 'food_raw_materials', 'food_batch_ingredient', 'food_qc'],
-  };
+  // 行业示例：动态来自后端 kbs.json（事件驱动无死角，不再硬编码 9 个）。
+  // 行业列表 = industries（[kb,name,icon,dir]）；兼容旧引用：INDUSTRIES 统一指向 industries。
+  const INDUSTRIES = $derived(industries);
   let defaultIndustry = $state('data_valve'); // 当前选中的行业示例
   // 本地文件建模折叠区（默认收起，保持左侧干净大功能卡排队）
   let localModelOpen = $state(false);
@@ -267,8 +250,6 @@
   let entOk = $state('');
   // 可选的 logo emoji 预设（企业 logo 快速选择）
   const LOGO_EMOJIS = ['🏭', '🏢', '💼', '🔧', '🧪', '⚙️', '🔩', '🛠️', '🌍', '🌿', '🚢', '🌀', '🎯', '🤖', '⚡', '📚', '🥛', '🏗️'];
-  // 行业选项（九大行业，与建模示例一致 + 通用/其他）
-  const INDUSTRY_OPTIONS = ['阀门制造', '化工企业', '机械加工', '精密加工', '波纹管', '环保工程', '造船', '地震勘探', '食品溯源', '通用制造', '其他'];
 
   // logo 是否图片（dataURL/URL/相对路径）→ 渲染 <img>；否则按 emoji 文本渲染
   const isImgLogo = (l) => !!l && /^(data:image\/|https?:\/\/|\/)/i.test(l);
@@ -321,17 +302,32 @@
   function clearLogo() { entForm.logo = ''; }
 
   // 保存企业设置 → 后端持久化 → 顶部品牌即时跟随
+  // 事件驱动无死角：若改行业，后端已自动用新行业数据建模并联动企业 kb/激活 kb，
+  // 前端这里只需把用户状态/激活 kb/看板跟随刷新到新行业。
   async function doSaveEnterprise() {
     if (entBusy) return;
     const name = entForm.name.trim();
     if (!name) { entErr = '请输入企业名称'; return; }
     entBusy = true; entErr = ''; entOk = '';
+    const prevIndustry = (user && user.industry) || '';
     try {
       const res = await saveEnterprise({ name, logo: entForm.logo, industry: entForm.industry });
       if (res && res.ok && res.data) {
         user = { ...user, enterpriseName: res.data.enterpriseName, logo: res.data.logo, industry: res.data.industry };
-        entOk = '已保存，顶部品牌已更新';
-        setStatus('ok', `企业信息已更新：${res.data.enterpriseName}`);
+        // 改行业成功 → 后端已自动建模并返回新行业信息，前端同步 kb + 刷新看板/问答
+        if (res.industry && res.industry.kb) {
+          user = { ...user, kb: res.industry.kb };
+          await setKb(res.industry.kb);
+          await loadKbs();
+          entOk = `已保存并自动切换至「${res.industry.name}」，模型已重建`;
+          setStatus('ok', `行业已切换至「${res.industry.name}」，本体已自动重建`);
+        } else if (res.data.industry && res.data.industry !== prevIndustry) {
+          // 兜底：后端没返回行业映射（非注册行业名）时也刷新 kb 列表
+          await loadKbs();
+          entOk = '已保存，顶部品牌已更新';
+        } else {
+          entOk = '已保存，顶部品牌已更新';
+        }
       } else {
         entErr = (res && res.error) || '保存失败';
       }
@@ -410,6 +406,8 @@
   // 问答输入框/按钮 disabled。刷新之所以正常，是因为 onMount 带会话 cookie 走了同一路径。
   async function initAppData() {
     if (!user) return;
+    // 行业下拉动态化：从后端 kbs.json 全量读取（事件驱动无死角，不依赖前端硬编码）
+    await loadIndustries();
     // 新企业未配置 → 初始化引导 onboarding
     if (needsOnboard) initOnboard();
     // 加载当前企业唯一 kb（决定查询/看板/本体图检索哪个）→ 注册 kb 放行问答输入（status → ready）
@@ -439,35 +437,28 @@
     await initAppData();
   });
 
-  // ─── 用行业示例数据建模（可选九大行业，默认 data_valve 一键）───
+  // ─── 用行业示例自动建模（事件驱动无死角，走后端全量行业清单）───
+  // 欢迎页示例传的是行业 dir，这里解析为行业名后调用 switchIndustry 自动建模并联动 kb。
   async function doDefaultExample(dirArg) {
     if (defaultBusy) return;
     const dir = dirArg || defaultIndustry || 'data_valve';
     defaultIndustry = dir;   // 同步左侧行业下拉（点击欢迎页示例时跟随）
     const ind = INDUSTRIES.find(i => i.dir === dir);
+    const industry = (ind && ind.name) || dir;
     defaultBusy = true;
-    setStatus('info', `正在读取${ind ? ind.name : dir}示例数据…`);
+    setStatus('info', `正在用「${industry}」示例数据自动建模…`);
     try {
-      const tables = INDUSTRY_TABLES[dir] || INDUSTRY_TABLES.data_valve;
-      const files = [];
-      for (const t of tables) {
-        const r = await fetchExample(`${dir}/${t}.csv`);
-        if (!r.ok || r.content == null) {
-          setStatus('err', formatError(r, null) || `读取示例失败：${t}`);
-          defaultBusy = false; return;
-        }
-        files.push({ name: `${t}.csv`, content: r.content });
-      }
-      // 单企业收敛：建模目标始终为当前登录企业的唯一 kb（currentKb），不切到行业注册名
-      const res = await setupOntologyMulti(files, currentKb);
+      const res = await switchIndustry(industry);
       if (!res.ok) {
         setStatus('err', formatError(res, null) || '建模失败');
       } else {
-        modelResult = { table: res.table, attrs: res.attrs || [], tables: (ind ? (INDUSTRY_TABLES[dir] || []).length : 0), ts: Date.now() };
+        const kb = (res.industry && res.industry.kb) || currentKb;
+        modelResult = { table: kb, attrs: res.attrs || [], tables: 0, ts: Date.now() };
         status = 'ready';
-        setStatus('ok', `${ind ? ind.name + '示例' : '示例'}建模完成：${res.table}，共 ${(res.attrs || []).length} 个字段`);
-        // 建模成功 → 刷新 kb 列表与当前激活，使头部下拉/查询/评测跟随到新本体
+        if (user) user = { ...user, kb, industry: (res.industry && res.industry.name) || industry };
+        await setKb(kb);
         await loadKbs();
+        setStatus('ok', `「${industry}」建模完成：${kb}，共 ${(res.attrs || []).length} 个字段`);
       }
     } catch (err) {
       setStatus('err', formatError(null, err));

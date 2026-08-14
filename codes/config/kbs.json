@@ -23,8 +23,8 @@
         "客户总数"
       ],
       "data_dir": "data",
-      "lexicon": "lexicon_internal.json",
-      "nt": "output/equipment.nt",
+      "lexicon": "lexicon_manufacturing.json",
+      "nt": "output/manufacturing.nt",
       "_sync": "闭源 registry 已接入(通用制造)"
     },
     "hardware": {
