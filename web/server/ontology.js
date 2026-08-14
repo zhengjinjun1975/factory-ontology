@@ -155,6 +155,22 @@ function loadKbs() {
   try { return (JSON.parse(readFileSync(KBS_FILE, 'utf-8')).kbs) || {}; } catch (e) { return {}; }
 }
 
+/** 把 kb 的 nt/lexicon 写回 kbs.json(幂等 upsert)。降级 CLI 建模成功后调用, 使 kb 可被快照/问答/图检索。 */
+export function registerKb(kb, ntRel, lexRel) {
+  if (!kb) return;
+  try {
+    const data = JSON.parse(readFileSync(KBS_FILE, 'utf-8')) || {};
+    const kbs = data.kbs || (data.kbs = {});
+    const entry = kbs[kb] || (kbs[kb] = {});
+    if (ntRel) entry.nt = ntRel;
+    if (lexRel) entry.lexicon = lexRel;
+    if (!entry.data_dir) entry.data_dir = 'data';
+    writeFileSync(KBS_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (e) {
+    console.error(`[warn] registerKb '${kb}' 失败:`, e.message);
+  }
+}
+
 /**
  * 取当前激活 kb：一企业一行业一数据。
  * 只认当前登录企业绑定的 kb（index.js 每次请求已按 user.kb 调 setCurrentKb 写入 web_state）。
@@ -393,6 +409,7 @@ export async function setupOntology(fileName, fileContent, kb) {
       // 记录 Web 应用自己的状态（防 current.json 被覆盖）
       const table = safeName.replace(/\.(csv|json)$/i, '');
       saveWebState({ kb, table, nt: `output/${table}_deep.nt`, lexicon: `config/lexicon_${table}.json` });
+      registerKb(table, `output/${table}_deep.nt`, `config/lexicon_${table}.json`);
       return { ok: true, table, attrs, output: cli.output.slice(-2000) };
     }
     return { ok: false, error: (r && r.error) || '后端建模失败' };
@@ -460,6 +477,7 @@ export async function setupOntologyMulti(files, kb) {
       const attrs = m ? m[1].split(',').map(s => s.trim().replace(/'/g, '').replace(/"/g, '')).filter(Boolean)
                       : cleaned.map(f => f.name);
       saveWebState({ kb, table, nt: `output/${table}.nt` });
+      registerKb(table, `output/${table}.nt`, `config/lexicon_${table}.json`);
       return { ok: true, table, attrs, output: cli.output.slice(-2000) };
     }
     return { ok: false, error: (r && r.error) || '后端建模失败' };
@@ -501,6 +519,7 @@ export async function dbSetup(cfg) {
     const r = await runWithEnv(PY, ['db_setup.py', tmp, table], KIT, env);
     if (!r.ok) return { ok: false, error: r.error || '数据库建模失败' };
     saveWebState({ kb: getCurrentKb(), table, nt: `output/${table}.nt` });
+    registerKb(table, `output/${table}.nt`, `config/lexicon_${table}.json`);
     return { ok: true, table, output: r.output.slice(-2000) };
   } catch (e) {
     return { ok: false, error: String(e.message || e) };

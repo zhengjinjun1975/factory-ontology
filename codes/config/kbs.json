@@ -1,5 +1,4 @@
 {
-  "_说明": "多租户知识库注册表: 每个行业一个隔离的数据目录(数据/本体/词典各自独立)。kb 参数选择激活的知识库(替代 FOOD_KB 环境变量单库全局态, 根治串台)。name/icon/examples 供 APP 动态渲染品牌与示例问题。",
   "kbs": {
     "energy_station": {
       "name": "能源站问答",
@@ -105,7 +104,7 @@
       ],
       "data_dir": "data_seismic",
       "lexicon": "lexicon_seismic.json",
-      "nt": "output/h_地震.nt"
+      "nt": "output/seismic.nt"
     },
     "eco": {
       "name": "环保工程问答",
@@ -272,21 +271,6 @@
       "lexicon": "lexicon_furniture.json",
       "nt": "output/furniture.nt"
     },
-    "bellowstest": {
-      "nt": "output/bellowstest.nt",
-      "lexicon": "lexicon_bellowstest.json",
-      "data_dir": "data"
-    },
-    "ecotest": {
-      "nt": "output/ecotest.nt",
-      "lexicon": "lexicon_ecotest.json",
-      "data_dir": "data"
-    },
-    "huangtest": {
-      "nt": "output/huangtest.nt",
-      "lexicon": "lexicon_huangtest.json",
-      "data_dir": "data"
-    },
     "tpl_power": {
       "name": "阳光电力",
       "icon": "🏭",
@@ -301,25 +285,6 @@
       "lexicon": "lexicon_tpl_power.json",
       "nt": "output/huaneng.nt",
       "_template": "power"
-    },
-    "ent_selftest_api": {
-      "nt": "output/ent_selftest_api.nt",
-      "lexicon": "lexicon_ent_selftest_api.json",
-      "data_dir": "data/ent_selftest_api",
-      "examples": [
-        "有多少机器",
-        "机器的类型有哪些",
-        "运行中的机器有多少",
-        "待机的机器有多少",
-        "功率最大的机器",
-        "有多少产品",
-        "产品的类型有哪些",
-        "价格最大的产品",
-        "库存最大的产品"
-      ],
-      "name": "自助测试企业",
-      "industry": "机械加工",
-      "icon": "🏭"
     },
     "qipei_2": {
       "nt": "output/qipei_2.nt",

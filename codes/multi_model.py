@@ -278,7 +278,26 @@ def build_data(data, table="factory_multi"):
                "source": "db",
                "lexicon": os.path.relpath(lex_path, ROOT)},
               open(STATE, "w", encoding="utf-8"))
+    # 注册 kb 到 kbs.json（幂等 upsert），使降级/离线建模的 kb 可被快照/问答/图检索
+    _register_kb(table, os.path.relpath(nt, ROOT), os.path.relpath(lex_path, ROOT))
     return table, list(data.keys()), len(lines)
+
+
+def _register_kb(kb, nt_rel, lex_rel):
+    """把 kb 的 nt/lexicon 写回 kbs.json(幂等 upsert)。降级 CLI 路径复刻 api_server._update_kbs。"""
+    try:
+        kbs_file = os.path.join(ROOT, "config", "kbs.json")
+        data = json.load(open(kbs_file, encoding="utf-8"))
+        kbs = data.setdefault("kbs", {})
+        entry = kbs.get(kb, {})
+        entry["nt"] = nt_rel
+        entry["lexicon"] = os.path.basename(lex_rel)
+        entry.setdefault("data_dir", "data")
+        kbs[kb] = entry
+        with open(kbs_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"  [warn] 注册 kb '{kb}' 到 kbs.json 失败: {e}")
 
 
 def build(data_dir, table="factory_multi"):

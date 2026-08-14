@@ -1494,10 +1494,13 @@ def _set_active_kb(kb, nt_rel, lex_rel):
     if lex_rel:
         state["lexicon"] = lex_rel
     state.setdefault("table", kb)
+    # 不再覆盖 state["kb"]：kb 的唯一真相是 users.json 的 user.kb（前端 index.js 每请求按 user.kb 设激活）。
+    # 后端若写全局 kb，会在多用户/与前端并发时互相覆盖，导致 A 企业本体被 B 企业污染。
+    # '建哪个激活哪个' 由前端按 user.kb 跟随实现（单企业收敛，user.kb 即刚建的 kb）。
     os.makedirs(os.path.dirname(web_state_path), exist_ok=True)
     with open(web_state_path, "w", encoding="utf-8") as f:
         json.dump(state, f, ensure_ascii=False, indent=2)
-    logger.info("已把激活 kb 持久化为 '%s' -> %s", kb, web_state_path)
+    logger.info("已持久化激活 kb 信息(nt/lexicon) -> %s (kb 由 user.kb 决定)", web_state_path)
 
 
 if __name__ == "__main__":

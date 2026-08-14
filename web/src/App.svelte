@@ -656,8 +656,13 @@
         if (!res.ok) {
           setStatus('err', formatError(res, null) || '问答失败'); status = 'ready';
         } else {
-          answer = res.answer || '（无结果）';
-          answerHTML = renderAnswerHTML(res.answer);
+          // 统一 answer 为字符串, 避免后端返回对象(error/structured)被渲染成 [object Object]
+          const a = typeof res.answer === 'string' ? res.answer
+                   : (res.answer && typeof res.answer === 'object' && res.answer.message) ? res.answer.message
+                   : (res.answer && typeof res.answer === 'object' && res.answer.text) ? res.answer.text
+                   : String(res.answer ?? '');
+          answer = a || '（无结果）';
+          answerHTML = renderAnswerHTML(a);
           evidence = res.evidence || null;
           status = 'ready';
           setStatus('ok', `查询完成：${q}`);
