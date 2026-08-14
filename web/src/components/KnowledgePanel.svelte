@@ -33,8 +33,9 @@
   let error = $state('');
 
   // 上传
-  let file = $state(null);
-  let fileName = $state('');
+  // 上传(支持批量)
+  let files = $state([]);        // 待上传文件数组(支持批量)
+  let fileName = $state('');      // 提示用: 文件数或首个文件名
   let uploading = $state(false);
 
   // 删除
@@ -128,43 +129,55 @@
 
   // ── 上传 ──
   function onFilePick(e) {
-    const f = e.target.files && e.target.files[0];
+    const picked = e.target.files ? Array.from(e.target.files) : [];
     e.target.value = '';
-    if (!f) return;
-    const ext = '.' + (f.name.split('.').pop() || '').toLowerCase();
-    if (!ALLOWED_EXT.includes(ext)) {
-      flash('err', '仅支持 PDF / Word / TXT 文件');
-      return;
+    if (!picked.length) return;
+    const bad = picked.filter(f => !ALLOWED_EXT.includes('.' + (f.name.split('.').pop() || '').toLowerCase()));
+    if (bad.length) {
+      flash('err', '仅支持 PDF / Word / TXT 文件，已忽略 ' + bad.length + ' 个不支持文件');
     }
-    file = f;
-    fileName = f.name;
+    files = picked.filter(f => ALLOWED_EXT.includes('.' + (f.name.split('.').pop() || '').toLowerCase()));
+    fileName = files.length > 1 ? '已选 ' + files.length + ' 个文件' : (files[0] ? files[0].name : '');
   }
 
   async function doUpload() {
     const name = kb.trim();
-    if (!file) { flash('err', '请先选择文件'); return; }
+    if (!files.length) { flash('err', '请先选择文件'); return; }
     if (!name) { flash('err', '请输入知识库名称'); return; }
     uploading = true;
     flash('', '');
+    let okCount = 0, failCount = 0;
+    const remain = [];
     try {
-      const fd = new FormData();
-      fd.append('file', file, file.name);
-      fd.append('kb', name);
-      const resp = await authedFetch('/api/ontology/knowledge-ingest', { method: 'POST', body: fd });
-      const res = await resp.json();
-      if (res && res.ok) {
-        const d = res.data || {};
-        flash('ok', '上传成功：' + (d.title || file.name) + '（' + (d.chunks ?? '?') + ' 分块）');
-        file = null; fileName = '';
-        await load();
-        if (d.doc_id) { viewingDoc = d.doc_id; await viewDoc({ doc_id: d.doc_id, title: d.title || file.name }); }
-      } else {
-        flash('err', fmtError(res) || '上传失败');
+      for (const f of files) {
+        const fd = new FormData();
+        fd.append('file', f, f.name);
+        fd.append('kb', name);
+        try {
+          const resp = await authedFetch('/api/ontology/knowledge-ingest', {
+            method: 'POST', body: fd,
+          });
+          const res = await resp.json();
+          if (res && res.ok) {
+            okCount++;
+            if (docs) docs.push({ doc_id: res.data?.doc_id || res.doc_id, title: res.data?.title || f.name, chunks: res.data?.chunks || 1 });
+          } else {
+            failCount++; remain.push(f.name);
+          }
+        } catch (e) { failCount++; remain.push(f.name); }
       }
+      const total = okCount + failCount;
+      const msg = total > 1
+        ? `批量上传完成：成功 ${okCount}，失败 ${failCount}`
+        : `上传成功：${(files[0]?.name || '')}`;
+      flash(okCount > 0 ? 'ok' : 'err', msg);
+      files = remain;  // 保留失败的文件便于重试
+      fileName = files.length > 1 ? '已选 ' + files.length + ' 个文件' : (files[0]?.name || '');
     } catch (e) {
-      flash('err', '网络错误，请确认服务已启动');
+      flash('err', '上传失败：' + (e.message || e));
     } finally {
       uploading = false;
+      await loadDocs();
     }
   }
 
@@ -238,16 +251,16 @@
     <label class="file-pick">
       <span class="btn-icon">📄</span>
       {fileName || '选择文件（.pdf/.doc/.docx/.txt）'}
-      <input type="file" accept=".pdf,.doc,.docx,.txt" hidden onchange={onFilePick} />
+      <input type="file" accept=".pdf,.doc,.docx,.txt" multiple hidden onchange={onFilePick} />
     </label>
     {#if fileName}
       <span class="file-name">{fileName}</span>
     {/if}
-    <button class="btn-upload" onclick={doUpload} disabled={uploading || !fileName}>
-      {uploading ? '上传中…' : '上传文档'}
+    <button class="btn-upload" onclick={doUpload} disabled={uploading || !files.length}>
+      {uploading ? '上传中…' : (files.length > 1 ? '批量上传 ' + files.length + ' 个' : '上传文档')}
     </button>
-    {#if file}
-      <button class="btn-clear" onclick={() => { file = null; fileName = ''; }}>取消</button>
+    {#if files.length}
+      <button class="btn-clear" onclick={() => { files = []; fileName = ''; }}>清除</button>
     {/if}
   </div>
 
