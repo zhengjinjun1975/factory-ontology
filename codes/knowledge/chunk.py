@@ -31,12 +31,42 @@ def _split_headings(text):
     return [s for s in sections if s]
 
 
+def _split_paragraphs(text):
+    """按段落(空行分隔)切分。段落是天然语义边界，优于固定长度硬切。"""
+    paras = re.split(r"\n\s*\n", text)
+    return [p.strip() for p in paras if p.strip()]
+
+
+def _split_sentences(text, size):
+    """超长段落按句子边界(。！？\n)切到 ≤size，避免切断语义。"""
+    if len(text) <= size:
+        return [text]
+    # 优先按中文/英文句子结束符切
+    parts = [p.strip() for p in re.split(r"(?<=[。！？.!?])\s*|\n", text) if p.strip()]
+    chunks, cur = [], ""
+    for p in parts:
+        # 单句本身超长(无标点长串) → 先按固定大小拆
+        if len(p) > size:
+            if cur:
+                chunks.append(cur); cur = ""
+            for i in range(0, len(p), size):
+                chunks.append(p[i:i + size])
+            continue
+        if cur and len(cur) + len(p) + 1 > size:
+            chunks.append(cur); cur = p
+        else:
+            cur = (cur + " " if cur else "") + p
+    if cur:
+        chunks.append(cur)
+    return chunks
+
+
 def chunk_text(text, size=600, overlap=80):
-    """把文本切成块列表。结构优先（按标题），否则固定大小+重叠。
+    """把文本切成块列表。语义优先：按段落(\n\n)切，超长段落按句子边界切，兜底固定大小。
 
     参数:
         text: 待切分纯文本
-        size: 目标块字符数（固定切分时使用）
+        size: 目标块字符数（超长段落/固定切分时使用）
         overlap: 相邻块重叠字符数（固定切分时使用）
     返回:
         list[dict]: [{"index", "text", "char_start", "char_end"}, ...]
@@ -52,35 +82,26 @@ def chunk_text(text, size=600, overlap=80):
         if overlap >= size:
             overlap = int(size * 0.8)
 
-        # 1) 结构优先：按章节标题切
-        sections = _split_headings(text)
+        # 1) 优先按段落(空行)切分 — 段落是天然语义边界
+        paras = _split_paragraphs(text)
         chunks = []
         offset = 0
-        if sections:
-            for sec in sections:
-                pos = text.find(sec, offset)
-                if pos < 0:
-                    pos = 0
-                # 超长章节（超过 size）再按固定大小拆分，避免单个块过大导致
-                # embedding/Ollama 超 token 限制失败（实测 ~1 万字符块 embed 返回空）。
-                # 结构优先 + 长度上限，兼顾语义完整与可向量化。
-                if len(sec) > size:
-                    step = max(1, size - overlap)
-                    for i in range(0, len(sec), step):
-                        piece = sec[i:i + size]
-                        if not piece:
-                            break
-                        chunks.append({"index": len(chunks), "text": piece,
-                                       "char_start": pos + i, "char_end": pos + i + len(piece)})
-                        if i + size >= len(sec):
-                            break
-                else:
-                    chunks.append({"index": len(chunks), "text": sec,
-                                   "char_start": pos, "char_end": pos + len(sec)})
-                offset = pos + len(sec)
+        for para in paras:
+            pos = text.find(para, offset)
+            if pos < 0:
+                pos = 0
+            # 段落超长 → 按句子边界切(避免切断语义)
+            pieces = _split_sentences(para, size)
+            for piece in pieces:
+                if not piece:
+                    continue
+                chunks.append({"index": len(chunks), "text": piece,
+                               "char_start": pos, "char_end": pos + len(piece)})
+            offset = pos + len(para)
+        if chunks:
             return chunks
 
-        # 2) 无结构：固定大小 + 重叠
+        # 2) 无段落(单段超长) → 固定大小 + 重叠兜底
         step = max(1, size - overlap)
         n = len(text)
         for i in range(0, n, step):
