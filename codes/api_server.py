@@ -253,6 +253,33 @@ def ontology_graph(kb: str = Query("")):
                 if vv in node_ids and (uri, vv) not in seen_edges:
                     edges.append({"from": uri, "to": vv, "rel": rel})
                     seen_edges.add((uri, vv))
+    # ── 类级语义关系边(同属区域/生产产品等, 对象属性 domain→range 都是类, 让力导向图显示语义关系链) ──
+    # 解析 nt 里的对象属性(domain/range 都指向非 xsd 类型的类 URI), 渲染为 类→类 边(带中文label)
+    try:
+        seen_crels = set()
+        XSD = "http://www.w3.org/2001/XMLSchema#"
+        for uri, props in g.items():
+            doms = [str(x).strip("<>") for x in props.get("domain", [])]
+            rngs = [str(x).strip("<>") for x in props.get("range", [])]
+            # 过滤: domain/range 都指向非 xsd 类型的类 URI(排除数据属性)
+            dom_class = [x for x in doms if not x.startswith(XSD)]
+            rng_class = [x for x in rngs if not x.startswith(XSD)]
+            if not dom_class or not rng_class:
+                continue
+            # 取第一个类 domain/range, 渲染类→类边
+            dcl = dom_class[0]; rcl = rng_class[0]
+            if dcl == rcl or (dcl, rcl) in seen_crels:
+                continue
+            # 类节点加入 nodes(力导向图边的端点需存在): 用 URI 尾名(去 #)
+            for cn in (dcl, rcl):
+                c_local = cn.split("#")[-1].strip("<>")
+                if cn not in node_ids and cn not in {n["id"] for n in nodes}:
+                    nodes.append({"id": cn, "name": lb.get(cn, c_local), "entity": c_local, "class_node": True})
+            rel_name = lb.get(uri, uri.split("#")[-1].strip("<>"))
+            edges.append({"from": dcl, "to": rcl, "rel": rel_name, "class_level": True})
+            seen_crels.add((dcl, rcl))
+    except Exception as _e:
+        logger.warning(f"类级关系边解析跳过: {_e}")
     return {"ok": True, "nodes": nodes, "edges": edges,
             "counts": {"nodes": len(nodes), "edges": len(edges)}}
 
