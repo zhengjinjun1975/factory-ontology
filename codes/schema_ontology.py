@@ -189,12 +189,7 @@ def _singular(w: str) -> str:
 
 
 def _match_target(raw: str, table: str, data: dict):
-    """FK 目标实体匹配：单复数词干匹配表名语义词 + 排除自身。每 FK 列至多一个目标。
-
-    参考 sme modeling.suggest_schema 的 `_match_target`（词干匹配 + 排除自身）。
-    同词干多候选时优先主键为 id 的顶层实体，避免 FK 指向明细/关联表自身
-    （如 valve_batch_ingredient.batch_id → Valve_batches 而非自身）。
-    """
+    """FK 目标实体匹配：单复数词干匹配表名语义词 + 排除自身。每 FK 列至多一个目标。"""
     raw_s = _singular(raw)
     cand = []
     for tname, rows in data.items():
@@ -213,6 +208,36 @@ def _match_target(raw: str, table: str, data: dict):
         return (exact, has_id)
 
     return _cap(min(cand, key=_score))
+
+
+def _match_target_implicit(col: str, table: str, data: dict):
+    """隐式外键宽松匹配：列名最后一个词干命中目标表名词干（owner_team→teams）。
+
+    比 _match_target 宽松：列名取最后一个 _ 分段词干(owner_team→team, project_id→project),
+    与各表名(也取词干)比对, 命中且排除自身/通用列 → 候选; 再用值域重叠校验。
+    """
+    parts = [p for p in col.lower().split("_") if p]
+    if not parts:
+        return None
+    # 从后往前取词干: owner_team→team, device_name→name(但name是通用列)
+    last = _singular(parts[-1]) if parts else ""
+    if not last or last in {"id", "name", "code", "key", "type", "no"}:
+        return None
+    cand = []
+    for tname, rows in data.items():
+        if tname == table or not rows:
+            continue
+        toks = [_singular(p) for p in tname.lower().split("_") if p]
+        # 目标表名的任一 token 或整体与列尾词干匹配
+        if last in toks or last == tname.lower().replace("_", ""):
+            cand.append(tname)
+    if not cand:
+        return None
+    # 优先主键为 id 的顶层实体; 返回原始表名(与 data 键一致), 调用方用 _cap 作实体名
+    def _score(t):
+        has_id = 0 if "id" in (data[t][0].keys() if data[t] else []) else 1
+        return has_id
+    return min(cand, key=_score)
 
 
 def _infer_relations(data: dict) -> list:
@@ -258,7 +283,8 @@ def _infer_relations(data: dict) -> list:
         for col in sample:
             if col.endswith(("_id", "_code", "_key")) or col in _GENERIC_COLS:
                 continue
-            target = _match_target(col, table, data)
+            # 宽松匹配: 列名最后一个词干(owner_team→team) 命中目标表名词干(teams→team)
+            target = _match_target_implicit(col, table, data)
             if target is None or target == _cap(table):
                 continue
             # 确认列值域与目标实体主键值有重叠(隐式外键判定), 否则跳过
@@ -275,7 +301,7 @@ def _infer_relations(data: dict) -> list:
                 continue
             label = _REL_CN.get(col) or _REL_CN.get(_singular(col)) or "关联" + _entity_cn_label(target)
             inferred.append({
-                "id": rid, "from": _cap(table), "to": target,
+                "id": rid, "from": _cap(table), "to": _cap(target),
                 "fk": f"{table}.{col}", "cardinality": "N:1", "label": label, "auto": True,
                 "source": "implicit_fk",
             })
