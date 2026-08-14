@@ -1,73 +1,135 @@
 {
-  "description": "自动生成词典 (machining)",
+  "description": "自动生成词典（multi_model, suggest_schema 推断 + LLM 语义聚类同义词 + data profiling 映射）",
   "attr_cn2en": {
-    "金额": "amount",
-    "信用等级": "creditLevel",
-    "电流A": "currentA",
-    "客户名称": "customerName",
-    "设备名称": "deviceName",
-    "设备类型": "deviceType",
+    "编号": "id",
+    "客户名称": "customer_name",
+    "区域": "region",
     "行业": "industry",
-    "材质": "material",
-    "型号代码": "modelCode",
-    "功率kW": "powerKw",
-    "精度等级": "precisionGrade",
-    "价格": "price",
-    "产品名称": "productName",
-    "数量": "quantity",
-    "地区": "region",
-    "销售日期": "saleDate",
-    "尺寸mm": "sizeMm",
+    "信用等级": "credit_level",
+    "设备名称": "device_name",
+    "设备类型": "device_type",
+    "车间": "workshop",
+    "功率(kW)": "power_kw",
+    "功率": "power_kw",
     "状态": "status",
-    "温度℃": "tempC",
-    "振动mm/s": "vibrationMmS",
-    "车间": "workshop"
+    "振动(mm/s)": "vibration_mm_s",
+    "振动": "vibration_mm_s",
+    "温度(℃)": "temp_c",
+    "温度": "temp_c",
+    "电流(A)": "current_a",
+    "电流": "current_a",
+    "型号代码": "model_code",
+    "产品名称": "product_name",
+    "类型": "type",
+    "材质": "material",
+    "尺寸(mm)": "size_mm",
+    "尺寸": "size_mm",
+    "precisiongrade": "precision_grade",
+    "价格": "price",
+    "产品编号": "product_id",
+    "客户编号": "customer_id",
+    "数量": "quantity",
+    "销售日期": "sale_date",
+    "金额": "amount"
   },
   "attr_en2cn": {
-    "amount": "金额",
-    "creditLevel": "信用等级",
-    "currentA": "电流A",
-    "customerName": "客户名称",
-    "deviceName": "设备名称",
-    "deviceType": "设备类型",
+    "id": "编号",
+    "customer_name": "客户名称",
+    "region": "区域",
     "industry": "行业",
-    "material": "材质",
-    "modelCode": "型号代码",
-    "powerKw": "功率kW",
-    "precisionGrade": "精度等级",
-    "price": "价格",
-    "productName": "产品名称",
-    "quantity": "数量",
-    "region": "地区",
-    "saleDate": "销售日期",
-    "sizeMm": "尺寸mm",
+    "credit_level": "信用等级",
+    "device_name": "设备名称",
+    "device_type": "设备类型",
+    "workshop": "车间",
+    "power_kw": "功率(kW)",
     "status": "状态",
-    "tempC": "温度℃",
-    "vibrationMmS": "振动mm/s",
-    "workshop": "车间"
+    "vibration_mm_s": "振动(mm/s)",
+    "temp_c": "温度(℃)",
+    "current_a": "电流(A)",
+    "model_code": "型号代码",
+    "product_name": "产品名称",
+    "type": "类型",
+    "material": "材质",
+    "size_mm": "尺寸(mm)",
+    "precision_grade": "precisiongrade",
+    "price": "价格",
+    "product_id": "产品编号",
+    "customer_id": "客户编号",
+    "quantity": "数量",
+    "sale_date": "销售日期",
+    "amount": "金额"
   },
-  "status_cn2en": {},
-  "type_cn2en": {},
-  "zone_cn2en": {},
-  "relations_cn2en": {},
+  "status_cn2en": {
+    "运行中": "运行中",
+    "待机": "待机",
+    "报警": "alarm",
+    "维护中": "维护中",
+    "离线": "offline",
+    "合格": "pass",
+    "不合格": "fail"
+  },
+  "type_cn2en": {
+    "机加设备": "机加设备",
+    "特种加工": "特种加工",
+    "成型设备": "成型设备",
+    "轴类件": "轴类件",
+    "传动件": "传动件",
+    "盘类件": "盘类件",
+    "箱体件": "箱体件"
+  },
+  "zone_cn2en": {
+    "华东": "华东",
+    "华北": "华北",
+    "华南": "华南",
+    "西北": "西北",
+    "一车间": "一车间",
+    "二车间": "二车间",
+    "三车间": "三车间"
+  },
+  "synonym_map": {
+    "功率": [
+      "功率(kW)"
+    ],
+    "尺寸": [
+      "尺寸(mm)"
+    ],
+    "温度": [
+      "温度(℃)"
+    ],
+    "电流": [
+      "电流(A)"
+    ]
+  },
+  "entity_cn2en": {
+    "客户": "mach_customers",
+    "设备": "mach_equipment",
+    "产品": "mach_products",
+    "销售": "mach_sales"
+  },
   "numeric_fields": {
+    "功率": "power_kw",
+    "振动": "vibration_mm_s",
+    "温度": "temp_c",
+    "电流": "current_a",
+    "尺寸": "size_mm",
     "价格": "price",
-    "金额": "amount",
     "数量": "quantity",
-    "功率": "powerKw",
-    "库存": "stock",
-    "容量": "capacityL",
-    "批量": "batchSizeL",
-    "压力": "pressureMpa",
-    "纯度": "purityPct",
-    "收率": "yieldPct",
-    "吨位": "tonnage",
-    "深度": "depthM",
-    "投资": "investmentWan",
-    "合同额": "contractAmountWan",
-    "进度": "progressPct",
-    "载重": "tonnageDwt"
+    "金额": "amount"
   },
-  "field_aliases": {},
+  "field_aliases": {
+    "status": [
+      "status"
+    ],
+    "deviceType": [
+      "deviceType",
+      "device_type",
+      "type"
+    ],
+    "deviceName": [
+      "deviceName",
+      "device_name",
+      "name"
+    ]
+  },
   "value_fields": []
 }
