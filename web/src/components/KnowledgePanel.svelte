@@ -329,7 +329,6 @@
     transition: all 0.15s;
   }
   .kb-load:hover:not(:disabled) { background: var(--brand-dark); }
-  .kb-load:disabled { opacity: 0.6; cursor: not-allowed; }
   .btn-icon { font-size: 12px; }
 
   /* 上传区 */
