@@ -252,6 +252,8 @@ export function listIndustries() {
     else if (v.data_dir && v.data_dir !== 'data' && isDataDirWithCsv(v.data_dir)) dir = v.data_dir; // kbs.json 显式 data_dir
     if (!dir) continue;
     const name = INDUSTRY_DISPLAY[kb] || (v.name ? String(v.name).replace(/问答$/u, '') : kb);
+    // 过滤无中文名的测试残渣 kb（huaneng/qipei_2/e2ecust 等）：name 回落为 kb 原样且非中文 → 不展示
+    if (!INDUSTRY_DISPLAY[kb] && !v.name) continue;
     arr.push({ kb, name, icon: v.icon || '🗂️', dir });
   }
   return arr;
