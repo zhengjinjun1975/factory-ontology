@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""e2e_test.py — factory-ontology v0.2.0 端到端测试
+"""e2e_test.py — factory-ontology v0.2.1 端到端测试
 
 覆盖: 问答(规则/逻辑/引导) + 溯源(正/反/扫码) + 导出 + 管理(上传/统计/词典/审计) + 多源 + 多租户 + 一致性
 用法: python e2e_test.py  (退出码 0=全过, 1=有失败)
@@ -88,7 +88,7 @@ def main():
     r = subprocess.run([sys.executable, "-m", "pytest", "tests/", "-q"], capture_output=True, text=True, timeout=120)
     ck("pytest 全过", r.returncode == 0 and "passed" in r.stdout, r.stdout[-80:])
     import run
-    ck("版本 0.2.0", run.__version__ == "0.2.0")
+    ck("版本 0.2.1", run.__version__ == "0.2.1")
 
     print(f"\n══ E2E 结果: {TOTAL - FAILED}/{TOTAL} 通过 ══")
     return 1 if FAILED else 0

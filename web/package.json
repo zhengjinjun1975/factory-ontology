@@ -1,6 +1,6 @@
 {
   "name": "factory-ontology-web",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "工厂本体问答 Web 应用 — CSV上传→本体建模→自然语言问答",
   "type": "module",
