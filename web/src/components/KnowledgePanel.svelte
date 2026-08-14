@@ -283,13 +283,13 @@
       <span class="empty-text">暂无文档，可通过上方「选择文件 + 上传文档」添加</span>
     </div>
   {:else if loaded}
-    <div class="batch-del-bar" class:show={selDocs.size > 0}>
-      <span>已选 {selDocs.size} 篇</span>
-      <button class="btn-del" onclick={batchDeleteDocs} disabled={batchDeleting}>
-        {batchDeleting ? '批量删除中…' : '批量删除'}
-      </button>
-    </div>
     <div class="doc-table-wrap">
+      <div class="batch-del-bar" class:show={selDocs.size > 0}>
+        <span>已选 {selDocs.size} 篇</span>
+        <button class="btn-del" onclick={batchDeleteDocs} disabled={batchDeleting}>
+          {batchDeleting ? '批量删除中…' : '批量删除'}
+        </button>
+      </div>
       <table class="doc-table">
         <thead>
           <tr>
@@ -488,7 +488,7 @@
     font-family: inherit; font-size: 12px; line-height: 1.6; color: var(--text-primary);
   }
   /* 批量删除 */
-  .batch-del-bar { display: none; align-items: center; gap: 8px; margin: 6px 0 8px; padding: 6px 10px; background: var(--bg-hover, #f8fafc); border-radius: 6px; font-size: 12px; font-weight: 600; }
+  .batch-del-bar { display: none; position: sticky; top: 0; z-index: 5; align-items: center; gap: 8px; margin: 0 0 8px; padding: 6px 10px; background: var(--bg-hover, #f8fafc); border: 1px solid var(--border, #e5e8ec); border-radius: 6px; font-size: 12px; font-weight: 600; box-shadow: 0 1px 3px rgba(16,24,40,.06); }
   .batch-del-bar.show { display: flex; }
   .batch-del-bar .btn-del { padding: 3px 10px; font-size: 12px; border: none; border-radius: 4px; background: var(--danger, #dc2626); color: #fff; cursor: pointer; }
   .batch-del-bar .btn-del:disabled { opacity: .5; cursor: not-allowed; }
