@@ -128,7 +128,7 @@
       ],
       "data_dir": "data_machining",
       "lexicon": "lexicon_machining.json",
-      "nt": "output/h_机械.nt"
+      "nt": "output/machining.nt"
     },
     "ship": {
       "name": "船舶制造问答",
