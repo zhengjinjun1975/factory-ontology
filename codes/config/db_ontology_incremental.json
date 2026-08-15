@@ -1,5 +1,5 @@
 {
-  "dsn": "sqlite:///E:/open-source/factory-ontology-kit/codes/data/erp_demo.db",
+  "dsn": "sqlite:///codes/data/erp_demo.db",
   "tables": ["equipment", "products", "production_order", "customer"],
   "output": "erp_multi",
   "poll_interval": 30,

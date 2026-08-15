@@ -5,7 +5,7 @@
 设计定位:
   纯标准库零依赖; 单独运行或按需 import; 主流程不自动调用。
   用于在"关键节点"(如新行业词典建成、建模经验沉淀)时, 把经验固化到
-  OptMem 记忆系统(E:\\optmem\\memo note), 便于跨行业、跨会话复用。
+  OptMem 记忆系统(可选增强, 由环境变量 OPTMEM_MEMO 指定), 便于跨行业、跨会话复用。
 
 用法(命令行):
   python memnote.py note "<一行经验, ≤280字节>"
@@ -34,8 +34,8 @@ import subprocess
 import sys
 
 # ---- 可覆盖配置(均可用环境变量改) -------------------------------------
-_MEMO = os.environ.get("OPTMEM_MEMO", r"E:\optmem\memo")
-_MEMORY_DIR = os.environ.get("OPTMEM_MEMORY_DIR", r"E:\optmem\memory")
+_MEMO = os.environ.get("OPTMEM_MEMO", os.path.join(os.path.expanduser("~"), "optmem", "memo"))
+_MEMORY_DIR = os.environ.get("OPTMEM_MEMORY_DIR", os.path.join(os.path.expanduser("~"), "optmem", "memory"))
 _ENABLED = os.environ.get("OPTMEM_NOTE", "1").lower() not in ("0", "false", "no", "off")
 _MAX_BYTES = 280
 
@@ -86,7 +86,7 @@ def hint():
     print("  · 新行业词典/同义词组建成后: python memnote.py lexicon <行业> <中文术语> <英文>")
     print("  · 建模/映射经验:            python memnote.py model <行业> \"<经验一句话>\"")
     print("  · 或直接 note:              python memnote.py note \"<一行经验>\"")
-    print("沉淀后可用 python E:\\optmem\\memo_search.py \"<关键词>\" 跨行业复用。")
+    print("沉淀后可用 python memo_search.py \"<关键词>\" 跨行业复用(OptMem 检索)。")
 
 
 def main(argv=None):

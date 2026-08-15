@@ -9,6 +9,8 @@
 
 大模型很聪明，但它不认识你的数据表。把台账直接丢给 LLM，它编起数字来理直气壮。这个仓库的做法很朴素：先让数据自己说话，再让模型在数据划定的圈子里回答。本体就是这个圈子。
 
+> **原子化定位**：本仓库是**本体认知原子**底座（schema 驱动建模 + 规则问答 + 本体约束），并组合提供 **rag 原子**（本体引导 GraphRAG + 向量混合检索）与 **事件原子**（数据变更事件），共同构成一套可复用、可组合、可被闭源侧编排的**开源算法原子层**。换工厂只换「域」（数据/词典/schema），原子代码不动。
+
 ## 工厂本体是什么
 
 工厂本体，是把一家工厂的数据结构（MES/ERP/台账）翻译成机器能读懂的领域知识图谱：一张表是什么实体（设备/产品/原料/批次）、字段是它的什么属性（编号/数值/状态/类型）、表之间怎么关联（生产/消耗/交付）。建好本体，业务人员就能用自然语言问数据，系统在本体划定的范围内确定性回答，并给出依据。
@@ -154,6 +156,9 @@ rows = load_db({"db_type": "mysql", "host": "127.0.0.1", "port": 3306,
 
 | 概念 | 说明 |
 |------|------|
+| **本体认知原子（底座）** | `core/base_agent.py`（原子智能体统一接口）+ `agents/query_agent.py` + `schema_ontology.py`（schema 驱动建模）+ `ontology_qa_v3.py`（确定性规则问答）。认知原子是整套能力的确定性底座，被 rag/事件等原子向上组合 |
+| **rag 原子** | `knowledge/`（ingest/embed/store/rag）+ `graph_rag.py` + `bm25_retrieval.py` + `vector_retrieval.py`：本体引导 GraphRAG + 向量混合检索，覆盖开放式/关系/模糊问题 |
+| **事件原子** | `event_bus.py`：数据变更的领域事件模型 + 订阅/发布（DATA_ADDED / METRIC_ANOMALY / THRESHOLD_EXCEEDED / TICKET_CREATED），供闭源侧监听响应 |
 | **schema 驱动建模** | `schema_ontology.py`：schema 显式声明实体/关系/约束；属性语义角色（identifier/reference/measure/category/timestamp）；类型体系（Enterprise → BusinessObject → 域类 → 实体）；validate 约束校验；traverse 跨域图遍历；build_graph 跨表统一实例图；to_nt 输出标准 N-Triples |
 | **词典驱动** | 字段中文名、枚举值、状态词全部外置在 lexicon JSON。问答逻辑不绑定具体词表，换领域只换词典 |
 | **建库自动映射** | `_build_lexicon` 自动生成 entity_cn2en（实体计数映射）+ numeric_fields（极值字段）+ type_cn2en + synonym_map（同义词）。换任何行业建库即生成查询映射，无需硬编码 |
@@ -161,34 +166,41 @@ rows = load_db({"db_type": "mysql", "host": "127.0.0.1", "port": 3306,
 | **逻辑推理桥** | `logical_qa.py`：LLM 转逻辑查询 → 确定性执行器，覆盖多步推理的开放式问题而不失确定性 |
 | **本体引导 GraphRAG** | `graph_rag.py`：规则 miss 后，问题匹配本体关系时沿关系路径扩展种子（find_seeds），子图检索 + LLM 生成 |
 | **向量混合检索** | `bm25_retrieval.py`（BM25 稀疏）+ `vector_retrieval.py`（本地向量 nomic-embed-text）RRF 融合，语义模糊查询命中，embedding 失败回落不阻塞 |
-| **检索容错** | 材质/单位/类型同义词扩展。问“不锈钢”能命中 CF8/CF8M/304/1Cr18Ni9Ti 等牌号 |
-| **证据溯源** | `/api/ask` 返回 evidence：命中实体、属性、数值，前端逐条展示“为什么是这个答案” |
+| **检索容错** | 材质/单位/类型同义词扩展。问"不锈钢"能命中 CF8/CF8M/304/1Cr18Ni9Ti 等牌号 |
+| **证据溯源** | `/api/ask` 返回 evidence：命中实体、属性、数值，前端逐条展示"为什么是这个答案" |
 | **模型配置** | `model_config.json`：云端 DeepSeek + 本地 Ollama + 向量模型统一配置，api_key 脱敏，可增删改/设 active |
+| **原子化组装** | 认知/rag/事件等原子通过统一接口与 REST 端点向外暴露，可被闭源侧编排器按需组合调度 |
 
 ## 架构
 
 ```
-data_loader → schema_ontology（schema 驱动统一建模 + suggest_schema 自动推断）
+data_loader → schema_ontology（schema 驱动统一建模 + suggest_schema 自动推断）[本体认知原子底座]
             → ontology_qa_v3（规则引擎，确定性优先）
             + logical_qa（逻辑推理桥）
             + graph_rag（本体引导 GraphRAG 兜底）
-            + bm25_retrieval + vector_retrieval（向量混合检索兜底）
+            + bm25_retrieval + vector_retrieval（向量混合检索兜底）[rag 原子]
+            + event_bus（数据变更事件）[事件原子]
             → api_server（REST API）+ web（Svelte5 前端）
 ```
 
-分层：交付层（Web/APP/语音/管理后台）→ API 层（FastAPI）→ 问答推理层（规则 → 逻辑桥 → GraphRAG → 混合检索，确定性优先）→ 本体层（本体图 + 词典外置）→ 数据层（多格式）→ 模型层（云端 DeepSeek / 本地 Ollama 可切换）。
+分层：交付层（Web/APP/语音/管理后台）→ API 层（FastAPI，原子对外暴露的编排入口）→ 原子层（本体认知原子：建模 + 确定性规则问答；rag 原子：GraphRAG + 混合检索；事件原子：数据事件模型）→ 本体层（本体图 + 词典外置）→ 数据层（多格式）→ 模型层（云端 DeepSeek / 本地 Ollama 可切换）。
+
+**原子化边界**：本仓库是开源算法原子层，认知/rag/事件原子通过 REST 端点向外暴露，可被闭源侧编排器按需组合调度；数据全在工厂本地流转，不出厂。
 
 ### 核心组件
 
 | 模块 | 作用 |
 |------|------|
+| `core/base_agent.py` + `agents/` | **本体认知原子底座**：原子智能体统一接口 + 问答/词典/评测原子（query/lexicon/eval_agent） |
 | `data_loader.py` | 统一读取 CSV/JSON/SQLite/Excel |
 | `schema_ontology.py` | schema 驱动统一建模：属性语义角色、类型体系、validate/traverse/build_graph、suggest_schema 自动推断、to_nt |
 | `ontology_qa_v3.py` | 规则问答引擎（词典驱动，确定性，零 token） |
 | `logical_qa.py` | 逻辑推理桥：LLM 转逻辑查询后确定性执行 |
+| `knowledge/`（ingest/embed/store/rag）| **rag 原子**：文档切块、embedding、入库、检索 |
 | `graph_rag.py` | 本体引导 GraphRAG：建图、同义词扩展、种子定位、子图检索、LLM 生成 |
 | `bm25_retrieval.py` / `vector_retrieval.py` | 向量混合检索：BM25 稀疏 + 本地向量语义，RRF 融合 |
-| `api_server.py` | REST API：问答、正/反向溯源、扫码、统计、管理 |
+| `event_bus.py` | **事件原子**：数据变更领域事件模型 + 订阅/发布，供闭源侧监听响应 |
+| `api_server.py` | REST API：问答、正/反向溯源、扫码、统计、管理、知识库/评测/资产契约端点 |
 | `web/` | Svelte5 前端：CSV 上传 → 建模 → 问答 → 证据溯源 → 知识图谱/分析看板 |
 
 周边能力（2.x 时代沉淀，保留可用）：`csv_to_owl.py`/`multi_table.py`（无 schema 的单表/多表建本体兼容路径）、`evidence.py`（证据提取）、`graph_store.py`（SQLite 图持久化）、`mcp_server.py`（MCP server，AI agent 可调用）、`voice_assistant.py`（语音助手）、`data_import.py`/`data_quality.py`/`monitor.py`（数据接入/质量校验/看门狗）、`new_kb.py`（新知识库骨架）、`agents/lexicon_agent.py`（自动词典生成）、`config/`（模型配置 + 词典 + schema + 多租户注册表）。
@@ -332,8 +344,9 @@ python valve_demo.py
 1. **建模是桥不是终点**：让模型懂领域，别为建模而建模
 2. **规则兜底 + LLM 泛化**：确定性走规则，模糊走 LLM
 3. **泛化靠外置**：词典、schema、字段映射全是配置，换领域只换配置
-4. **单一职责**：每个模块只做一件事，可替换
-5. **零依赖可部署**：核心路径纯标准库，能带到任何现场
+4. **原子化单一职责**：本体认知 / rag / 事件原子各自只做一件事，可组合、可替换
+5. **开源算法原子层 + 闭源编排**：算法原子开源可自部署，被闭源编排层按需调度，数据不出厂
+6. **零依赖可部署**：核心路径纯标准库，能带到任何现场
 
 ## 文档
 
@@ -349,7 +362,7 @@ python valve_demo.py
 ## 记忆沉淀（可选）：行业经验 note 进 OptMem
 
 `codes/memnote.py` 提供轻量"记忆沉淀"命令/函数，把**行业词典经验、建模经验**固化进
-[OptMem](E:\optmem)（跨行业、跨会话复用）。**不侵入主流程、零依赖**（纯标准库），按需触发，失败静默。
+OptMem（可选增强，跨行业、跨会话复用）。**不侵入主流程、零依赖**（纯标准库），按需触发，失败静默。
 
 ```bash
 python codes/memnote.py lexicon <行业> <中文术语> <英文>        # 行业词典经验
@@ -359,7 +372,7 @@ python codes/memnote.py hint                                      # 关键节点
 ```
 
 建议在"新行业词典/同义词组建成后、建模映射调通"时沉淀。可用 `OPTMEM_NOTE=0` 关闭；检索复用见
-`python E:\optmem\memo_search.py "<关键词>"`。命令行参数缺省用 `python` 的 memo 工具。
+`python memo_search.py "<关键词>"`（OptMem 检索）。命令行参数缺省用 `python` 的 memo 工具。
 
 ## 一键启动
 
@@ -384,21 +397,23 @@ start.bat      # Windows
 
 0.2.x 为当前版本线（schema 驱动重构 + 检索/评测/上传/前端增强）；0.1.x 为 schema 驱动重构基线；2.9.x 及更早为重构前的能力演进。当前 GitHub release 已更新到 v0.2.1。
 
-## 开源与闭源：同一套工厂本体，两种交付
+## 开源与闭源：开源算法原子层 + 闭源编排层
 
-**本仓库是开源算法层，甲方可自行下载、独立部署运行。** 工厂本体建模、规则问答、GraphRAG、向量混合检索，全部开源可自部署，换任何行业数据即用。
+**本仓库是开源算法原子层，甲方可自行下载、独立部署运行。** 工厂本体建模、规则问答（本体认知原子）、GraphRAG 与混合检索（rag 原子）、数据事件（事件原子）等原子能力，全部开源可自部署，换任何行业数据即用，且可被闭源侧编排器通过 REST 原子接口按需组合调度。
 
-**配套的闭源是开发方（我们）服务甲方用的工具**——负责建模编排、人在环确认、反馈学习、交付打包，**服务完甲方即走，闭源代码不留存甲方**。甲方拿到的是：可独立运行的开源算法 + 交付产物（定制语义资产 + 报告）。
+**配套的闭源是开发方（我们）服务甲方用的编排层**——负责建模编排、人在环确认、反馈学习、交付打包，**服务完甲方即走，闭源代码不留存甲方**。闭源不承载算法实现，算法全在开源侧。甲方拿到的是：可独立运行的开源算法原子 + 交付产物（定制语义资产 + 报告），不依赖闭源服务也能长期自维护。
 
 在真实的工厂落地中，企业数据与知识的循环由配套的闭源服务完成：
 
 - **数据不出厂**：建模、问答、评测、交付全部在工厂本地完成，甲方数据永不上传，语义资产沉淀在企业自己的环境里
 - **建模**：FDE（领域工程师）用配套工具导入企业真实数据（MES/ERP/台账或数据库直连），自动建模 + 人工校准词典，产出企业专属本体
-- **循环提升**：问答 → 人在环确认 → 反馈学习 → 资产版本化，本体与词典随使用持续精进，形成“越用越懂这家工厂”的循环
+- **循环提升**：问答 → 人在环确认 → 反馈学习 → 资产版本化，本体与词典随使用持续精进，形成"越用越懂这家工厂"的循环
 
-闭源侧以 **harness 三循环**驱动这套自进化：加工循环负责建模与交付，服务循环接收现场问答与反馈，学习循环把反馈沉淀成假设、经人在环确认后合入本体或回滚，每次合入都生成资产版本。开源仓库给出确定性的问答内核，闭源 harness 完成数据的循环治理与交付编排。
+闭源侧以 **harness 三循环**驱动这套自进化：加工循环负责建模与交付，服务循环接收现场问答与反馈，学习循环把反馈沉淀成假设、经人在环确认后合入本体或回滚，每次合入都生成资产版本。开源仓库给出确定性的算法原子（认知/rag/事件），闭源 harness 完成数据的循环治理与交付编排。
 
-开源给出方法与确定性内核，闭源交付完整的服务能力。
+> 诚实边界：本仓库开源侧交付的是**可复用的算法原子与确定性内核**；完整的自动化编排、反馈学习闭环由闭源侧实现，开源侧不包含也**未证实**该能力。
+
+开源给出算法原子与确定性内核，闭源交付完整的服务能力。
 
 ## 诚实边界
 
@@ -409,9 +424,12 @@ start.bat      # Windows
 - **词典校对**：自动词典偶有误判，关键字段需人工确认
 - **LLM 稳定性**：本地小模型偶发空响应，生产建议用更强模型
 - **工程化程度**：有 CI / pytest / Docker 基础部署，无分布式，无大规模生产部署故事。它是可复现的方法论实现，不是开箱即用的生产平台
+- **原子化边界**：开源侧交付算法原子（认知/rag/事件）与确定性内核；自动化编排、反馈学习闭环在闭源侧，本仓库不包含也未证实该能力
 
 ## License
 
 [Apache License 2.0](LICENSE)
+
+**开源算法原子层，免费可自部署**：本仓库的全部算法实现（本体认知原子 / rag 原子 / 事件原子等）以 Apache-2.0 开源，免费供甲方下载、独立部署、被闭源侧编排调用。闭源编排层为开发方服务甲方的独立交付物，不在本仓库开源范围内，亦不随本仓库分发。
 
 部分机制借鉴自开源项目（详见 [NOTICE](NOTICE)）：schema 驱动建模借鉴 [sme-decision-ontology](https://github.com/zhengjinjun1975/sme-decision-ontology)，逻辑推理桥借鉴 [OpenSPG/KAG](https://github.com/OpenSPG/KAG)，均为 Apache-2.0。
