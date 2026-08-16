@@ -23,7 +23,10 @@
 
   // 诊断式：异常汇总 + 关键指标（黄金三角置顶）
   const total = $derived(stats?.total_devices ?? 0);
-  const running = $derived(stats?.status_dist?.find(s => s.status === 'running')?.count ?? 0);
+  // 运行中设备数：与后端 status_dist 真实状态取值对齐，同时匹配中英文运行状态
+  // （ontology_stats 的状态是数据原始存储值，可能为 运行中/运行/正常 或 running/run/normal/active）
+  const RUNNING_STATUS = ['running','run','normal','working','active','online','运行中','运行','正常','工作中','在线','生产中'];
+  const running = $derived((stats?.status_dist || []).filter(s => RUNNING_STATUS.includes((s.status || '').toLowerCase())).reduce((sum, s) => sum + (s.count || 0), 0));
   // 异常/故障设备数：与后端 ontology_stats FAULT_STATUS 同一口径(含中文状态词)
   const FAULT_STATUS = ['alarm','maintenance','offline','fault','fail','failed','error','报警','维护','离线','故障','停机','异常','检修'];
   const anomalyCount = $derived((stats?.status_dist || []).filter(s => FAULT_STATUS.includes((s.status||'').toLowerCase())).reduce((sum, s) => sum + (s.count || 0), 0));
