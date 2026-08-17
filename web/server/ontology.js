@@ -180,11 +180,9 @@ export function registerKb(kb, ntRel, lexRel) {
  */
 export function getCurrentKb() {
   const web = loadWebState();
-  if (web && web.kb) {
-    const kbs = loadKbs();
-    // 前端/登录用户绑定的 kb 若仍注册则采用（不校验会锁定失效值）
-    if (kbs[web.kb]) return web.kb;
-  }
+  // 以登录用户绑定的 kb 为唯一权威(web.kb 由 index.js 按 user.kb 写入), 不要求 kbs.json 注册
+  // (否则新/未注册 kb 返回空 → 刷新漂移/待导入误判)
+  if (web && web.kb) return web.kb;
   return '';
 }
 
@@ -842,52 +840,15 @@ export async function assetsRollback(kb, version) {
  */
 export async function statsOntology(kb) {
   try {
-    // 多用户单企业：显式 kb 时优先从 kbs.json 注册表读该 kb 本体（数据隔离）
-    if (kb) {
-      const kbs = loadKbs();
-      const kbc = kbs[kb];
-      const nt = kbc && kbc.nt ? kbc.nt : null;
-      if (!nt) return { ok: true, stats: null, empty: true };
-      const ntPath = join(KIT, nt);
-      if (!existsSync(ntPath) || statSync(ntPath).size === 0) {
-        return { ok: true, stats: null, empty: true };
-      }
-      const r = await run(PY, ['ontology_stats.py', ntPath], KIT);
-      if (!r.ok) return { ok: false, error: r.error || '统计失败' };
-      const stats = JSON.parse(r.output);
-      if (!stats || !stats.total_devices) return { ok: true, stats: null, empty: true };
-      return { ok: true, stats };
-    }
-    // 原逻辑：优先读 Web 应用自己的状态（防套件 current.json 被测试覆盖）
-    const web = loadWebState();
-    let nt = null;
-    if (web && web.nt) {
-      nt = web.nt;
-    } else {
-      // 多租户: 按当前激活 kb 从注册表读本体(与后端 /api/ask 对齐)
-      const curKb = getCurrentKb();
-      const kbs = loadKbs();
-      if (kbs[curKb] && kbs[curKb].nt) nt = kbs[curKb].nt;
-      if (!nt) {
-        try {
-          const cur = JSON.parse(readFileSync(join(KIT, 'current.json'), 'utf-8'));
-          nt = cur.nt;
-        } catch (e) { /* 无 current.json 视为未建模 */ }
-      }
-    }
-    if (!nt) return { ok: true, stats: null, empty: true };
-    const ntPath = join(KIT, nt);
-    if (!existsSync(ntPath) || statSync(ntPath).size === 0) {
-      return { ok: true, stats: null, empty: true };
-    }
-    const r = await run(PY, ['ontology_stats.py', ntPath], KIT);
-    if (!r.ok) return { ok: false, error: r.error || '统计失败' };
-    const stats = JSON.parse(r.output);
-    // 解析出空统计(如无设备实例)也按空态处理，避免看板渲染空数据
-    if (!stats || !stats.total_devices) return { ok: true, stats: null, empty: true };
-    return { ok: true, stats };
+    // 转发后端 8000(原子引擎真实 stats), 后端有数据即已建模, 不依赖本地 kbs.json/nt 文件
+    // (否则新/未注册 kb 误判"尚未建模"→ 看板空)
+    kb = kb || getCurrentKb();
+    const q = new URLSearchParams({ kb }).toString();
+    const r = await apiFetch(`/api/stats?${q}`);
+    if (r && r.ok) return r;
+    return { ok: true, stats: null, empty: true };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: String(e && e.message ? e.message : e) };
   }
 }
 
@@ -917,52 +878,18 @@ export async function lineInfo(lineId, kb) {
  */
 export async function schemaOntology(kb) {
   try {
-    // 多用户单企业：显式 kb 时从 kbs.json 读该 kb 本体（数据隔离）
-    if (kb) {
-      const kbs = loadKbs();
-      const kbc = kbs[kb];
-      const nt = kbc && kbc.nt ? kbc.nt : null;
-      const lex = kbc && kbc.lexicon ? 'config/' + kbc.lexicon : null;
-      if (!nt) return { ok: true, schema: null, empty: true };
-      const r = await run(PY, ['ontology_schema_info.py', join(KIT, nt)], KIT);
-      if (!r.ok) return { ok: false, error: r.error || '模型结构解析失败' };
-      const schema = JSON.parse(r.output);
-      return { ok: true, schema };
-    }
-    // 原逻辑：优先读 Web 应用自己的状态（防套件 current.json 被测试覆盖）
-    const web = loadWebState();
-    let nt, lex;
-    if (web && web.nt) {
-      nt = web.nt; lex = web.lexicon || 'config/lexicon_equipment.json';
-    } else {
-      // 多租户: 按当前激活 kb 从注册表读本体/词典(与后端建模对齐)
-      const curKb = getCurrentKb();
-      const kbs = loadKbs();
-      if (kbs[curKb] && kbs[curKb].nt) {
-        nt = kbs[curKb].nt; lex = kbs[curKb].lexicon || 'config/lexicon_equipment.json';
-      } else {
-        const cur = JSON.parse(readFileSync(join(KIT, 'current.json'), 'utf-8'));
-        nt = cur.nt || 'output/equipment.nt';
-        lex = cur.lexicon || 'config/lexicon_equipment.json';
-      }
-    }
-    const r = await run(PY, ['ontology_schema_info.py', nt], KIT);
-    if (!r.ok) return { ok: false, error: r.error || '模型结构解析失败' };
-    const schema = JSON.parse(r.output);
-    return { ok: true, schema };
+    // 转发后端 8000(原子引擎真实 structure), 后端有数据即已建模, 不依赖本地 kbs.json/nt 文件
+    kb = kb || getCurrentKb();
+    const q = new URLSearchParams({ kb }).toString();
+    const r = await apiFetch(`/api/ontology/structure?${q}`);
+    if (r && r.ok && (r.schema || r.entities || r.tables)) return { ok: true, schema: r.schema || r };
+    if (r && r.ok) return { ok: true, schema: r };
+    return { ok: true, schema: null, empty: true };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: String(e && e.message ? e.message : e) };
   }
 }
 
-/**
- * 模型结构图（图结构：节点+边），供前端 ECharts 力导向图渲染。
- * 优先转发后端 GET /api/ontology/graph（多租户按 kb，返回 {ok, nodes, edges}，
- * nodes=[{id,name,entity}], edges=[{from,to,rel}]）；后端不可达时降级由 schema 组装最小图，
- * 保证离线也能画出类结构。
- * @param {string} [kb] 知识库名, 缺省用当前激活 kb
- * @returns {Promise<{ok, graph?: {nodes, edges}, error?}>}
- */
 export async function graphOntology(kb) {
   try {
     kb = kb || getCurrentKb();
