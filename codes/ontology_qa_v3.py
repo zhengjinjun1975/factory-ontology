@@ -42,7 +42,7 @@ from lexicon import get_attr_cn_aliases, get_common_zh_status, get_entity_cn2uri
 def load_dict(path):
     with open(path, encoding="utf-8") as f:
         D = json.load(f)
-    # 合并公共工业本体词典（L3 公共认知层兜底）：KB 覆盖公共，公共兜底 KB。
+    # 合并公共工业本体词典（行业认知层兜底）：KB 覆盖公共，公共兜底 KB。
     # 让跨行业通用概念（球阀/泵/运行中/不锈钢）无需在每个 KB 词典重复维护。
     try:
         from industrial_dict_loader import merge_industrial_dict

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""industrial_dict.py — 公共工业本体词典合并加载器（L3 公共认知层）。
+"""industrial_dict.py — 公共工业本体词典合并加载器。
 
 设计原则（精而泛化、不庞杂）：
   * 公共词典存跨行业稳定的"领域骨架"（设备大类/材质同义词/通用状态），
