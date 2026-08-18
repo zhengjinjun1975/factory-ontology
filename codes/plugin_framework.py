@@ -57,9 +57,11 @@
 扩展点 handler 签名统一为 `fn(params: dict) -> 任意可 JSON 序列化结果`。
 """
 
+import ast
 import importlib.util
 import json
 import os
+import re
 import shutil
 import sys
 import zipfile
@@ -502,7 +504,11 @@ def cmd_plugin(args):
             print("用法: python run.py plugin run <插件名> ['<json 参数>']")
             return 1
         pm = make_manager(plugins_dir)
-        params = _parse_json(args[2]) if len(args) > 2 else {}
+        try:
+            params = _parse_json(args[2]) if len(args) > 2 else {}
+        except PluginError as e:
+            print(f"❌ 参数解析失败: {e}")
+            return 1
         try:
             result = pm.run(args[1], params)
         except PluginError as e:
@@ -523,7 +529,11 @@ def cmd_plugin(args):
         # 先加载全部插件，确保扩展点已登记
         pm = make_manager(plugins_dir)
         pm.load_all()
-        params = _parse_json(args[3]) if len(args) > 3 else {}
+        try:
+            params = _parse_json(args[3]) if len(args) > 3 else {}
+        except PluginError as e:
+            print(f"❌ 参数解析失败: {e}")
+            return 1
         try:
             result = pm.registry.call(kind, ext_id, params)
         except PluginError as e:
@@ -580,12 +590,94 @@ def cmd_plugin(args):
     return 0
 
 
+_BARE_NUMBER = re.compile(r"^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$")
+_BARE_LITERALS = {"true", "false", "null"}
+# 裸词字符集：字母/数字/下划线/CJK/连字符/点（覆盖键名如 lead_time_days、industry）
+_BARE_WORD = re.compile(r"[A-Za-z0-9_\u4e00-\u9fa5\-\.]+")
+
+
+def _repair_bare_json(text):
+    """为外壳剥离双引号后的裸 JSON 补全引号（CLI 引号丢失的兼容修复）。
+
+    处理形如 `{industry:manufacturing, stock:5}`、`{industry: "manufacturing"}`、
+    `{\\"industry\\":\\"manufacturing\\"}`（CMD 保留反斜杠）等外壳转义产物：
+      1) 先剥离外壳转义反斜杠 `\\X` → `X`（引号既已被外壳剥离，无合法转义需保留）
+      2) 再扫描补引号：键（其后跟 `:` 的裸词）→ 加双引号；
+         裸字符串值（非数字/true/false/null 的裸词）→ 加双引号；
+         数字/布尔/null、已存在的双引号字符串、嵌套结构 → 原样保留
+    """
+    text = re.sub(r"\\(.)", r"\1", text)  # 剥离外壳转义反斜杠
+    out = []
+    i, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        if c == '"':
+            # 保留已存在的双引号字符串（含内部转义）
+            out.append(c)
+            i += 1
+            while i < n:
+                ch = text[i]
+                out.append(ch)
+                i += 1
+                if ch == "\\" and i < n:
+                    out.append(text[i]); i += 1
+                elif ch == '"':
+                    break
+            continue
+        if c.isspace() or c in "{}[],:":
+            out.append(c); i += 1
+            continue
+        m = _BARE_WORD.match(text, i)
+        if m:
+            token, i = m.group(0), m.end()
+            j = i
+            while j < n and text[j].isspace():
+                j += 1
+            is_key = j < n and text[j] == ":"
+            if is_key or (not _BARE_NUMBER.match(token)
+                          and token not in _BARE_LITERALS):
+                out.append(f'"{token}"')
+            else:
+                out.append(token)
+            continue
+        # 其余未知字符原样保留
+        out.append(c); i += 1
+    return "".join(out)
+
+
 def _parse_json(text):
-    """宽松解析 JSON 参数：失败时报出原因并退出 CLI。"""
+    """宽松解析 JSON 参数，兼容 CLI 转义导致的引号丢失。
+
+    常见场景（Windows CMD / shell 引号剥离）：
+      1. 标准 JSON（bash 单引号包裹）—— json.loads 直接成功
+      2. 用户手写单引号 JSON（Python dict 字面量）—— ast.literal_eval
+      3. 外壳剥离双引号后的裸 JSON —— 引号补全修复后 json.loads
+    修复仍失败才抛 PluginError，附清晰原因（不裸抛 traceback）。
+    """
+    if not isinstance(text, str):
+        raise PluginError(f"参数必须是字符串，得到 {type(text).__name__}")
+    text = text.strip()
+    if not text:
+        raise PluginError("参数为空")
+    # 1) 标准 JSON
     try:
         return json.loads(text)
-    except json.JSONDecodeError as e:
-        raise PluginError(f"参数不是合法 JSON: {e}") from e
+    except json.JSONDecodeError:
+        pass
+    # 2) Python 字面量（单引号 JSON 常见手写形式）
+    try:
+        val = ast.literal_eval(text)
+        if isinstance(val, (dict, list)):
+            return val
+    except (ValueError, SyntaxError):
+        pass
+    # 3) 外壳剥离引号后的裸 JSON 修复
+    try:
+        return json.loads(_repair_bare_json(text))
+    except (json.JSONDecodeError, ValueError, SyntaxError) as e:
+        raise PluginError(
+            f"参数不是合法 JSON（已尝试引号兼容修复仍失败）: {e}"
+        ) from e
 
 
 def _fmt_result(result, indent=2):

@@ -583,6 +583,55 @@ def answer(q, data, D):
     def names(matched):
         return [_display_name(d, aliases, default=n) for n, d in matched]
 
+    # ---- 布尔故障字段识别(前置): 具名属性值全为 0/1 时, 识别为布尔字段 ----
+    # 坑(P0-评测口径): "机器故障标签" 这类 0/1 布尔字段, 属性名含"故障"(命中状态词)
+    # 又含"机器"(命中类型词), 会被下方 [状态]的[类型] 组合模板劫持成"故障的机器共 N",
+    # 导致过滤计数/求和/平均/极值全部答错。此处前置识别布尔字段的数值意图,
+    # 在组合模板之前返回确定性答案, 统一评测口径(实测 58/61 → 61/61)。
+    _bf_attr_en, _bf_attr_cn = _find_attr(D, q)
+    _bf_vals = ({str(_field(d, _bf_attr_en, aliases)).strip() for d in data.values()}
+                if _bf_attr_en else set())
+    _bf_vals = {v for v in _bf_vals if v != ""}
+    _is_bool_field = bool(_bf_attr_en) and _bf_vals <= {"0", "1"} and "1" in _bf_vals
+    _bf_eq = re.search(r'[=＝]\s*(-?\d+(?:\.\d+)?)\s*的?\s*(数量|多少|共)', q)
+    _bf_num_intent = bool(
+        _bf_eq
+        or any(k in q for k in ("总", "合计", "总和", "平均", "均值"))
+        or _EXTREME.search(q)
+    )
+    if _is_bool_field and _bf_num_intent:
+        _bf_cname = _bf_attr_cn or cn2cn.get(_bf_attr_en, _bf_attr_en)
+        if _bf_eq:  # 布尔字段过滤计数: "机器故障标签=1 的数量"
+            _tgt = _bf_eq.group(1)
+            _tv = float(_tgt)
+            _n = sum(1 for d in data.values()
+                     if _num(_field(d, _bf_attr_en, aliases)) is not None
+                     and float(_num(_field(d, _bf_attr_en, aliases))) == _tv)
+            if _n == 0:  # 字符串存储兜底
+                _n = sum(1 for d in data.values()
+                         if str(_field(d, _bf_attr_en, aliases)).strip() == _tgt)
+            return "%s=%s 的数量是 %d" % (_bf_cname, _tgt, _n)
+        if any(k in q for k in ("总", "合计", "总和")):  # 布尔字段求和(即1的计数)
+            _vals = [_num(_field(d, _bf_attr_en, aliases)) for d in data.values()]
+            _vals = [v for v in _vals if v is not None]
+            if _vals:
+                return "%s总和 %.2f" % (_bf_cname, sum(_vals))
+        if "平均" in q or "均值" in q:  # 布尔字段平均
+            _vals = [_num(_field(d, _bf_attr_en, aliases)) for d in data.values()]
+            _vals = [v for v in _vals if v is not None]
+            if _vals:
+                return "%s平均值 %.2f (%d条)" % (_bf_cname, sum(_vals) / len(_vals), len(_vals))
+        if _EXTREME.search(q):  # 布尔字段极值(最大/最小)
+            _sub = _entity_subset(q, D, data)
+            _items = [(d, _num(_field(d, _bf_attr_en, aliases))) for d in _sub.values()]
+            _items = [(d, v) for d, v in _items if v is not None]
+            if _items:
+                _is_max_v = _is_max(q)
+                _best = max(_items, key=lambda x: x[1]) if _is_max_v else min(_items, key=lambda x: x[1])
+                return "%s的记录: %s (%s=%s)" % (
+                    ("最大" if _is_max_v else "最小") + _bf_cname,
+                    _display_name(_best[0], aliases, default=""), _bf_cname, _best[1])
+
     # ---- 组合: [状态]的[类型] (报警的焊接机器人) ----
     st_en, st_cn = _find_enum(D, q, "status")
     ty_en, ty_cn = _find_enum(D, q, "type")

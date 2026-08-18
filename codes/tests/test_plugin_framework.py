@@ -4,6 +4,7 @@
 覆盖：加载器扫描/清单解析、生命周期、扩展点注册与调用、冲突检测、安装/移除。
 运行：cd codes && python -m pytest tests/test_plugin_framework.py -q
 """
+import json
 import os
 import sys
 import tempfile
@@ -99,3 +100,78 @@ def test_run_without_params_reports_thresholds():
     result = pm.run("example_decision", {})
     assert result["ok"] is True
     assert "thresholds" in result
+
+
+# ─────────────────────────────────────────────────────────────
+# 遗留补修：CLI 传参 JSON 引号转义兼容（run.py plugin ext 传参）
+# ─────────────────────────────────────────────────────────────
+
+def test_parse_json_standard():
+    assert pf._parse_json('{"industry": "manufacturing"}') == \
+        {"industry": "manufacturing"}
+
+
+def test_parse_json_single_quoted():
+    """单引号 JSON（用户手写/Python 字面量）应被解析。"""
+    assert pf._parse_json("{'industry': 'manufacturing'}") == \
+        {"industry": "manufacturing"}
+
+
+def test_parse_json_bare_shell_stripped():
+    """外壳剥离双引号后的裸 JSON（CMD/bash）应被修复解析。"""
+    assert pf._parse_json("{industry:manufacturing}") == \
+        {"industry": "manufacturing"}
+    assert pf._parse_json("{industry:manufacturing, stock:5, ok:true}") == \
+        {"industry": "manufacturing", "stock": 5, "ok": True}
+
+
+def test_parse_json_backslash_escaped():
+    """CMD 保留反斜杠转义 `\\\"` 应还原为双引号。"""
+    assert pf._parse_json('{\\"industry\\":\\"manufacturing\\"}') == \
+        {"industry": "manufacturing"}
+
+
+def test_parse_json_nested_bare():
+    """嵌套裸 JSON 也应被修复。"""
+    assert pf._parse_json("{lead_time_days:14, nested:{safety_stock:20}}") == \
+        {"lead_time_days": 14, "nested": {"safety_stock": 20}}
+
+
+def test_parse_json_invalid_raises():
+    with pytest.raises(pf.PluginError):
+        pf._parse_json("not json at all")
+    with pytest.raises(pf.PluginError):
+        pf._parse_json("")
+
+
+def test_repair_bare_json_preserves_quoted_and_numbers():
+    r = pf._repair_bare_json('{"industry": "manufacturing", stock:5}')
+    assert json.loads(r) == {"industry": "manufacturing", "stock": 5}
+
+
+def test_inventory_decision_ext_runs_with_params():
+    """run.py plugin ext 调 inventory 扩展点并传参数——真实跑通。"""
+    import subprocess
+    codes = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    run_py = os.path.join(codes, "run.py")
+    # 裸 JSON（模拟 CMD 剥离双引号后经 run.py 传参）
+    proc = subprocess.run(
+        [sys.executable, run_py, "plugin", "ext",
+         "decision", "inventory", "{industry:manufacturing, stock:5}"],
+        capture_output=True, text=True, encoding="utf-8", timeout=120)
+    assert proc.returncode == 0, proc.stderr
+    out = proc.stdout
+    assert '"ok": true' in out
+    assert "补货" in out
+    assert "V01" in out
+
+
+def test_inventory_decision_standalone_runs():
+    """插件可 python plugin.py 独立运行（遗留路径 bug 修复）。"""
+    import subprocess
+    entry = os.path.join(PLUGINS_DIR, "inventory_decision", "plugin.py")
+    proc = subprocess.run([sys.executable, entry],
+                          capture_output=True, text=True,
+                          encoding="utf-8", timeout=120)
+    assert proc.returncode == 0, proc.stderr
+    assert '"ok": true' in proc.stdout

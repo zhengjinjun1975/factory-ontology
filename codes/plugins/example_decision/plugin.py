@@ -16,7 +16,9 @@ import os
 
 # 允许独立运行调试：python plugin.py（此时能 import 到框架）
 if __package__ in (None, ""):
-    _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # 插件在 plugins/<name>/plugin.py，向上三级才是 codes/（框架所在目录）
+    _ROOT = os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__))))
     if _ROOT not in sys.path:
         sys.path.insert(0, _ROOT)
 
