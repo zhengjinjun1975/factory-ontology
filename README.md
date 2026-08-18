@@ -152,8 +152,25 @@ rows = load_db({"db_type": "mysql", "host": "127.0.0.1", "port": 3306,
 
 前端「数据库接入」面板可配 MySQL/PostgreSQL 连接后一键建模。MySQL 需 `pip install pymysql`，PostgreSQL 需 `pip install psycopg2-binary`，均为可选依赖。
 
-## 核心概念
+## 公共工业本体词典（L3 公共认知层）
 
+跨行业通用的工业概念词典，让"换工厂不用重造词典"成为现实。
+
+**设计原则（精而泛化、不庞杂）**：公共层只放跨行业稳定的**领域骨架**（设备大类/故障知识/材质同义词/通用状态），不放易变的**工厂实例**（具体型号/批次/企业字段）——后者属于 per-KB 词典。
+
+**合并机制**：问答时 `ontology_qa_v3.load_dict` 自动把 公共词典 ∪ KB词典 合并：KB 覆盖公共（工厂特殊定义优先），公共兜底 KB（KB 没有时用公共层）。一个文件、一次合并，不增加问答复杂度。
+
+```
+codes/industrial_dict/          ← 公共层（开源算法资产，纯领域知识）
+├── device_types.json           设备类型 + 状态 + 同义词 + 故障 + 材质
+└── (未来: fault_knowledge / process_standards / safety_compliance)
+codes/industrial_dict_loader.py  ← 合并加载器（load_dict 自动调用）
+```
+
+**当前侧重**：阀门 / 精细化工 / 地球物理三大方向，泛化自 29 个行业 KB 真实数据。
+**扩展**：新增维度 = 在 `industrial_dict/` 加 JSON 文件，loader 自动合并。
+
+## 核心概念
 | 概念 | 说明 |
 |------|------|
 | **本体认知原子（底座）** | `core/base_agent.py`（原子智能体统一接口）+ `agents/query_agent.py` + `schema_ontology.py`（schema 驱动建模）+ `ontology_qa_v3.py`（确定性规则问答）。认知原子是整套能力的确定性底座，被 rag/事件等原子向上组合 |

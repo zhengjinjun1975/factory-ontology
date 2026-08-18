@@ -41,7 +41,15 @@ from lexicon import get_attr_cn_aliases, get_common_zh_status, get_entity_cn2uri
 
 def load_dict(path):
     with open(path, encoding="utf-8") as f:
-        return json.load(f)
+        D = json.load(f)
+    # 合并公共工业本体词典（L3 公共认知层兜底）：KB 覆盖公共，公共兜底 KB。
+    # 让跨行业通用概念（球阀/泵/运行中/不锈钢）无需在每个 KB 词典重复维护。
+    try:
+        from industrial_dict_loader import merge_industrial_dict
+        D = merge_industrial_dict(D)
+    except Exception:
+        pass  # 公共层缺失/损坏时降级为纯 KB 词典，不影响原功能
+    return D
 
 
 # ------------------------------------------------------------------ 解析(复用)
