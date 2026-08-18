@@ -3,12 +3,22 @@
 > ⭐ **觉得有用就给我们一个 Star** —— 开源维护靠社区支持，你的 Star 让这个项目被更多人看见。
 > [![GitHub stars](https://img.shields.io/github/stars/zhengjinjun1975/factory-ontology?style=social)](https://github.com/zhengjinjun1975/factory-ontology)
 
-工厂本体驱动的数据问答框架。把结构化台账变成可自然语言提问的语义知识图谱，CSV 进，答案出，每个答案都带证据。
+**工厂本体驱动的数据问答框架。** 把结构化台账变成可自然语言提问的语义知识图谱，CSV 进，答案出，每个答案都带证据。
 
 [![Version](https://img.shields.io/badge/version-0.2.1-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
 [![CI](https://github.com/zhengjinjun1975/factory-ontology/actions/workflows/ci.yml/badge.svg)](https://github.com/zhengjinjun1975/factory-ontology/actions)
+[![GitHub stars](https://img.shields.io/github/stars/zhengjinjun1975/factory-ontology)](https://github.com/zhengjinjun1975/factory-ontology)
+[![GitHub forks](https://img.shields.io/github/forks/zhengjinjun1975/factory-ontology)](https://github.com/zhengjinjun1975/factory-ontology)
+
+**它能帮你解决**：
+- 🏭 **数据看不懂** → 业务人员用自然语言问"报警的空压机有几台"，不用 SQL
+- 🔍 **信息难找** → 台账/MES/ERP 数据秒变可问答知识图谱
+- 📊 **答案可溯源** → 每个回答带证据，不靠模型瞎编
+- 🔒 **数据不出厂** → 本地建模本地问答，甲方数据不上云
+
+**30 秒上手**：`python run.py setup data_valve/ && python run.py ask "有多少台设备"`
 
 大模型很聪明，但它不认识你的数据表。把台账直接丢给 LLM，它编起数字来理直气壮。这个仓库的做法很朴素：先让数据自己说话，再让模型在数据划定的圈子里回答。本体就是这个圈子。
 
@@ -463,3 +473,18 @@ start.bat      # Windows
 **开源算法原子层，免费可自部署**：本仓库的全部算法实现（本体认知原子 / rag 原子 / 事件原子等）以 Apache-2.0 开源，免费供甲方下载、独立部署、被闭源侧编排调用。闭源编排层为开发方服务甲方的独立交付物，不在本仓库开源范围内，亦不随本仓库分发。
 
 部分机制借鉴自开源项目（详见 [NOTICE](NOTICE)）：schema 驱动建模借鉴 [sme-decision-ontology](https://github.com/zhengjinjun1975/sme-decision-ontology)，逻辑推理桥借鉴 [OpenSPG/KAG](https://github.com/OpenSPG/KAG)，均为 Apache-2.0。
+
+---
+
+## ⭐ 支持这个项目
+
+如果你觉得 factory-ontology 有用，请花 3 秒给我们一个 **Star**：
+
+[![GitHub stars](https://img.shields.io/github/stars/zhengjinjun1975/factory-ontology?style=social)](https://github.com/zhengjinjun1975/factory-ontology) ⬅️ 点这里
+
+**Star 的意义**：
+- 让更多需要"工厂数据问答"的人找到这个项目
+- 激励我们持续迭代（新行业词典、问答能力、GraphRAG 增强）
+- 开源维护者最需要的正向反馈
+
+**反馈与贡献**：有问题提 [Issue](https://github.com/zhengjinjun1975/factory-ontology/issues)，有想法提交 PR，欢迎一起把工厂数据问答做得更好。
