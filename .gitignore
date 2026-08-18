@@ -58,3 +58,6 @@ codes/config/lexicon_onb_*.json
 codes/config/lexicon_factory_multi_*.json
 codes/config/lexicon_kb_*.json
 .verify-evidence.json
+
+# 行业词典导出产物(运行生成, 不入库)
+dict_export/
