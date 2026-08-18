@@ -1,0 +1,102 @@
+{
+  "description": "地球物理行业公共词典（03）。地球物理勘探设备+方法+勘探对象。基于T/BICA标准+真实seismic KB提炼+GeoSignal地质语料, 无企业数据, 可开源。",
+  "version": "1.0.0",
+  "built": "2026-08-18",
+  "industry": "地球物理",
+  "source": [
+    "T/BICA 094 地球物理勘探用电磁仪",
+    "真实seismic KB提炼(激发/接收/记录/测量)",
+    "GeoSignal地质语料(GeoGalactica 21512条)",
+    "地球物理勘探行业标准"
+  ],
+  "type_cn2en": {
+    "激发设备": "source_equipment",
+    "接收设备": "receiver_equipment",
+    "记录设备": "recording_equipment",
+    "测量设备": "survey_equipment",
+    "地震仪": "seismograph",
+    "检波器": "geophone",
+    "地震检波器": "geophone",
+    "可控震源": "vibrator",
+    "爆炸机": "shot_firer",
+    "电磁仪": "electromagnetic_instrument",
+    "重力仪": "gravimeter",
+    "磁力仪": "magnetometer",
+    "测井设备": "well_logging_equipment",
+    "地震采集站": "seismic_acquisition_station",
+    "节点采集站": "node_acquisition_station",
+    "测量仪器": "survey_instrument"
+  },
+  "method_cn2en": {
+    "三维地震": "3d_seismic",
+    "二维地震": "2d_seismic",
+    "地震勘探": "seismic_exploration",
+    "电磁勘探": "electromagnetic_exploration",
+    "重力勘探": "gravity_exploration",
+    "磁法勘探": "magnetic_exploration",
+    "电法勘探": "electrical_exploration",
+    "测井": "well_logging",
+    "地震反演": "seismic_inversion",
+    "面波勘探": "surface_wave_exploration",
+    "微动勘探": "microtremor_exploration"
+  },
+  "entity_cn2en": {
+    "测线": "seismic_line",
+    "炮点": "shot_point",
+    "地震队": "seismic_team",
+    "检波点": "receiver_point",
+    "地震剖面": "seismic_section",
+    "测区": "survey_area",
+    "工区": "survey_area"
+  },
+  "attr_cn2en": {
+    "激发方式": "source_method",
+    "接收道数": "receiver_channels",
+    "采样率": "sample_rate",
+    "记录长度": "record_length",
+    "炮检距": "source_receiver_offset",
+    "覆盖次数": "fold",
+    "炸药量": "charge_amount",
+    "炮深": "shot_depth",
+    "排列": "spread"
+  },
+  "fault_cn2en": {
+    "检波器损坏": "geophone_damage",
+    "采集站掉线": "station_offline",
+    "数据缺失": "data_missing",
+    "噪音干扰": "noise_interference",
+    "激发失败": "shot_failure",
+    "接收不良": "poor_reception"
+  },
+  "status_cn2en": {
+    "施工中": "in_progress",
+    "设计中": "in_design",
+    "待施工": "pending",
+    "已完成": "completed",
+    "设备检修": "maintenance",
+    "运行中": "running",
+    "待机": "idle",
+    "故障": "alarm"
+  },
+  "synonym_map": {
+    "检波器": ["geophone", "地震检波器", "检波"],
+    "可控震源": ["vibrator", "震源车"],
+    "炮点": ["shot point", "炮位", "激发点"],
+    "测线": ["seismic line", "测线布置"],
+    "三维地震": ["3d seismic", "三维勘探"],
+    "地震仪": ["seismograph", "地震记录仪"],
+    "地震队": ["seismic team", "勘探队"]
+  },
+  "standards": {
+    "T/BICA 094": "地球物理勘探用电磁仪",
+    "SY/T 5116": "地震勘探资料处理",
+    "DZ/T 0202": "地震勘探规范",
+    "GB/T 17412": "地球物理勘查术语"
+  },
+  "_meta": {
+    "purpose": "地球物理行业公共词典",
+    "industry": "地球物理(激发/接收/记录/测量/方法/勘探对象)",
+    "evidence": "真实seismic KB + GeoSignal地质语料支撑",
+    "scale_note": "纯行业知识+标准, 无企业数据, 可开源"
+  }
+}

@@ -27,13 +27,13 @@ _FALLBACK_KEYS = ("entity_cn2en",)
 
 def _load_public(files=None):
     """加载公共词典 JSON 文件, 合并为一份公共层字典。
-    files: 指定要合并的文件名列表; 默认合并所有(除 index.json)。"""
+    files: 指定要合并的文件名列表; 默认只合并基础层(00_basis.json, 跨行业通用)。"""
     merged = {}
     if not os.path.isdir(_DICT_DIR):
         return merged
     if files is None:
-        files = [fn for fn in os.listdir(_DICT_DIR)
-                 if fn.endswith(".json") and fn != "index.json"]
+        # 默认只合并基础层(00_basis), 行业词典按需通过 files 指定
+        files = ["00_basis.json"]
     for fn in sorted(files):
         fp = os.path.join(_DICT_DIR, fn)
         if not os.path.exists(fp):
