@@ -1530,6 +1530,87 @@ def _set_active_kb(kb, nt_rel, lex_rel):
     logger.info("已持久化激活 kb 信息(nt/lexicon) -> %s (kb 由 user.kb 决定)", web_state_path)
 
 
+@app.get("/api/industry/list", dependencies=[Depends(require_key)])
+def industry_dict_list():
+    """列出公共工业本体词典集(00基础+01泵阀+02化工+03地质)及各规模。"""
+    try:
+        from industrial_dict_loader import _load_public, _DICT_DIR
+        items = []
+        for fn in sorted(os.listdir(_DICT_DIR)):
+            if not fn.endswith(".json") or fn == "index.json":
+                continue
+            fp = os.path.join(_DICT_DIR, fn)
+            d = json.load(open(fp, encoding="utf-8"))
+            items.append({
+                "file": fn,
+                "description": d.get("description", ""),
+                "type": len(d.get("type_cn2en", {})),
+                "status": len(d.get("status_cn2en", {})),
+                "synonym": len(d.get("synonym_map", {})),
+                "entity": len(d.get("entity_cn2en", {})),
+            })
+        return {"ok": True, "items": items}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.post("/api/industry/absorb", dependencies=[Depends(require_key)])
+async def industry_dict_absorb(req: Request):
+    """吸收企业词典 → 行业词典。body: {lexicon: 企业词典路径, industry: 行业名}
+    行业名: 泵阀/精细化工/地球物理/基础。返回吸收前后 type 数。"""
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    lexicon = body.get("lexicon", "")
+    industry = body.get("industry", "基础")
+    if not lexicon or not os.path.exists(lexicon):
+        return {"ok": False, "error": f"企业词典不存在: {lexicon}"}
+    try:
+        from absorb_public_dict import load_public, save_public, merge_into_public
+        from collections import Counter
+        d = json.load(open(lexicon, encoding="utf-8"))
+        counter = Counter()
+        for key in ("entity_cn2en", "type_cn2en", "fault_cn2en"):
+            for cn in (d.get(key) or {}):
+                if cn and len(cn) >= 2:
+                    counter[cn] += 1
+        # 复用 absorb_from_counter 提炼
+        from absorb_public_dict import absorb_from_counter
+        suggestions = absorb_from_counter(counter, threshold=1, verbose=False)
+        pub = load_public(industry)
+        before = len(pub.get("type_cn2en", {}))
+        pub, changed = merge_into_public(pub, suggestions)
+        if changed:
+            save_public(pub, industry)
+            after = len(pub.get("type_cn2en", {}))
+            return {"ok": True, "industry": industry, "before": before, "after": after,
+                    "added": after - before}
+        return {"ok": True, "industry": industry, "before": before, "after": before, "added": 0}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.get("/api/industry/export", dependencies=[Depends(require_key)])
+def industry_dict_export(industry: str = Query("泵阀"), download: bool = Query(False)):
+    """导出行业词典。industry: 泵阀/精细化工/地球物理/基础。
+    download=true 返回文件下载, 否则返回 JSON。"""
+    try:
+        from absorb_public_dict import load_public, INDUSTRY_FILES
+        fn = INDUSTRY_FILES.get(industry, "00_basis.json")
+        pub = load_public(industry)
+        export_dir = os.path.join(ROOT, "..", "dict_export")
+        os.makedirs(export_dir, exist_ok=True)
+        out = os.path.join(export_dir, fn)
+        with open(out, "w", encoding="utf-8") as f:
+            json.dump(pub, f, ensure_ascii=False, indent=2)
+        if download:
+            return FileResponse(out, filename=fn, media_type="application/json")
+        return {"ok": True, "file": out, "industry": industry, "type": len(pub.get("type_cn2en", {}))}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 if __name__ == "__main__":
     import uvicorn
     # 安全加固(架构师审计 P0-1): fail-closed 鉴权 + 默认仅本机可访问。

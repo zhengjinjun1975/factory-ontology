@@ -24,7 +24,13 @@ from collections import Counter
 ROOT = os.path.dirname(os.path.abspath(__file__))
 CONFIG_DIR = os.path.join(ROOT, "config")
 PUBLIC_DIR = os.path.join(ROOT, "industrial_dict")
-PUBLIC_MAIN = os.path.join(PUBLIC_DIR, "device_types.json")
+# 行业词典映射: 行业 -> 词典文件
+INDUSTRY_FILES = {
+    "基础": "00_basis.json",
+    "泵阀": "01_valve_pump.json",
+    "精细化工": "02_fine_chem.json",
+    "地球物理": "03_geophysics.json",
+}
 
 # 公共词典合并键位（只吸收这几类；attr/numeric 属工厂字段，不吸收入公共层）
 _MERGE_KEYS = ("type_cn2en", "status_cn2en", "synonym_map", "entity_cn2en")
@@ -40,17 +46,27 @@ def load_json(path):
         return None
 
 
-def load_public():
-    d = load_json(PUBLIC_MAIN)
+def load_public(industry=None):
+    """加载公共词典。industry 指定行业(泵阀/精细化工/地球物理/基础)加载对应文件;
+    默认加载基础层 00_basis。"""
+    fn = INDUSTRY_FILES.get(industry, "00_basis.json")
+    d = load_json(os.path.join(PUBLIC_DIR, fn))
     if not d:
         d = {
-            "description": "公共工业本体词典（服务式吸收生成）",
-            "version": "0.3.0",
+            "description": f"公共工业本体词典（{industry or '基础'}）",
+            "version": "1.0.0",
             "built": "2026-08-18",
             "type_cn2en": {}, "status_cn2en": {}, "synonym_map": {},
-            "entity_cn2en": {}, "fault_cn2en": {}, "product_type_cn2en": {},
+            "entity_cn2en": {}, "fault_cn2en": {},
         }
     return d
+
+
+def save_public(d, industry=None):
+    fn = INDUSTRY_FILES.get(industry, "00_basis.json")
+    with open(os.path.join(PUBLIC_DIR, fn), "w", encoding="utf-8") as f:
+        json.dump(d, f, ensure_ascii=False, indent=2)
+    return os.path.join(PUBLIC_DIR, fn)
 
 
 def scan_kb_lexicons():
@@ -112,52 +128,79 @@ def merge_into_public(public, suggestions):
     return public, changed
 
 
+def _get_industry():
+    if "--industry" in sys.argv:
+        return sys.argv[sys.argv.index("--industry") + 1]
+    return None
+
+
 def main():
     if "--stats" in sys.argv:
-        pub = load_public()
-        for k in ("type_cn2en","status_cn2en","synonym_map","entity_cn2en","fault_cn2en","product_type_cn2en"):
+        ind = _get_industry()
+        pub = load_public(ind)
+        print(f"行业词典 [{ind or '基础'}]:")
+        for k in ("type_cn2en","status_cn2en","synonym_map","entity_cn2en","fault_cn2en","pump_cn2en","standards"):
             print(f"  {k}: {len(pub.get(k,{}))}")
+        return
+
+    if "--export" in sys.argv:
+        ind = _get_industry()
+        pub = load_public(ind)
+        fn = INDUSTRY_FILES.get(ind, "00_basis.json")
+        # 导出: 拷贝到独立导出目录(供服务方积累)
+        export_dir = os.path.join(ROOT, "..", "dict_export")
+        os.makedirs(export_dir, exist_ok=True)
+        out = os.path.join(export_dir, fn)
+        with open(out, "w", encoding="utf-8") as f:
+            json.dump(pub, f, ensure_ascii=False, indent=2)
+        print(f"已导出行业词典 → {out}")
+        print(f"  文件: {fn}")
+        print(f"  type: {len(pub.get('type_cn2en',{}))}, status: {len(pub.get('status_cn2en',{}))}")
         return
 
     if "--scan" in sys.argv:
         print("=== 扫描全部 KB, 提炼跨行业公共概念 ===")
         counter = scan_kb_lexicons()
         suggestions = absorb_from_counter(counter)
-        public = load_public()
+        public = load_public("基础")
         public, changed = merge_into_public(public, suggestions)
         if changed:
-            with open(PUBLIC_MAIN, "w", encoding="utf-8") as f:
-                json.dump(public, f, ensure_ascii=False, indent=2)
-            print(f"已补充到公共词典: {PUBLIC_MAIN}")
+            save_public(public, "基础")
+            print("已补充到基础词典 00_basis.json")
             for key, mp in suggestions.items():
                 if mp:
                     print(f"  {key}: +{len(mp)} 个概念")
         else:
-            print("无新增(公共词典已含这些概念)")
+            print("无新增(基础词典已含这些概念)")
         return
 
     if "--kb" in sys.argv:
         idx = sys.argv.index("--kb")
         kb_path = sys.argv[idx + 1]
-        print(f"=== 增量吸收企业词典: {kb_path} ===")
+        ind = _get_industry() or "基础"
+        print(f"=== 吸收企业词典 → {ind}行业词典 ===")
+        print(f"  企业词典: {kb_path}")
         d = load_json(kb_path)
         if not d:
             print("词典加载失败"); return
-        # 单企业吸收: 该企业词典里的通用概念(在公共层已有或属通用词)
         counter = Counter()
-        for key in ("entity_cn2en","type_cn2en"):
+        for key in ("entity_cn2en","type_cn2en","fault_cn2en"):
             for cn in (d.get(key) or {}):
                 if cn and len(cn) >= 2:
                     counter[cn] += 1
         suggestions = absorb_from_counter(counter, threshold=1, verbose=False)
-        public = load_public()
+        public = load_public(ind)
+        before = len(public.get("type_cn2en",{}))
         public, changed = merge_into_public(public, suggestions)
         if changed:
-            with open(PUBLIC_MAIN, "w", encoding="utf-8") as f:
-                json.dump(public, f, ensure_ascii=False, indent=2)
-            print("已增量吸收")
+            save_public(public, ind)
+            after = len(public.get("type_cn2en",{}))
+            print(f"已吸收: {ind}行业词典 type {before}→{after} (+{after-before})")
+            for key, mp in suggestions.items():
+                if mp:
+                    print(f"  {key}: +{len(mp)}")
         else:
-            print("无新增")
+            print("无新增(该企业词典概念已被行业词典覆盖)")
         return
 
     print(__doc__)
