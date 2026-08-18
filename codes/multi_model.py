@@ -239,8 +239,31 @@ def _build_lexicon(schema, data):
             if cname:
                 numeric_fields.setdefault(cname, name)
 
+    # 合并公共工业词典（L3 公共认知层·建模引导）：公共层兜底数据没覆盖的通用概念。
+    # 让新厂建模生成的词典自动带跨行业通用概念(设备/泵/阀门/运行中/不锈钢),
+    # 无需事后问答时兜底。公共层概念在数据推断之后并入(数据优先, 公共层补充)。
+    try:
+        from industrial_dict_loader import merge_industrial_dict
+        _pub = merge_industrial_dict({})
+        for _k in ("type_cn2en", "status_cn2en", "synonym_map", "entity_cn2en"):
+            _pb = _pub.get(_k, {})
+            _cur = locals().get(_k)
+            if _cur is None:
+                # type_vals/status_vals/zone_vals 是局部变量名, 与键名不同
+                _cur = {"type_cn2en": type_vals, "status_cn2en": status_vals,
+                        "synonym_map": synonym_map, "entity_cn2en": entity_cn2en}.get(_k, {})
+            for _cn, _en in _pb.items():
+                if _cn not in _cur:
+                    _cur[_cn] = _en
+            if _k == "type_cn2en": type_vals = _cur
+            elif _k == "status_cn2en": status_vals = _cur
+            elif _k == "synonym_map": synonym_map = _cur
+            elif _k == "entity_cn2en": entity_cn2en = _cur
+    except Exception:
+        pass  # 公共层缺失/损坏时降级为纯数据推断, 不影响建模
+
     return {
-        "description": "自动生成词典（multi_model, suggest_schema 推断 + LLM 语义聚类同义词 + data profiling 映射）",
+        "description": "自动生成词典（multi_model, suggest_schema 推断 + LLM 语义聚类同义词 + data profiling 映射 + 公共工业词典合并）",
         "attr_cn2en": cn, "attr_en2cn": en,
         "status_cn2en": status_cn2en,
         "type_cn2en": type_vals,
@@ -250,6 +273,7 @@ def _build_lexicon(schema, data):
         "numeric_fields": numeric_fields,      # {中文极值词: 英文字段}
         "field_aliases": {"status": ["status"], "deviceType": ["deviceType", "device_type", "type"], "deviceName": ["deviceName", "device_name", "name"]},
         "value_fields": [],
+        "_public_dict_merged": True,
     }
 
 

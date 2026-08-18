@@ -25,33 +25,40 @@ _MERGE_KEYS = ("type_cn2en", "status_cn2en", "synonym_map", "entity_cn2en")
 _FALLBACK_KEYS = ("entity_cn2en",)
 
 
-def _load_public():
-    """加载公共词典全部 JSON 文件，合并为一份公共层字典。"""
+def _load_public(files=None):
+    """加载公共词典 JSON 文件, 合并为一份公共层字典。
+    files: 指定要合并的文件名列表; 默认合并所有(除 index.json)。"""
     merged = {}
     if not os.path.isdir(_DICT_DIR):
         return merged
-    for fn in sorted(os.listdir(_DICT_DIR)):
-        if not fn.endswith(".json") or fn == "index.json":
+    if files is None:
+        files = [fn for fn in os.listdir(_DICT_DIR)
+                 if fn.endswith(".json") and fn != "index.json"]
+    for fn in sorted(files):
+        fp = os.path.join(_DICT_DIR, fn)
+        if not os.path.exists(fp):
             continue
         try:
-            with open(os.path.join(_DICT_DIR, fn), encoding="utf-8") as f:
+            with open(fp, encoding="utf-8") as f:
                 d = json.load(f)
             for key in _MERGE_KEYS:
                 sub = d.get(key) or {}
                 merged.setdefault(key, {}).update(sub)
         except Exception:
-            continue  # 单个文件损坏不影响公共层整体
+            continue
     return merged
 
 
-def merge_industrial_dict(kb_dict):
+def merge_industrial_dict(kb_dict, files=None):
     """把公共工业词典合并进 KB 词典，返回合并结果（不修改入参）。
 
     合并规则：
       * type/status/synonym/entity 四类：KB 有则用 KB（覆盖公共），KB 无则用公共（兜底）。
       * 其余键（attr_cn2en/numeric_fields/field_aliases 等）保持 KB 原样，不动。
+    files: 指定要合并的公共词典文件列表(如 ["valve_public_dict.json"])。
+           默认合并所有(device_types.json + valve_public_dict.json 等)。
     """
-    pub = _load_public()
+    pub = _load_public(files)
     if not pub:
         return kb_dict
     out = dict(kb_dict) if kb_dict else {}

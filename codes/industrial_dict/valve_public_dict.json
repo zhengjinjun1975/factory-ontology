@@ -1,0 +1,224 @@
+{
+  "description": "阀门行业公共词典(跨界版+泵分类+标准)。阀门横跨化工工程+设备制造+机械加工。基于GB/ISO/ASME/API标准, 无企业数据, 可开源。",
+  "version": "0.3.0",
+  "built": "2026-08-18",
+  "source": [
+    "IDO Valve Ontology (CC-BY-SA-4.0, 阀门机械结构)",
+    "GB/T 12233 阀门国家标准",
+    "真实工业语料(BAAI石化/IndustryBench/石化9万问答)",
+    "真实阀门厂KB提炼(跨行业统计)"
+  ],
+  "cross_domain": {
+    "化工工程": "阀门在化工的应用(反应釜用阀/管道阀门/安全泄压)",
+    "设备制造": "阀门的制造(机加/铸造/试压/装配/焊接)",
+    "机械加工": "阀门零件加工(车削/铣削/磨削/镗削)"
+  },
+  "type_cn2en": {
+    "阀门": "valve",
+    "球阀": "ball_valve",
+    "闸阀": "gate_valve",
+    "蝶阀": "butterfly_valve",
+    "截止阀": "globe_valve",
+    "止回阀": "check_valve",
+    "旋塞阀": "plug_valve",
+    "隔膜阀": "diaphragm_valve",
+    "针阀": "needle_valve",
+    "安全阀": "relief_valve",
+    "控制阀": "control_valve",
+    "节流阀": "choke_valve",
+    "减压阀": "pressure_reducing_valve",
+    "电磁阀": "solenoid_valve",
+    "排气阀": "exhaust_valve",
+    "球阀零件": "ball_valve_part",
+    "化工设备": "chemical_equipment",
+    "反应釜": "reactor",
+    "换热器": "heat_exchanger",
+    "蒸馏塔": "distillation_column",
+    "储罐": "storage_tank",
+    "管道": "pipeline",
+    "阀门管道": "valve_pipeline",
+    "机加设备": "machining_equipment",
+    "铸造设备": "casting_equipment",
+    "试压设备": "pressure_test_equipment",
+    "装配设备": "assembly_equipment",
+    "焊接设备": "welding_equipment",
+    "表面处理设备": "surface_treatment_equipment"
+  },
+  "part_cn2en": {
+    "阀体": "valve_body",
+    "阀盖": "valve_bonnet",
+    "阀座": "valve_seat",
+    "阀座密封": "valve_seat_seal",
+    "阀杆": "valve_stem",
+    "阀杆密封": "valve_stem_seal",
+    "阀轭": "valve_yoke",
+    "阀内件": "valve_trim",
+    "关闭件": "valve_closure_member",
+    "衬里": "valve_liner",
+    "填料函": "valve_gland",
+    "阀盖垫片": "valve_gasket",
+    "承压螺栓": "pressure_retaining_bolting"
+  },
+  "operator_cn2en": {
+    "手动阀": "manual_valve",
+    "电动阀": "electric_valve",
+    "气动阀": "pneumatic_valve",
+    "液压阀": "hydraulic_valve"
+  },
+  "fault_cn2en": {
+    "阀门泄漏": "valve_leakage",
+    "阀杆卡滞": "valve_stem_sticking",
+    "密封失效": "seal_failure",
+    "阀座磨损": "valve_seat_wear",
+    "内漏": "internal_leakage",
+    "外漏": "external_leakage",
+    "阀门振动": "valve_vibration",
+    "开启不灵": "valve_operation_failure"
+  },
+  "status_cn2en": {
+    "开启": "open",
+    "关闭": "closed",
+    "部分开启": "partially_open",
+    "运行中": "running",
+    "待机": "idle",
+    "故障": "alarm",
+    "维修中": "maintenance",
+    "泄漏": "leakage",
+    "试压中": "pressure_testing"
+  },
+  "synonym_map": {
+    "阀门": [
+      "阀",
+      "valve",
+      "闸"
+    ],
+    "球阀": [
+      "ball valve",
+      "浮动球阀",
+      "浮球阀",
+      "固定球阀"
+    ],
+    "闸阀": [
+      "gate valve",
+      "楔式闸阀",
+      "刀闸阀"
+    ],
+    "蝶阀": [
+      "butterfly valve",
+      "三偏心蝶阀",
+      "对夹蝶阀"
+    ],
+    "截止阀": [
+      "globe valve",
+      "截止"
+    ],
+    "止回阀": [
+      "check valve",
+      "单向阀",
+      "逆止阀"
+    ],
+    "安全阀": [
+      "relief valve",
+      "泄压阀"
+    ],
+    "反应釜": [
+      "反应器",
+      "reactor",
+      "聚合釜"
+    ],
+    "换热器": [
+      "热交换器",
+      "heat exchanger",
+      "列管换热器"
+    ],
+    "阀杆": [
+      "stem",
+      "阀轴"
+    ],
+    "密封": [
+      "seal",
+      "密封件",
+      "填料"
+    ]
+  },
+  "material_synonyms": {
+    "不锈钢": [
+      "304",
+      "316",
+      "cf8",
+      "cf8m",
+      "cf3",
+      "1cr18ni9ti"
+    ],
+    "碳钢": [
+      "wcb",
+      "a105",
+      "20钢",
+      "20"
+    ],
+    "球墨铸铁": [
+      "qt450",
+      "qt400"
+    ],
+    "灰铸铁": [
+      "ht200",
+      "ht250"
+    ],
+    "合金钢": [
+      "wc6",
+      "wc9",
+      "15crmo"
+    ],
+    "铜": [
+      "铜合金",
+      "h62",
+      "h59"
+    ],
+    "法兰": [
+      "flange",
+      "法兰连接"
+    ],
+    "软密封": [
+      "soft seal",
+      "弹性密封"
+    ],
+    "金属密封": [
+      "metal seat",
+      "硬密封"
+    ]
+  },
+  "_meta": {
+    "purpose": "阀门跨界公共词典(化工工程×设备制造×机械加工), 测试领域验证",
+    "scale_note": "阀门+其化工应用场景+其制造设备, 无企业数据, 可开源",
+    "merge": "industrial_dict_loader 合并此文件为公共层"
+  },
+  "pump_cn2en": {
+    "泵": "pump",
+    "动力泵": "dynamic_pump",
+    "叶片泵": "vane_pump",
+    "离心泵": "centrifugal_pump",
+    "轴流泵": "axial_flow_pump",
+    "混流泵": "mixed_flow_pump",
+    "容积泵": "positive_displacement_pump",
+    "往复泵": "reciprocating_pump",
+    "活塞泵": "piston_pump",
+    "柱塞泵": "plunger_pump",
+    "回转泵": "rotary_pump",
+    "齿轮泵": "gear_pump",
+    "螺杆泵": "screw_pump",
+    "转子泵": "rotor_pump",
+    "自吸泵": "self_priming_pump",
+    "管道泵": "inline_pump",
+    "磁力泵": "magnetic_drive_pump"
+  },
+  "standards": {
+    "GB/T 12224": "钢制阀门 一般要求",
+    "GB/T 12233": "通用阀门 铁制截止阀与升降式止回阀",
+    "GB/T 12232": "通用阀门 法兰连接铁制闸阀",
+    "ISO 5211": "工业阀门 部分回转阀门驱动装置的连接",
+    "ISO 5208": "工业阀门 阀门的压力试验",
+    "ASME B16.34": "法兰、螺纹和焊接端连接的阀门",
+    "API 598": "阀门检查和试验",
+    "GB/T 12222": "多回转阀门驱动装置的连接"
+  }
+}
