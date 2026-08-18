@@ -1,5 +1,8 @@
 # factory-ontology
 
+> ⭐ **觉得有用就给我们一个 Star** —— 开源维护靠社区支持，你的 Star 让这个项目被更多人看见。
+> [![GitHub stars](https://img.shields.io/github/stars/zhengjinjun1975/factory-ontology?style=social)](https://github.com/zhengjinjun1975/factory-ontology)
+
 工厂本体驱动的数据问答框架。把结构化台账变成可自然语言提问的语义知识图谱，CSV 进，答案出，每个答案都带证据。
 
 [![Version](https://img.shields.io/badge/version-0.2.1-blue.svg)](CHANGELOG.md)
