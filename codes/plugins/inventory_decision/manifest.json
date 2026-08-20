@@ -1,0 +1,9 @@
+{
+  "name": "inventory_decision",
+  "kind": "decision",
+  "version": "1.0.0",
+  "entry": "plugin.py",
+  "description": "库存补货决策插件：按库存/安全库存阈值输出补货建议（纯规则零LLM）",
+  "author": "factory-ontology-kit",
+  "provides": ["inventory"]
+}
