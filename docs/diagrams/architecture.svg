@@ -1,64 +1,63 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="920" viewBox="0 0 1280 920">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#0b1120"/><stop offset="1" stop-color="#16203a"/>
-    </linearGradient>
-    <marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
-      <path d="M0,0 L8,3 L0,6 Z" fill="#7fb8e8"/>
-    </marker>
-    <filter id="sh"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.35"/></filter>
-  </defs>
-  <rect width="1280" height="920" fill="url(#bg)"/>
-  <text x="640" y="52" fill="#e8eefb" font-size="42" font-weight="bold" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">factory-ontology 系统级架构设计</text>
-  <text x="640" y="80" fill="#8fa3c8" font-size="16" text-anchor="middle" font-family="PingFang SC,Microsoft YaHei,sans-serif">本体驱动 · 规则确定性 · GraphRAG 兜底 · 可解释 · 全本地化</text>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f8fafc"/><stop offset="1" stop-color="#eef2f7"/></linearGradient>
+<marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#0d9488"/></marker>
+</defs>
+<rect width="1280" height="920" fill="url(#bg)"/>
+<text x="640" y="50" fill="#0f172a" font-size="38" font-weight="bold" text-anchor="middle" font-family="Microsoft YaHei">factory-ontology 系统架构</text>
+<text x="640" y="80" fill="#64748b" font-size="18" text-anchor="middle" font-family="Microsoft YaHei">本体驱动 · 规则确定性 · GraphRAG 兜底 · 可解释 · 全本地化</text>
 
-  <!-- 交付层 -->
-  <rect x="60" y="110" width="1160" height="110" rx="14" fill="#1a2336" opacity="0.9" stroke="#3498db" stroke-width="1.5" filter="url(#sh)"/>
-  <rect x="60" y="110" width="1160" height="5" rx="2" fill="#3498db"/>
-  <text x="90" y="140" fill="#7fb8e8" font-size="20" font-weight="bold">交付层（用户触点）</text>
-  <rect x="90" y="152" width="350" height="52" rx="8" fill="#24304d"/><text x="120" y="176" fill="#e8eefb" font-size="17">📱 移动端 APP（PWA）</text><text x="120" y="196" fill="#8fa3c8" font-size="14">问答 · 扫码溯源 · 反向追溯</text>
-  <rect x="465" y="152" width="350" height="52" rx="8" fill="#24304d"/><text x="495" y="176" fill="#e8eefb" font-size="17">🎤 语音助手（本地 STT + TTS）</text><text x="495" y="196" fill="#8fa3c8" font-size="14">faster-whisper · edge-tts</text>
-  <rect x="840" y="152" width="350" height="52" rx="8" fill="#24304d"/><text x="870" y="176" fill="#e8eefb" font-size="17">⚙️ Web 管理后台</text><text x="870" y="196" fill="#8fa3c8" font-size="14">数据上传 · 词典 · 审计</text>
+<!-- 交付层 -->
+<rect x="60" y="108" width="1160" height="105" rx="14" fill="#ffffff" stroke="#0d9488" stroke-width="2"/>
+<rect x="60" y="108" width="1160" height="6" rx="3" fill="#0d9488"/>
+<text x="90" y="138" fill="#0d9488" font-size="22" font-weight="bold">交付层（用户触点）</text>
+<rect x="90" y="150" width="350" height="50" rx="8" fill="#f0fdfa" stroke="#99f6e4"/><text x="120" y="174" fill="#0f172a" font-size="19">📱 移动端 APP（PWA）</text><text x="120" y="194" fill="#64748b" font-size="15">问答 · 扫码溯源 · 反向追溯</text>
+<rect x="465" y="150" width="350" height="50" rx="8" fill="#f0fdfa" stroke="#99f6e4"/><text x="495" y="174" fill="#0f172a" font-size="19">🎤 语音助手（本地）</text><text x="495" y="194" fill="#64748b" font-size="15">faster-whisper · edge-tts</text>
+<rect x="840" y="150" width="350" height="50" rx="8" fill="#f0fdfa" stroke="#99f6e4"/><text x="870" y="174" fill="#0f172a" font-size="19">⚙️ Web 管理后台</text><text x="870" y="194" fill="#64748b" font-size="15">数据上传 · 词典 · 审计</text>
 
-  <!-- API 层 -->
-  <line x1="640" y1="220" x2="640" y2="245" stroke="#7fb8e8" stroke-width="2" marker-end="url(#ar)"/>
-  <rect x="60" y="250" width="1160" height="105" rx="14" fill="#1a2336" opacity="0.9" stroke="#27ae60" stroke-width="1.5" filter="url(#sh)"/>
-  <rect x="60" y="250" width="1160" height="5" rx="2" fill="#27ae60"/>
-  <text x="90" y="280" fill="#6fcf97" font-size="20" font-weight="bold">API 层（FastAPI，业务集中）</text>
-  <text x="90" y="308" fill="#e8eefb" font-size="16">/api/ask · /api/trace/forward · /api/trace/reverse · /api/scan · /api/export · /api/stats</text>
-  <text x="90" y="332" fill="#8fa3c8" font-size="15">/api/admin/*（upload/kbs/audit/sync/rebuild）· /metrics · /api/app-config · 角色化鉴权(admin/read)</text>
+<!-- API 层 -->
+<line x1="640" y1="213" x2="640" y2="240" stroke="#0d9488" stroke-width="2.5" marker-end="url(#ar)"/>
+<rect x="60" y="245" width="1160" height="95" rx="14" fill="#ffffff" stroke="#7c3aed" stroke-width="2"/>
+<rect x="60" y="245" width="1160" height="6" rx="3" fill="#7c3aed"/>
+<text x="90" y="275" fill="#7c3aed" font-size="22" font-weight="bold">API 层（FastAPI，业务集中）</text>
+<text x="90" y="305" fill="#0f172a" font-size="18">/api/ask · /api/trace/forward · /api/trace/reverse · /api/scan · /api/export · /api/stats</text>
+<text x="90" y="328" fill="#64748b" font-size="16">/api/admin/*（upload/kbs/audit/sync/rebuild）· 角色化鉴权(admin/read)</text>
 
-  <!-- 问答推理层 -->
-  <line x1="640" y1="355" x2="640" y2="380" stroke="#7fb8e8" stroke-width="2" marker-end="url(#ar)"/>
-  <rect x="60" y="385" width="1160" height="115" rx="14" fill="#1a2336" opacity="0.9" stroke="#e67e22" stroke-width="1.5" filter="url(#sh)"/>
-  <rect x="60" y="385" width="1160" height="5" rx="2" fill="#e67e22"/>
-  <text x="90" y="415" fill="#f5b041" font-size="20" font-weight="bold">问答/推理层（确定性优先）</text>
-  <rect x="90" y="428" width="360" height="58" rx="8" fill="#3a2f1d"/><text x="118" y="450" fill="#e8eefb" font-size="17">① 规则引擎 ontology_qa_v3</text><text x="118" y="472" fill="#8fa3c8" font-size="14">结构化 100% · 零 token · 可解释</text>
-  <rect x="470" y="428" width="360" height="58" rx="8" fill="#3a2f1d"/><text x="498" y="450" fill="#e8eefb" font-size="17">② 逻辑推理桥 logical_qa</text><text x="498" y="472" fill="#8fa3c8" font-size="14">LLM→逻辑查询→确定性执行（KAG）</text>
-  <rect x="850" y="428" width="340" height="58" rx="8" fill="#3a2f1d"/><text x="878" y="450" fill="#e8eefb" font-size="17">③ GraphRAG graph_rag</text><text x="878" y="472" fill="#8fa3c8" font-size="14">图遍历 + LLM 兜底 · 词典引导</text>
+<!-- 问答推理层 -->
+<line x1="640" y1="340" x2="640" y2="367" stroke="#0d9488" stroke-width="2.5" marker-end="url(#ar)"/>
+<rect x="60" y="372" width="1160" height="110" rx="14" fill="#ffffff" stroke="#f59e0b" stroke-width="2"/>
+<rect x="60" y="372" width="1160" height="6" rx="3" fill="#f59e0b"/>
+<text x="90" y="402" fill="#d97706" font-size="22" font-weight="bold">问答/推理层（确定性优先）</text>
+<rect x="90" y="416" width="360" height="54" rx="8" fill="#fffbeb" stroke="#fde68a"/><text x="118" y="440" fill="#0f172a" font-size="19">① 规则引擎 ontology_qa_v3</text><text x="118" y="462" fill="#64748b" font-size="15">结构化 100% · 零 token · 可解释</text>
+<rect x="470" y="416" width="360" height="54" rx="8" fill="#fffbeb" stroke="#fde68a"/><text x="498" y="440" fill="#0f172a" font-size="19">② 逻辑推理桥 logical_qa</text><text x="498" y="462" fill="#64748b" font-size="15">LLM→逻辑查询→确定性执行（KAG）</text>
+<rect x="850" y="416" width="340" height="54" rx="8" fill="#fffbeb" stroke="#fde68a"/><text x="878" y="440" fill="#0f172a" font-size="19">③ GraphRAG graph_rag</text><text x="878" y="462" fill="#64748b" font-size="15">图遍历 + LLM 兜底 · 词典引导</text>
 
-  <!-- 本体层 -->
-  <line x1="640" y1="500" x2="640" y2="525" stroke="#7fb8e8" stroke-width="2" marker-end="url(#ar)"/>
-  <rect x="60" y="530" width="1160" height="90" rx="14" fill="#1a2336" opacity="0.9" stroke="#9b59b6" stroke-width="1.5" filter="url(#sh)"/>
-  <rect x="60" y="530" width="1160" height="5" rx="2" fill="#9b59b6"/>
-  <text x="90" y="560" fill="#c39bd3" font-size="20" font-weight="bold">本体层</text>
-  <rect x="90" y="573" width="530" height="38" rx="8" fill="#2e2140"/><text x="120" y="597" fill="#e8eefb" font-size="16">本体图（实体-关系-属性，food.nt）</text>
-  <rect x="650" y="573" width="540" height="38" rx="8" fill="#2e2140"/><text x="680" y="597" fill="#e8eefb" font-size="16">词典 lexicon（中文字段名→字段，换领域只换它）</text>
+<!-- 本体层 -->
+<line x1="640" y1="482" x2="640" y2="509" stroke="#0d9488" stroke-width="2.5" marker-end="url(#ar)"/>
+<rect x="60" y="514" width="1160" height="88" rx="14" fill="#ffffff" stroke="#7c3aed" stroke-width="2"/>
+<rect x="60" y="514" width="1160" height="6" rx="3" fill="#7c3aed"/>
+<text x="90" y="544" fill="#7c3aed" font-size="22" font-weight="bold">本体层</text>
+<rect x="90" y="557" width="530" height="36" rx="8" fill="#f5f3ff" stroke="#ddd6fe"/><text x="120" y="581" fill="#0f172a" font-size="18">本体图（实体-关系-属性，valve.nt）</text>
+<rect x="650" y="557" width="540" height="36" rx="8" fill="#f5f3ff" stroke="#ddd6fe"/><text x="680" y="581" fill="#0f172a" font-size="18">词典 lexicon（中文字段名→字段，换领域只换它）</text>
 
-  <!-- 数据层 -->
-  <line x1="640" y1="620" x2="640" y2="645" stroke="#7fb8e8" stroke-width="2" marker-end="url(#ar)"/>
-  <rect x="60" y="650" width="1160" height="105" rx="14" fill="#1a2336" opacity="0.9" stroke="#3498db" stroke-width="1.5" filter="url(#sh)"/>
-  <rect x="60" y="650" width="1160" height="5" rx="2" fill="#3498db"/>
-  <text x="90" y="680" fill="#7fb8e8" font-size="20" font-weight="bold">数据层</text>
-  <rect x="90" y="693" width="360" height="50" rx="8" fill="#24304d"/><text x="118" y="716" fill="#e8eefb" font-size="16">data_loader 多格式读取</text><text x="118" y="735" fill="#8fa3c8" font-size="14">CSV / JSON / SQLite / Excel</text>
-  <rect x="470" y="693" width="360" height="50" rx="8" fill="#24304d"/><text x="498" y="716" fill="#e8eefb" font-size="16">multi_table 多表建本体</text><text x="498" y="735" fill="#8fa3c8" font-size="14">外键检测 · join表 · 跨表关系</text>
-  <rect x="850" y="693" width="340" height="50" rx="8" fill="#24304d"/><text x="878" y="716" fill="#e8eefb" font-size="16">db_loader ERP 直连</text><text x="878" y="735" fill="#8fa3c8" font-size="14">MySQL / PostgreSQL · graph_store 持久化</text>
+<!-- 数据层 -->
+<line x1="640" y1="602" x2="640" y2="629" stroke="#0d9488" stroke-width="2.5" marker-end="url(#ar)"/>
+<rect x="60" y="634" width="1160" height="100" rx="14" fill="#ffffff" stroke="#0d9488" stroke-width="2"/>
+<rect x="60" y="634" width="1160" height="6" rx="3" fill="#0d9488"/>
+<text x="90" y="664" fill="#0d9488" font-size="22" font-weight="bold">数据层</text>
+<rect x="90" y="677" width="360" height="48" rx="8" fill="#f0fdfa" stroke="#99f6e4"/><text x="118" y="700" fill="#0f172a" font-size="18">data_loader 多格式读取</text><text x="118" y="720" fill="#64748b" font-size="15">CSV / JSON / SQLite / Excel</text>
+<rect x="470" y="677" width="360" height="48" rx="8" fill="#f0fdfa" stroke="#99f6e4"/><text x="498" y="700" fill="#0f172a" font-size="18">multi_table 多表建本体</text><text x="498" y="720" fill="#64748b" font-size="15">外键检测 · join表 · 跨表关系</text>
+<rect x="850" y="677" width="340" height="48" rx="8" fill="#f0fdfa" stroke="#99f6e4"/><text x="878" y="700" fill="#0f172a" font-size="18">db_loader ERP 直连</text><text x="878" y="720" fill="#64748b" font-size="15">MySQL / PostgreSQL · graph_store 持久化</text>
 
-  <!-- 模型层 -->
-  <line x1="640" y1="755" x2="640" y2="780" stroke="#7fb8e8" stroke-width="2" marker-end="url(#ar)"/>
-  <rect x="60" y="785" width="1160" height="90" rx="14" fill="#1a2336" opacity="0.9" stroke="#e74c3c" stroke-width="1.5" filter="url(#sh)"/>
-  <rect x="60" y="785" width="1160" height="5" rx="2" fill="#e74c3c"/>
-  <text x="90" y="815" fill="#f1948a" font-size="20" font-weight="bold">模型层（model_llm，可切换）</text>
-  <rect x="90" y="828" width="530" height="38" rx="8" fill="#3a2226"/><text x="120" y="852" fill="#e8eefb" font-size="16">☁️ cloud DeepSeek（联网）</text>
-  <rect x="650" y="828" width="540" height="38" rx="8" fill="#3a2226"/><text x="680" y="852" fill="#e8eefb" font-size="16">🖥️ local Ollama（离线，数据不出厂）</text>
+<!-- 模型层 -->
+<line x1="640" y1="734" x2="640" y2="761" stroke="#0d9488" stroke-width="2.5" marker-end="url(#ar)"/>
+<rect x="60" y="766" width="1160" height="90" rx="14" fill="#ffffff" stroke="#e11d48" stroke-width="2"/>
+<rect x="60" y="766" width="1160" height="6" rx="3" fill="#e11d48"/>
+<text x="90" y="796" fill="#be123c" font-size="22" font-weight="bold">模型层（model_llm，可切换）</text>
+<rect x="90" y="809" width="530" height="38" rx="8" fill="#fff1f2" stroke="#fecdd3"/><text x="120" y="834" fill="#0f172a" font-size="18">☁️ cloud DeepSeek（联网）</text>
+<rect x="650" y="809" width="540" height="38" rx="8" fill="#fff1f2" stroke="#fecdd3"/><text x="680" y="834" fill="#0f172a" font-size="18">🖥️ local Ollama（离线，数据不出厂）</text>
+
+<!-- 底部说明 -->
+<rect x="60" y="872" width="1160" height="36" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+<text x="640" y="896" text-anchor="middle" fill="#64748b" font-size="17" font-family="Microsoft YaHei">CSV/结构化数据 → 工厂本体建模 → 确定性问答 + GraphRAG 检索 → 答案带证据 · 一企业一本体，换行业只换词典</text>
 </svg>
