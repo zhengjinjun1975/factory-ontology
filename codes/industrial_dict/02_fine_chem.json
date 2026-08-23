@@ -12,7 +12,6 @@
   ],
   "type_cn2en": {
     "反应器": "reactor",
-    "反应釜": "reactor",
     "固定床反应器": "fixed_bed_reactor",
     "流化床反应器": "fluidized_bed_reactor",
     "搅拌釜反应器": "stirred_tank_reactor",
@@ -27,12 +26,10 @@
     "冷凝器": "condenser",
     "冷却器": "cooler",
     "蒸馏塔": "distillation_column",
-    "精馏塔": "distillation_column",
     "吸收塔": "absorption_column",
     "萃取塔": "extraction_column",
     "反应塔": "reaction_tower",
     "储罐": "storage_tank",
-    "储槽": "storage_tank",
     "压力容器": "pressure_vessel",
     "分离器": "separator",
     "离心机": "centrifuge",
@@ -134,8 +131,7 @@
     "不合格": "fail",
     "停产": "shutdown",
     "试车": "commissioning",
-    "开车": "startup",
-    "停车": "shutdown"
+    "开车": "startup"
   },
   "synonym_map": {
     "反应釜": [
@@ -176,6 +172,9 @@
     "溶剂": [
       "溶媒",
       "solvent"
+    ],
+    "停产": [
+      "停车"
     ]
   },
   "standards": {

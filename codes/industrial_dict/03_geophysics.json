@@ -16,7 +16,6 @@
     "测量设备": "survey_equipment",
     "地震仪": "seismograph",
     "检波器": "geophone",
-    "地震检波器": "geophone",
     "可控震源": "vibrator",
     "爆炸机": "shot_firer",
     "电磁仪": "electromagnetic_instrument",
@@ -46,8 +45,7 @@
     "地震队": "seismic_team",
     "检波点": "receiver_point",
     "地震剖面": "seismic_section",
-    "测区": "survey_area",
-    "工区": "survey_area"
+    "测区": "survey_area"
   },
   "attr_cn2en": {
     "激发方式": "source_method",
@@ -85,7 +83,8 @@
     "测线": ["seismic line", "测线布置"],
     "三维地震": ["3d seismic", "三维勘探"],
     "地震仪": ["seismograph", "地震记录仪"],
-    "地震队": ["seismic team", "勘探队"]
+    "地震队": ["seismic team", "勘探队"],
+    "测区": ["工区"]
   },
   "standards": {
     "T/BICA 094": "地球物理勘探用电磁仪",

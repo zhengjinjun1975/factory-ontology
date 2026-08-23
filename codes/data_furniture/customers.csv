@@ -1,8 +1,7 @@
-﻿id,customer_name,region,industry,credit_level,contact
-C001,宜家供应商,华东,,C,刘经理
+id,customer_name,region,industry,credit_level,contact
+C001,宜家供应商,华东,工程,C,刘经理
 C002,红星美凯龙,华北,卖场,A,周经理
-C003,宜家供应商,华东,,A,刘经理
+C003,宜家供应商,华东,工程,A,刘经理
 C004,红星美凯龙,华北,工程,A,刘经理
 C005,工程装修公司,华东,品牌,A,周经理
 C006,工程装修公司,华北,工程,B,刘经理
-C001,宜家供应商,华东,,C,刘经理

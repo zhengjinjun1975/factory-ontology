@@ -1,8 +1,7 @@
-﻿id,customer_name,region,industry,credit_level,contact
+id,customer_name,region,industry,credit_level,contact
 C001,京宇采购,华东,电商,A,吴经理
-C002,美的系,,渠道,A,孙经理
+C002,美的系,华东,渠道,A,孙经理
 C003,美的系,华北,品牌,A,刘经理
-C004,,华东,电商,A,孙经理
+C004,未知,华东,电商,A,孙经理
 C005,京宇采购,华南,电商,A,周经理
 C006,京宇采购,华南,品牌,A,吴经理
-C001,京宇采购,华东,电商,A,吴经理

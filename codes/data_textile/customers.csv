@@ -1,8 +1,7 @@
-﻿id,customer_name,region,industry,credit_level,contact
+id,customer_name,region,industry,credit_level,contact
 C001,电商服装店,华东,电商,C,孙经理
 C002,出口贸易商,华南,贸易,A,周经理
 C003,优衣库供应商,华东,品牌,B,周经理
-C004,出口贸易商,华东,品牌,,刘经理
-C005,出口贸易商,华东,电商,,孙经理
+C004,出口贸易商,华东,品牌,C,刘经理
+C005,出口贸易商,华东,电商,C,孙经理
 C006,出口贸易商,华东,电商,C,孙经理
-C001,电商服装店,华东,电商,C,孙经理
