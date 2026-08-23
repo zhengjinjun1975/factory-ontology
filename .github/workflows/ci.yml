@@ -31,3 +31,23 @@ jobs:
             [c.build_nt(os.path.join('data',f), os.path.join('output',f.replace('.csv','.nt'))) for f in ['ai4i.csv','library_inventory.csv','energy_station.csv']]"
           python benchmark.py data/library_inventory.csv | tail -2
           python benchmark.py data/energy_station.csv | tail -2
+
+  ontology-check:
+    # 本体检查: 核查全库数据质量/链路断链/一致性(纯标准库零依赖, 独立 CLI)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: codes
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: 本体检查(零依赖, 阈值通过)
+        # ontology_check.py 仅用标准库, 无需安装任何依赖
+        run: |
+          python ontology_check.py --threshold 60 --json ontology_check_report.json
+      - name: 打印本体检查关键指标
+        run: |
+          python -c "import json;d=json.load(open('ontology_check_report.json'));print('score=%s ok=%s critical=%s n_issues=%s'%(d['score'],d['ok'],d['critical'],d['n_issues']))"
+
