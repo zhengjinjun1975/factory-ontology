@@ -1,0 +1,9 @@
+{
+  "name": "maintenance_decision",
+  "kind": "decision",
+  "version": "1.0.0",
+  "entry": "plugin.py",
+  "description": "预测性维护/优先检修决策插件：按状态+近期故障+保养周期+关键备件缺货 输出确定性检修优先级（纯规则零LLM）",
+  "author": "factory-ontology-kit",
+  "provides": ["maintenance"]
+}
