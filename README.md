@@ -284,6 +284,10 @@ python run.py plugin remove my_plugin           # 移除
 
 内置示例插件 `codes/plugins/example_decision/`：按温度/磨损/转速阈值输出设备维护优先级。第三方开发指南见 `docs/插件框架.md`。
 
+另有两个治理/决策能力：
+- `maintenance_decision`（内置决策插件）：预测性维护与优先检修。综合设备当前状态、近期故障史（按严重度加权）、保养周期/逾期/临近、所用关键备件缺货，输出确定性检修优先级清单，纯规则零 LLM。`python run.py plugin run maintenance_decision '<JSON>'`
+- `schema_contract`（开发期契约工具）：schema 当代码管。改 `config/ontology_schema.json` 前比对上一版，删实体/关系/字段/收紧必填判为破坏性（exit 1 拦截），新增判为兼容放行，防改类型牵一发动全身。`python codes/schema_contract.py <当前schema> <上一版>`
+
 ### 架构图
 
 ![系统级架构设计](docs/diagrams/architecture.svg)
