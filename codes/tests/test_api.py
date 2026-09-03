@@ -40,6 +40,18 @@ def test_api_endpoints():
     # 指标 + 审计
     assert c.get("/metrics").status_code == 200
     assert c.get("/api/admin/audit", headers=_API_HEADERS).status_code == 200
+    # 溯源审计链(哈希链): trace 触发记录 → chain 校验 PASS
+    import tempfile, os as _os
+    _audit_db = _os.path.join(tempfile.mkdtemp(prefix="audit_api_"), "chain.db")
+    _os.environ["AUDIT_DB"] = _audit_db
+    c.get("/api/trace/reverse?raw=RM008", headers=_API_HEADERS)
+    c.get("/api/trace/forward?batch=B001", headers=_API_HEADERS)
+    ac_r = c.get("/api/audit/chain", headers=_API_HEADERS)
+    assert ac_r.status_code == 200 and ac_r.json()["chain_integrity"] == "PASS", ac_r.text
+    assert ac_r.json()["trace_records"] >= 2, ac_r.text
+    exp_r = c.get("/api/audit/export?fmt=json", headers=_API_HEADERS)
+    assert exp_r.status_code == 200 and exp_r.json()["verified"], exp_r.text
+    _os.environ.pop("AUDIT_DB", None)
     # fail-closed 验证: 无 key 应 401
     assert c.post("/api/ask", json={"question": "乳制品的数量"}).status_code == 401
 

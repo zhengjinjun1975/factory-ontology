@@ -547,6 +547,36 @@ def _readable_name(uri):
     return _label(uri)
 
 
+# ── 溯源审计链(可选, 零依赖) ──────────────────────────
+_AUDIT = None
+
+
+def _audit_chain():
+    """惰性初始化审计链。默认存 temp, 可 AUDIT_DB=<path> 指定; 失败静默(审计不阻断主流程)。"""
+    global _AUDIT
+    if _AUDIT is None:
+        try:
+            from audit_chain import AuditChain
+            _AUDIT = AuditChain(os.environ.get("AUDIT_DB"))
+        except Exception as e:
+            logger.warning(f"审计链不可用(降级跳过): {e}")
+            _AUDIT = False
+    return _AUDIT if _AUDIT else None
+
+
+def _audit_trace(direction, query, result):
+    """记录一次溯源到审计链。失败静默, 绝不影响主响应。"""
+    ac = _audit_chain()
+    if not ac:
+        return
+    try:
+        summary = result.get("affected_batches") or result.get("product") or ""
+        ac.record_trace(source=query, relation="trace_" + direction,
+                        target=str(summary)[:500], detail="")
+    except Exception:
+        pass  # 审计失败不影响溯源主结果
+
+
 def _forward_trace(batch_id):
     """正向溯源: 批次 -> 产品 + 原料。"""
     b = _find(f"Food_batches_{batch_id}")
@@ -879,12 +909,16 @@ def ask(req: AskReq):
 
 @app.get("/api/trace/forward", dependencies=[Depends(require_key)])
 def trace_forward(batch: str = Query(..., description="生产批次号，如 B001")):
-    return {"ok": True, "direction": "forward", **_forward_trace(batch)}
+    res = _forward_trace(batch)
+    _audit_trace("forward", batch, res)
+    return {"ok": True, "direction": "forward", **res}
 
 
 @app.get("/api/trace/reverse", dependencies=[Depends(require_key)])
 def trace_reverse(raw: str = Query(..., description="原料编号，如 RM008")):
-    return {"ok": True, "direction": "reverse", **_reverse_trace(raw)}
+    res = _reverse_trace(raw)
+    _audit_trace("reverse", raw, res)
+    return {"ok": True, "direction": "reverse", **res}
 
 
 @app.get("/api/scan", dependencies=[Depends(require_key)])
@@ -892,7 +926,9 @@ def scan(code: str = Query(..., description="溯源码，如 P003-B005 或 B001"
     """扫码溯源：识别产品批次或批次号。"""
     parts = code.split("-")
     batch_id = parts[-1] if parts and parts[-1].startswith("B") else code
-    return {"ok": True, "code": code, **_forward_trace(batch_id)}
+    res = _forward_trace(batch_id)
+    _audit_trace("scan", code, res)
+    return {"ok": True, "code": code, **res}
 
 
 @app.get("/api/stats", dependencies=[Depends(require_key)])
@@ -915,6 +951,49 @@ def stats(kb: str = Query("", description="知识库名")):
             inst_count[cls] = inst_count.get(cls, 0) + 1
     return {"ok": True, "entities": inst_count, "entity_count": sum(inst_count.values()),
             "nodes": len(g), "edges": sum(len(v) for v in g.values())}
+
+
+# ── 溯源审计链 API(可选, 审核可追责) ──────────────
+@app.get("/api/audit/chain", dependencies=[Depends(require_key)])
+def audit_chain_status():
+    """校验溯源审计链完整性(防篡改/防删行)。"""
+    ac = _audit_chain()
+    if not ac:
+        return {"ok": False, "error": "审计链未启用(需 audit_chain.py 可用)"}
+    try:
+        return {"ok": True, "chain_integrity": "PASS" if ac.verify_chain()[0] else "FAIL",
+                "integrity_issues": ac.verify_chain()[1], **ac.audit_report()}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.get("/api/audit/decisions", dependencies=[Depends(require_key)])
+def audit_decisions(category: str = Query("", description="决策类别过滤")):
+    """列出审计链中的决策记录(可选 category 过滤)。"""
+    ac = _audit_chain()
+    if not ac:
+        return {"ok": False, "error": "审计链未启用"}
+    try:
+        decs = ac.decisions(category=category or None, limit=200)
+        return {"ok": True, "count": len(decs), "decisions": decs}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.get("/api/audit/export", dependencies=[Depends(require_key)])
+def audit_export(fmt: str = Query("json", description="json/csv/prov-o")):
+    """导出审计报告到 temp, 返回文件路径与校验状态。"""
+    ac = _audit_chain()
+    if not ac:
+        return {"ok": False, "error": "审计链未启用"}
+    try:
+        import tempfile
+        out = os.path.join(tempfile.gettempdir(), f"factory_audit.{fmt}"
+                           if fmt != "prov-o" else "factory_audit.prov-o.json")
+        r = ac.export_audit(out, fmt=fmt)
+        return {"ok": True, **r}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 
 # ════════════════════════════════════════════════════════════════════════
