@@ -386,7 +386,7 @@ def answer_graph(question, nt_file, depth=1, max_nodes=40, model_key=None, lexic
         return "[图检索] 未定位到相关实体，请换种问法", ""
     sub = extract_subgraph(graph, reverse, seeds, depth=depth, max_nodes=max_nodes)
     context = serialize_subgraph(sub, labels)
-    from model_llm import llm_generate
+    from model_llm import llm_generate, _ERR_PREFIXES
     # schema→prompt：把本体结构(实体类型+属性中文名)注入上下文，提升未见行业查询准确率(ShEx思路)
     schema_ctx = _schema_context(nt_file, lexicon)
     head = ("你是数据问答助手。\n" + schema_ctx + "\n\n") if schema_ctx else "你是数据问答助手。\n"
@@ -400,6 +400,10 @@ def answer_graph(question, nt_file, depth=1, max_nodes=40, model_key=None, lexic
     )
     temp = _pick_temperature(question)  # 动态调温：精确/极值/计数→0.2，开放解释→0.7，其余→0.4
     ans = llm_generate(prompt, temperature=temp, max_tokens=400, model_key=model_key)
+    # 模型错误/调用失败串不得当作"成功命中"返回给路由层(query_agent/rag 已按 _ERR_PREFIXES 过滤,
+    # 此处是漏网: api_server 只判非"[图检索]"即命中)。统一转成"[图检索]"前缀未答信号, 让链路下滑兜底。
+    if ans and ans.startswith(_ERR_PREFIXES):
+        ans = "[图检索] 模型暂不可用，无法生成图检索答案"
     return ans, context
 
 

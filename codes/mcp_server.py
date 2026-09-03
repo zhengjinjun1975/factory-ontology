@@ -31,27 +31,46 @@ def _load_ontology():
     NT = ROOT / "output" / f"{kb}.nt"
     NT.parent.mkdir(exist_ok=True)
     import graph_rag as gr
-    if not NT.exists():
-        # schema 驱动优先（复用优先·极简落地）；无 schema 回退 multi_table
-        schema_path = ROOT / "config" / "ontology_schema.json"
+
+    def _nt_valid(p):
+        """信任缓存前校验本体完整(含跨表对象属性)。缺失=被污染/损坏, 需重建。
+        与 api_server._has_required_relations 同口径——防止脏/桩 nt 被当有效消费。"""
+        if not os.path.exists(str(p)):
+            return False
         try:
-            import schema_ontology as so
-            if schema_path.exists():
-                DATA = ROOT / "data"
-                data = so.load_all(str(DATA))
-                schema = so.load_schema(str(schema_path))
-                so.to_nt(data, schema, outpath=str(NT))
-            else:
-                raise FileNotFoundError("no schema")
+            txt = open(p, encoding="utf-8").read()
+            return all(r in txt for r in ("#produces", "#belongsToBatch", "#usesRawMaterial"))
         except Exception:
-            import multi_table
-            DATA = ROOT / "data"
-            multi_table.build_nt([str(DATA / "food_products.csv"),
-                                  str(DATA / "food_raw_materials.csv"),
-                                  str(DATA / "food_batches.csv"),
-                                  str(DATA / "food_batch_ingredient.csv"),
-                                  str(DATA / "food_qc.csv"),
-                                  str(DATA / "food_equipment.csv")], str(NT))
+            return False
+
+    if not _nt_valid(NT):
+        # 缓存缺失/无效(被污染或桩文件)时重建。
+        # mcp 是 food 专用(工具/溯源前缀硬编码 Food_*), 重建必须产 Food_* 前缀。
+        # 走 multi_table 的 tables+rels dict 形式(与 api_server._ensure_food_ontology 同源一致);
+        # 不用 config/ontology_schema.json——那是 valve-factory-ontology, 产 Valve_* 前缀,
+        # 与 food 语义及本模块 Food_* 前缀错配, 会导致重建后溯源仍空(历史根因)。
+        import multi_table as mt
+        DATA = ROOT / "data"
+
+        def _load(t):
+            return mt.load_table(os.path.join(str(DATA), f"{t}.csv"))
+
+        _tables = {}
+        for t, idc in [("food_products", "id"), ("food_raw_materials", "id"),
+                       ("food_batches", "id"), ("food_batch_ingredient", "batch_id"),
+                       ("food_qc", "id"), ("food_equipment", "id")]:
+            n, h, rows = _load(t)
+            _tables[n] = {"headers": h, "rows": rows, "id_col": idc}
+        _rels = {
+            "food_batches": {"product_id": {"target_class": "Food_products",
+                                            "rel": "http://food.example/ontology#produces", "label": "生产产品"}},
+            "food_batch_ingredient": {
+                "batch_id": {"target_class": "Food_batches",
+                             "rel": "http://food.example/ontology#belongsToBatch", "label": "属于批次"},
+                "raw_id": {"target_class": "Food_raw_materials",
+                           "rel": "http://food.example/ontology#usesRawMaterial", "label": "使用原料"}},
+        }
+        mt.build_nt(_tables, _rels, str(NT))
     graph, labels, vi, rev = gr.build_graph(str(NT))
     # 词典：优先 kbs.json 的 lexicon 字段，其次 FOOD_LEX 环境变量，最后按文件名约定
     import json as _json
@@ -132,19 +151,30 @@ def _reverse_trace(raw: str) -> dict:
     import graph_rag as _gr
     result = {"raw": raw, "batches": [], "products": []}
     target = f"Food_raw_materials_{raw}"  # RM008 → Food_raw_materials_RM008
+    # 溯源链: RM008 →(被 usesRawMaterial 消耗的 junction)→ junction.belongsToBatch 得真实批次 → 批次.produces 得产品
     for node, props in GRAPH.items():
+        if not _gr.tail(node).startswith("Food_batch_ingredient_"):
+            continue  # 只看 junction 实体
+        uses = [gr_val for rel, vals in props.items() if _gr.tail(rel) == "usesRawMaterial"
+                for gr_val in (vals if isinstance(vals, list) else [vals])]
+        if not any(_gr.tail(u) == target for u in uses):
+            continue
+        # 该 junction 属于哪个真实批次
         for rel, vals in props.items():
+            if _gr.tail(rel) != "belongsToBatch":
+                continue
             for v in (vals if isinstance(vals, list) else [vals]):
-                tv = _gr.tail(v)
-                if tv == target and _gr.tail(rel) == "usesRawMaterial":
-                    b = _gr.tail(node)
-                    result["batches"].append(b)
-                    for n2, p2 in GRAPH.items():
-                        for r2, v2 in p2.items():
-                            for vv in (v2 if isinstance(v2, list) else [v2]):
-                                if _gr.tail(vv) == b and _gr.tail(r2) in ("produces", "productRef"):
-                                    result["products"].append(_gr.tail(n2))
-    # 去重
+                real_batch_tail = _gr.tail(v)  # Food_batches_B005
+                result["batches"].append(real_batch_tail)
+                # 在 GRAPH 里找该真实批次的 produces → 产品
+                for n2, p2 in GRAPH.items():
+                    if _gr.tail(n2) != real_batch_tail:
+                        continue
+                    for r2, v2 in p2.items():
+                        if _gr.tail(r2) != "produces":
+                            continue
+                        for vv in (v2 if isinstance(v2, list) else [v2]):
+                            result["products"].append(_gr.tail(vv))
     result["batches"] = list(dict.fromkeys(result["batches"]))
     result["products"] = list(dict.fromkeys(result["products"]))
     return result

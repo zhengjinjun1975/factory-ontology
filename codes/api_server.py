@@ -704,27 +704,25 @@ def _ask_impl(req: AskReq):
         lres = logical_qa.answer(q, QDATA, D)
         if lres:
             lans, lmode = lres
+            # 逻辑桥命中 = 确定性执行器产物(如"符合条件的记录有N条"), 答案本身即依据,
+            # 不用规则专用 extract_evidence(只认 count/extreme/top_n 规则模式, 对逻辑查询答案
+            # 提取常空→误判 no_basis)。直接以确定性答案落一条 logical 证据。
             try:
                 import evidence
                 raw_ev = evidence.extract_evidence(q, QDATA, D, lans)
             except Exception:
                 raw_ev = {}
             ev, structured = _norm_rule_evidence(raw_ev)
+            if not ev:
+                ev = [{"entity": None, "attr": "logical_query", "value": lans[:500],
+                       "source": "logical", "score": 1.0}]
             polished = _polish_rule_answer(q, lans)
-            if ev:
-                payload = {"ok": True, "mode": "logical", "answer": polished,
-                           "evidence": ev, "engines": ["rule"], "structured": structured,
-                           "no_basis": False, "kb": ctx["kb"]}
-                if req.fuse_docs:
-                    payload = _fuse_doc_supplement(q, payload, ctx["kb"])
-                return payload
+            payload = {"ok": True, "mode": "logical", "answer": polished,
+                       "evidence": ev, "engines": ["logical"], "structured": structured,
+                       "no_basis": False, "kb": ctx["kb"]}
             if req.fuse_docs:
-                doc_payload = _doc_rag_fallback(q, ctx["kb"])
-                if doc_payload:
-                    return doc_payload
-            return {"ok": True, "mode": "logical", "answer": polished,
-                    "evidence": [], "engines": ["rule"], "structured": None,
-                    "no_basis": True, "kb": ctx["kb"]}
+                payload = _fuse_doc_supplement(q, payload, ctx["kb"])
+            return payload
     except Exception:
         pass  # 逻辑桥不可用则跳过
     # 3. GraphRAG(LLM 基于图子图作答)
