@@ -961,8 +961,9 @@ def audit_chain_status():
     if not ac:
         return {"ok": False, "error": "审计链未启用(需 audit_chain.py 可用)"}
     try:
-        return {"ok": True, "chain_integrity": "PASS" if ac.verify_chain()[0] else "FAIL",
-                "integrity_issues": ac.verify_chain()[1], **ac.audit_report()}
+        ok, issues = ac.verify_chain()
+        return {"ok": True, "chain_integrity": "PASS" if ok else "FAIL",
+                "integrity_issues": issues, **ac.audit_report()}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 

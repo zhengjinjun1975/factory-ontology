@@ -11,6 +11,8 @@
    哈希链三要素(同 Semantica): ①自身 checksum 匹配内容 ②prev_checksum 匹配上一条
    ③sequence_id = 前一条 + 1(无缝隙无重复)。专防"整行硬删除"(删行破坏序号连续性,
    checksum 撞车时 sequence 检查仍能抓缝隙)。
+   信任边界: 哈希链防意外/部分损坏 + 非授权局部删改; 不防持有 db 完整重写的攻击者
+   (能改 payload 并重算 checksum/prev 则链可整体重建)——审计留痕/可追责用, 非密码学证据.
 2. record_decision: 决策当一等公民记录(category/scenario/reasoning/outcome/
    confidence/entities), 带 reasoning 文本哈希, 可被 trace/similar 复用。
 3. verify_chain: 全链校验, 返回坏链位置。
@@ -31,7 +33,7 @@
 """
 import os
 import json
-import time
+from datetime import datetime
 import sqlite3
 import hashlib
 import tempfile
@@ -58,7 +60,8 @@ class AuditChain:
     def __init__(self, db_path=None):
         # 默认放 temp(不污染仓库); 显式传路径则持久化到指定文件
         self.db_path = db_path or os.path.join(tempfile.gettempdir(), "factory_audit_chain.db")
-        if not self.db_path.lower().endswith(".db") and not self.db_path.lower().endswith(".sqlite"):
+        # 无已知数据库扩展名时才补 .db(避免 "chain.sqlite3"→"chain.sqlite3.db")
+        if os.path.splitext(self.db_path)[1].lower() not in (".db", ".sqlite", ".sqlite3"):
             self.db_path = self.db_path + ".db"
         os.makedirs(os.path.dirname(os.path.abspath(self.db_path)), exist_ok=True)
         self._init_schema()
@@ -95,17 +98,20 @@ class AuditChain:
         prev = self._last_row()
         prev_cs = prev[1] if prev else None
         with self._conn() as c:
+            ts = datetime.now().astimezone().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + \
+                 datetime.now().astimezone().strftime("%z")  # 毫秒+时区(避开 strftime %z/%f 平台坑)
             cur = c.execute(
                 "INSERT INTO ledger (ts, kind, payload, checksum, prev_checksum) VALUES (?,?,?,?,?)",
-                (time.strftime("%Y-%m-%dT%H:%M:%S%z"), kind, data, cs, prev_cs),
+                (ts, kind, data, cs, prev_cs),
             )
             rid = cur.lastrowid
         return rid
 
     def record_trace(self, *, source: str, target: str, relation: str = "uses",
-                     detail: str = "", kind: str = "trace") -> int:
-        """记录一次溯源查询(原料→批次→产品等)。返回 ledger id。"""
-        return self._append(kind, {
+                     detail: str = "") -> int:
+        """记录一次溯源查询(原料→批次→产品等)。返回 ledger id。
+        kind 内部固定为 trace(与 record_decision/record_note 一致, 不暴露可覆盖)."""
+        return self._append("trace", {
             "op": "trace", "source": source, "relation": relation,
             "target": target, "detail": detail[:2000],
         })
