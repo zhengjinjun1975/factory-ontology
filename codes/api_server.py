@@ -966,7 +966,11 @@ def _ask_impl(req: AskReq):
         # 用户看到的是模型的思考过程。改为确定性话术：没有就是没有，实体线索仍留在
         # evidence 里可溯源，但不当作答案文本抛给用户。
         from ask_service import no_basis_reply
-        return {"ok": True, "mode": "hybrid",
+        # mode 用 "miss" 而非 "hybrid": 这里已经没有 LLM 参与(上面那段注释就是
+        # 把"喂小模型生成"改成确定性话术的原因), answer 是"暂未理解"引导语、
+        # no_basis=True —— 三者必须一致。此前写 hybrid 会造成对外宣称"模型答的"
+        # 而实际内容是无据引导语，调用方按 mode 分流时会误判(CI 断言即照出此点)。
+        return {"ok": True, "mode": "miss",
                 "answer": no_basis_reply(KBS.get(ctx["kb"], {}).get("name", "知识库")),
                 "evidence": hybrid_payload.get("evidence", []),
                 "engines": hit_engines, "structured": None,
