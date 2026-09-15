@@ -39,14 +39,20 @@ from lexicon import get_attr_cn_aliases, get_common_zh_status, get_entity_cn2uri
 
 # ------------------------------------------------------------------ 词典加载
 
-def load_dict(path):
+def load_dict(path, industry=None):
     with open(path, encoding="utf-8") as f:
         D = json.load(f)
-    # 合并公共工业本体词典（行业认知层兜底）：KB 覆盖公共，公共兜底 KB。
-    # 让跨行业通用概念（球阀/泵/运行中/不锈钢）无需在每个 KB 词典重复维护。
+    # 合并公共工业词典（基础层 + 行业层）：KB 覆盖公共，公共兜底 KB。
+    # industry 缺省时按 lexicon 文件名解析 kb → 行业，使行业层真正被问答消费。
     try:
-        from industrial_dict_loader import merge_industrial_dict
-        D = merge_industrial_dict(D)
+        from industrial_dict_loader import merge_industrial_dict, industry_for_kb
+        if industry is None:
+            base = os.path.basename(path or "")
+            kb = ""
+            if base.startswith("lexicon_") and base.endswith(".json"):
+                kb = base[len("lexicon_"):-len(".json")]
+            industry = industry_for_kb(kb)
+        D = merge_industrial_dict(D, industry=industry)
     except Exception:
         pass  # 公共层缺失/损坏时降级为纯 KB 词典，不影响原功能
     return D

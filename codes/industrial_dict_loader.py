@@ -19,21 +19,74 @@ import json
 # 公共词典目录（本文件同级 industrial_dict/）
 _DICT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "industrial_dict")
 
-# 合并优先级键位（只合并这两个映射层；attr/entity 数值等仍以 KB 为准）
-_MERGE_KEYS = ("type_cn2en", "status_cn2en", "synonym_map", "entity_cn2en")
+# 合并优先级键位（只合并"中文词→规范名"的 flat 映射；attr_cn2en/numeric_fields/field_aliases
+# 等属工厂字段，不合并，防误伤 KB 自己的列名语义）
+_MERGE_KEYS = ("type_cn2en", "status_cn2en", "synonym_map", "entity_cn2en",
+               "fault_cn2en", "material_synonyms", "pump_cn2en", "part_cn2en",
+               "process_cn2en", "product_type_cn2en", "safety_cn2en", "method_cn2en")
 # 兜底键位：KB 完全没有时用公共层（attr/numeric 不做合并，防误伤工厂字段）
 _FALLBACK_KEYS = ("entity_cn2en",)
 
+# 行业 → 公共词典文件（与 absorb_public_dict.INDUSTRY_FILES 保持一致）
+INDUSTRY_FILES = {
+    "基础": "00_basis.json",
+    "泵阀": "01_valve_pump.json",
+    "精细化工": "02_fine_chem.json",
+    "地球物理": "03_geophysics.json",
+}
+# kb → 行业兜底：kbs.json 未声明 industry 时按 kb 关键词推断
+_KB_INDUSTRY_HINTS = (("valve", "泵阀"), ("pump", "泵阀"),
+                      ("chem", "精细化工"),
+                      ("seis", "地球物理"), ("geo", "地球物理"))
 
-def _load_public(files=None):
+
+def industry_for_kb(kb):
+    """解析 kb 所属行业：先读 config/kbs.json 的 industry 字段，再按 kb 关键词兜底。
+
+    返回行业名（基础/泵阀/精细化工/地球物理）或 None（无法判定 → 只合并基础层）。
+    """
+    if not kb:
+        return None
+    kb_name = str(kb).strip()
+    # 允许直接传行业名
+    if kb_name in INDUSTRY_FILES:
+        return kb_name
+    try:
+        cfg_path = os.path.join(os.path.dirname(_DICT_DIR), "config", "kbs.json")
+        with open(cfg_path, encoding="utf-8") as f:
+            kbcfg = (json.load(f).get("kbs") or {}).get(kb_name) or {}
+        ind = str(kbcfg.get("industry") or "").strip()
+        if ind in INDUSTRY_FILES:
+            return ind
+    except Exception:
+        pass
+    low = kb_name.lower()
+    for kw, ind in _KB_INDUSTRY_HINTS:
+        if kw in low:
+            return ind
+    return None
+
+
+def load_industry_files(industry=None):
+    """行业 → 要合并的公共词典文件列表。
+
+    industry 为 None/基础/未知 → 只基础层（与旧行为一致，向后兼容）。
+    """
+    if industry and industry in INDUSTRY_FILES and industry != "基础":
+        return ["00_basis.json", INDUSTRY_FILES[industry]]
+    return ["00_basis.json"]
+
+
+def _load_public(files=None, industry=None):
     """加载公共词典 JSON 文件, 合并为一份公共层字典。
-    files: 指定要合并的文件名列表; 默认只合并基础层(00_basis.json, 跨行业通用)。"""
+    files: 显式指定要合并的文件名列表;
+    industry: 指定行业时 = [00_basis.json, 该行业词典]（行业层从此真正被消费）。
+    默认（两者都未给）只合并基础层 00_basis.json。"""
     merged = {}
     if not os.path.isdir(_DICT_DIR):
         return merged
     if files is None:
-        # 默认只合并基础层(00_basis), 行业词典按需通过 files 指定
-        files = ["00_basis.json"]
+        files = load_industry_files(industry)
     for fn in sorted(files):
         fp = os.path.join(_DICT_DIR, fn)
         if not os.path.exists(fp):
@@ -49,22 +102,25 @@ def _load_public(files=None):
     return merged
 
 
-def merge_industrial_dict(kb_dict, files=None):
-    """把公共工业词典合并进 KB 词典，返回合并结果（不修改入参）。
+def merge_industrial_dict(kb_dict, files=None, industry=None):
+    """把公共（基础层 + 行业层）词典合并进 KB 词典，返回合并结果（不修改入参）。
 
     合并规则：
-      * type/status/synonym/entity 四类：KB 有则用 KB（覆盖公共），KB 无则用公共（兜底）。
+      * _MERGE_KEYS 各类：KB 有则用 KB（覆盖公共），KB 无则用公共（兜底）。
       * 其余键（attr_cn2en/numeric_fields/field_aliases 等）保持 KB 原样，不动。
-    files: 指定要合并的公共词典文件列表(如 ["valve_public_dict.json"])。
-           默认合并所有(device_types.json + valve_public_dict.json 等)。
+    files: 显式指定要合并的公共词典文件列表。
+    industry: 指定行业（基础/泵阀/精细化工/地球物理）→ 合并 [00_basis, 行业词典]。
+              为 None 时只合并基础层，与旧行为完全一致（向后兼容）。
     """
-    pub = _load_public(files)
+    pub = _load_public(files, industry)
     if not pub:
         return kb_dict
     out = dict(kb_dict) if kb_dict else {}
     for key in _MERGE_KEYS:
         pub_sub = pub.get(key) or {}
         kb_sub = out.get(key) or {}
+        if not isinstance(kb_sub, dict):
+            continue
         # KB 覆盖公共：公共项仅当 KB 无此中文键时才补入
         for cn, en in pub_sub.items():
             if cn not in kb_sub:
@@ -73,9 +129,9 @@ def merge_industrial_dict(kb_dict, files=None):
     return out
 
 
-def public_dict_size():
-    """返回公共层统计（用于验证/调试）。"""
-    pub = _load_public()
+def public_dict_size(industry=None):
+    """返回公共层统计（用于验证/调试）。传 industry 时含该行业层。"""
+    pub = _load_public(industry=industry)
     return {k: len(v) for k, v in pub.items()}
 
 

@@ -118,7 +118,7 @@ _NUMERIC_KEYWORDS = {
 }
 
 
-def _build_lexicon(schema, data):
+def _build_lexicon(schema, data, industry=None):
     """从 suggest_schema 生成基础词典（attr_cn2en/attr_en2cn/status_cn2en/type_cn2en 等），供 ask 问答使用。
     极简：直接用 suggest_schema 推断出的中文属性 label 生成自然词典
     （生产日期→produce_date / 批次编号→batch_id / 原料→raw_parts），缺失时用英文名兜底。
@@ -128,6 +128,14 @@ def _build_lexicon(schema, data):
     - entity_cn2en：data profiling 自动生成 {中文实体名: 表名}，替代实体总数硬编码。
     - numeric_fields：data profiling 识别数值列 -> {中文极值词: 英文字段}，替代极值硬编码。"""
     import re as _re
+    # 行业解析（决定合并哪些公共层文件）：显式传入 > schema.industry > kbs.json/关键词兜底
+    if industry is None:
+        industry = (schema or {}).get("industry")
+    try:
+        from industrial_dict_loader import industry_for_kb
+        industry = industry_for_kb(industry) or industry
+    except Exception:
+        pass
     cn = {}  # 中文名 -> 英文名
     en = {}  # 英文名 -> 中文名
     type_vals = {}   # 类型列取值 -> 取值（值已是中文）
@@ -242,14 +250,15 @@ def _build_lexicon(schema, data):
     # 合并公共工业词典（行业认知层·建模引导）：公共层兜底数据没覆盖的通用概念。
     # 让新厂建模生成的词典自动带跨行业通用概念(设备/泵/阀门/运行中/不锈钢),
     # 无需事后问答时兜底。公共层概念在数据推断之后并入(数据优先, 公共层补充)。
+    _ind_extra = {}
     try:
         from industrial_dict_loader import merge_industrial_dict
-        _pub = merge_industrial_dict({})
+        _pub = merge_industrial_dict({}, industry=industry)
+        # ① 四类主键：并入数据推断结果（数据优先，公共/行业层只补缺）
         for _k in ("type_cn2en", "status_cn2en", "synonym_map", "entity_cn2en"):
-            _pb = _pub.get(_k, {})
+            _pb = _pub.get(_k, {}) or {}
             _cur = locals().get(_k)
             if _cur is None:
-                # type_vals/status_vals/zone_vals 是局部变量名, 与键名不同
                 _cur = {"type_cn2en": type_vals, "status_cn2en": status_vals,
                         "synonym_map": synonym_map, "entity_cn2en": entity_cn2en}.get(_k, {})
             for _cn, _en in _pb.items():
@@ -259,6 +268,12 @@ def _build_lexicon(schema, data):
             elif _k == "status_cn2en": status_vals = _cur
             elif _k == "synonym_map": synonym_map = _cur
             elif _k == "entity_cn2en": entity_cn2en = _cur
+        # ② 行业层特有词键：原样带进工厂词典（不混入 type/entity，避免语义污染）
+        for _k in ("fault_cn2en", "material_synonyms", "pump_cn2en", "part_cn2en",
+                   "process_cn2en", "product_type_cn2en", "safety_cn2en", "method_cn2en"):
+            _m = _pub.get(_k) or {}
+            if _m:
+                _ind_extra[_k] = dict(_m)
     except Exception:
         pass  # 公共层缺失/损坏时降级为纯数据推断, 不影响建模
 
@@ -274,6 +289,8 @@ def _build_lexicon(schema, data):
         "field_aliases": {"status": ["status"], "deviceType": ["deviceType", "device_type", "type"], "deviceName": ["deviceName", "device_name", "name"]},
         "value_fields": [],
         "_public_dict_merged": True,
+        "_industry": industry,                 # 本次合并所用的行业层（可追溯）
+        **_ind_extra,                          # 行业层特有词键（原样保留）
     }
 
 

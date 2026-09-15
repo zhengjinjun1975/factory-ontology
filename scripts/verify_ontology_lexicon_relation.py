@@ -13,7 +13,7 @@
 断言：
   A1 schema 推断**不读**词典  → 摘掉公共词典，schema 逐字节一致
   A2 本体产出**不读**词典      → 摘掉公共词典，ttl 逐字节一致
-  A3 词典生成**读**公共词典    → 摘掉后少掉的词 = 公共层贡献
+  A3 词典生成**读**公共/行业词典 → 摘掉后少掉的词 = 行业+公共层贡献
   A4 问答加载**读**公共词典    → load_dict 前后的词条差 = 公共层兜底
   A5 本体中文标签来自 schema（而非 lexicon）→ ttl 里中文 label ⊆ schema label 集
   A6 词典词与本体标签的对齐率（量化"两条平行线"的重合度）
@@ -64,7 +64,7 @@ def h(s):
 _orig_merge = idl.merge_industrial_dict
 
 
-def _noop(kb_dict, files=None):
+def _noop(kb_dict, files=None, industry=None):
     """摘掉公共词典：等价于 industrial_dict/ 不存在。"""
     return kb_dict
 
@@ -108,7 +108,7 @@ check("A2 本体 ttl 不读词典", ttl_full == ttl_nopub,
 
 # ---------------------------------------------------------------- A3
 print("\n[2] 词典生成：公共层到底贡献了什么")
-MERGE_KEYS = ("type_cn2en", "status_cn2en", "synonym_map", "entity_cn2en")
+MERGE_KEYS = tuple(getattr(idl, "_MERGE_KEYS", ()) or ())   # 与生产模块保持同步，不硬编码
 added_total = {}
 for k in MERGE_KEYS:
     a = set((lex_full.get(k) or {}).keys())
@@ -127,7 +127,7 @@ other_same = all(
     jd(lex_full.get(k)) == jd(lex_nopub.get(k))
     for k in lex_full if k not in MERGE_KEYS and not k.startswith("_")
 )
-check("A3b 公共层只补 4 类词键, 不碰 attr/numeric 等工厂字段", other_same)
+check("A3b 公共/行业层只补词表键, 不碰 attr/numeric 等工厂字段", other_same)
 
 # ---------------------------------------------------------------- A4
 print("\n[3] 问答加载：公共层兜底了多少")
@@ -187,6 +187,25 @@ lex_cn = set((lex_full.get("attr_cn2en") or {}).keys()) | set((lex_full.get("typ
 check("A5b 词典词不是本体标签的来源（两条平行线）", bool(lex_cn),
       "词典 %d 个中文词, 其中 %d 个也是本体标签, %d 个只存在于词典"
       % (len(lex_cn), len(lex_cn & ttl_cn), len(lex_cn - ttl_cn)))
+
+# ---------------------------------------------------------------- A6 行业层是否真被消费
+print("")
+print("[5] 行业层是否真的被消费（本次修的核心断点）")
+base_only = idl.merge_industrial_dict({})
+with_ind = idl.merge_industrial_dict({}, industry="泵阀")
+b_type = len(base_only.get("type_cn2en") or {})
+w_type = len(with_ind.get("type_cn2en") or {})
+def _nn(d):
+    return {k: len(v) for k, v in d.items() if isinstance(v, dict) and v}
+
+b_nn, w_nn = _nn(base_only), _nn(with_ind)
+grown = ["%s %d→%d" % (k, b_nn.get(k, 0), w_nn[k]) for k in w_nn if w_nn[k] > b_nn.get(k, 0)]
+print("  非空词键增量: %s" % ("、".join(grown) or "无"))
+check("A6b 行业层特有词键（pump/part/process…）带来非空增量", len(grown) > 0, "、".join(grown[:8]))
+
+# 默认（不传 industry）仍是只基础层 —— 向后兼容
+check("A6c 不传 industry 时行为不变（向后兼容）", jd(base_only) == jd(idl.merge_industrial_dict({}, industry=None)),
+      "两次默认合并逐字节一致")
 
 # ---------------------------------------------------------------- 汇总
 print("\n" + "=" * 72)

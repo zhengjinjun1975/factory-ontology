@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.3.2] - 2026-09-16
+
+### 词典资产闭环：行业积累真正转起来（数据资产可导出、可导入、可按独立来源沉淀）
+
+> 三层资产（工厂/行业/公共）+ 进出口 + 独立来源判据。验证：四库关系 9/9、闭环端到端 21/21、端点 HTTP 18/18、问答回归 48/48。
+
+**修复（此前是断链）**
+- 行业层写了没人读：`_load_public` 默认只合并 `00_basis.json`，`01_valve_pump/02_fine_chem/03_geophysics` 从未被消费
+  → 新增 `industry_for_kb` / `load_industry_files`，`merge_industrial_dict(..., industry=)`；实测泵阀库 type 23→45 词、pump 0→20、part 0→18
+- 合并白名单与行业层键位不匹配：`_MERGE_KEYS` 由 4 类扩到 12 类（fault/material_synonyms/pump/part/process/product_type/safety/method）
+- 建模生成的工厂词典不按行业合并：`_build_lexicon(schema, data, industry=None)` 自动解析行业，行业层特有词键原样带进工厂词典
+- 问答加载按 lexicon 文件名解析 kb → 行业，行业层被问答消费
+
+**新增（资产积累机制）**
+- `absorb_public_dict`：`source_clusters`（词集合 Jaccard ≥0.9 判同源，模板复制只计 1 个来源）、
+  `independent_source_counter`、候选池 `industrial_dict/_candidates.json`、`learn_from_kb`
+  吸收判据由「文件计数」改为「独立来源计数」（阈值 3）；实测 ≥3 来源的词 61 → 15，挤掉模板复制的水分
+- 聚类前剔除公共层已有词（否则人人含公共词 → Jaccard 虚高 → 全体误判同源）
+- `dict_asset.py`（新模块，零依赖）：工厂词典导出 / 导入（merge|replace、dry_run、差异报告、落盘前备份）/
+  整包 zip（lexicon+schema+nt+meta）/ 恢复
+- 端点：`GET /api/kb/{kb}/lexicon/export`（`bundle=1` 打包整包）、`POST /api/kb/{kb}/lexicon/import`；
+  `POST /api/industry/absorb` 改走独立来源判据（返回 promoted / candidates）
+
+**验证脚本**
+- `scripts/verify_ontology_lexicon_relation.py` 扩到 9 项（新增行业层消费、向后兼容断言）
+- `scripts/verify_dict_asset_loop.py`（新）端到端 21 项：导出→导入 round-trip、同源/异构判定、
+  阈值闸门（<3 不升级、≥3 升级）、沉淀词被新企业建模消费、候选池留痕
+
 ## [0.3.1] - 2026-09-15
 
 ### 问答解析层修复（四库命中率 48.4% → 100%，"答 0" 假答 6 例 → 0 例）

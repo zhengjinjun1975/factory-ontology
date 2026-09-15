@@ -2173,8 +2173,12 @@ def industry_dict_list():
 
 @app.post("/api/industry/absorb", dependencies=[Depends(require_key)])
 async def industry_dict_absorb(req: Request):
-    """吸收企业词典 → 行业词典。body: {lexicon: 企业词典路径, industry: 行业名}
-    行业名: 泵阀/精细化工/地球物理/基础。返回吸收前后 type 数。"""
+    """吸收企业词典 → 候选池 → 行业层（按「独立来源数」判定，默认阈值 3）。
+
+    body: {lexicon: 企业词典路径, industry: 行业名, threshold?: int}
+    行业名: 泵阀/精细化工/地球物理/基础。
+    单一企业来源通常不足以升级进行业层，词会先进候选池等待后续企业确认。
+    """
     try:
         body = await req.json()
     except Exception:
@@ -2184,26 +2188,12 @@ async def industry_dict_absorb(req: Request):
     if not lexicon or not os.path.exists(lexicon):
         return {"ok": False, "error": f"企业词典不存在: {lexicon}"}
     try:
-        from absorb_public_dict import load_public, save_public, merge_into_public
-        from collections import Counter
-        d = json.load(open(lexicon, encoding="utf-8"))
-        counter = Counter()
-        for key in ("entity_cn2en", "type_cn2en", "fault_cn2en"):
-            for cn in (d.get(key) or {}):
-                if cn and len(cn) >= 2:
-                    counter[cn] += 1
-        # 复用 absorb_from_counter 提炼
-        from absorb_public_dict import absorb_from_counter
-        suggestions = absorb_from_counter(counter, threshold=1, verbose=False)
-        pub = load_public(industry)
-        before = len(pub.get("type_cn2en", {}))
-        pub, changed = merge_into_public(pub, suggestions)
-        if changed:
-            save_public(pub, industry)
-            after = len(pub.get("type_cn2en", {}))
-            return {"ok": True, "industry": industry, "before": before, "after": after,
-                    "added": after - before}
-        return {"ok": True, "industry": industry, "before": before, "after": before, "added": 0}
+        from absorb_public_dict import learn_from_kb, load_candidates, CROSS_KB_THRESHOLD
+        res = learn_from_kb(lexicon, industry=industry,
+                            threshold=int(body.get("threshold", CROSS_KB_THRESHOLD)), verbose=False)
+        if res.get("ok"):
+            res["candidates"] = len(load_candidates())
+        return res
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -2226,6 +2216,72 @@ def industry_dict_export(industry: str = Query("泵阀"), download: bool = Query
         return {"ok": True, "file": out, "industry": industry, "type": len(pub.get("type_cn2en", {}))}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+@app.get("/api/kb/{kb}/lexicon/export", dependencies=[Depends(require_key)])
+def kb_lexicon_export(kb: str, download: bool = Query(True), bundle: bool = Query(False)):
+    """导出工厂词典 lexicon_<kb>.json。
+
+    bundle=true 时额外把 schema / nt 一起打成 zip（企业结束时的整包交付）。
+    download=false 只返回 JSON（含路径与词数统计）。
+    """
+    try:
+        import dict_asset
+        if bundle:
+            res = dict_asset.build_bundle(kb)
+            if res.get("ok") and download:
+                return FileResponse(res["path"], filename=os.path.basename(res["path"]),
+                                    media_type="application/zip")
+            return res
+        res = dict_asset.export_lexicon(kb)
+        if res.get("ok") and download:
+            return FileResponse(res["path"], filename=os.path.basename(res["path"]),
+                                media_type="application/json")
+        return res
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.post("/api/kb/{kb}/lexicon/import", dependencies=[Depends(require_key)])
+async def kb_lexicon_import(kb: str, req: Request):
+    """导入工厂词典（同行业复用他人积累的词）。
+
+    body: {path: 词典文件路径} 或 {content: 词典 JSON(对象或字符串)},
+          mode: "merge"(默认, 目标现有词优先只补缺) | "replace", dry_run: bool
+    dry_run=true 只回差异报告，不落盘。
+    """
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    import dict_asset
+    import tempfile
+    src = body.get("path", "")
+    content = body.get("content")
+    mode = body.get("mode", "merge")
+    dry_run = bool(body.get("dry_run", False))
+    tmp = None
+    try:
+        if content is not None:
+            fd, tmp = tempfile.mkstemp(suffix=".json", prefix="leximport_")
+            os.close(fd)
+            with open(tmp, "w", encoding="utf-8") as f:
+                if isinstance(content, str):
+                    f.write(content)
+                else:
+                    json.dump(content, f, ensure_ascii=False)
+            src = tmp
+        if not src or not os.path.exists(src):
+            return {"ok": False, "error": "未提供有效的 path 或 content"}
+        return dict_asset.import_lexicon(kb, src, mode=mode, dry_run=dry_run)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    finally:
+        if tmp and os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

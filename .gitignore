@@ -61,6 +61,7 @@ codes/config/lexicon_kb_*.json
 
 # 行业词典导出产物(运行生成, 不入库)
 dict_export/
+codes/industrial_dict/_candidates.json
 
 # 运行态/临时(不入库)
 _codeagent_tasks/
