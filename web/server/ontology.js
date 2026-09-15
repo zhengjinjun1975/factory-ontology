@@ -936,8 +936,10 @@ export async function industryCandidates(limit = 50) {
   }
 }
 
-/** 吸收一个企业词典 → 候选池 → 行业层（按「独立来源数」判定，非文件数）。 */
-export async function industryAbsorb(lexicon, industry) {
+/** 吸收一个企业词典 → 候选池 → 行业层（按「独立来源数」判定，非文件数）。
+ *  threshold 可选：不传用后端默认（3）；调高可用于"只入候选池不升级"。
+ *  注意：吸收会对全库重算独立来源，达阈值的词会被升级进行业层文件（重动作）。 */
+export async function industryAbsorb(lexicon, industry, threshold) {
   try {
     if (!lexicon) return { ok: false, error: 'lexicon 路径或 kb 名必填' };
     // 传 kb 名（不含路径分隔符）时补全为 <codes>/config/lexicon_<kb>.json，
@@ -946,8 +948,11 @@ export async function industryAbsorb(lexicon, industry) {
     if (!path.includes('/') && !path.includes('\\')) {
       path = join(KIT, 'config', `lexicon_${path}.json`);
     }
+    const body = { lexicon: path, industry };
+    const th = Number(threshold);
+    if (Number.isFinite(th) && th > 0) body.threshold = Math.floor(th);
     const r = await apiFetch('/api/industry/absorb',
-                             { method: 'POST', body: { lexicon: path, industry }, timeout: 60000 });
+                             { method: 'POST', body, timeout: 60000 });
     return r && typeof r.ok === 'boolean' ? r : { ok: false, error: (r && r.error) || '吸收失败' };
   } catch (e) {
     return { ok: false, error: netErr(e, '吸收') };

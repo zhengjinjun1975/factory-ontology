@@ -400,13 +400,13 @@ const server = createServer(async (req, res) => {
   if (req.method === 'POST' && url === '/api/ontology/industry-absorb') {
     try {
       const body = JSON.parse((await readBody(req)) || '{}');
-      const { lexicon, industry } = body;
+      const { lexicon, industry, threshold } = body;
       if (!lexicon || typeof lexicon !== 'string') {
         res.writeHead(400, { 'Content-Type': 'application/json;charset=utf-8' });
         res.end(JSON.stringify({ ok: false, error: 'lexicon 必填' }));
         return;
       }
-      const result = await industryAbsorb(lexicon, industry || '基础');
+      const result = await industryAbsorb(lexicon, industry || '基础', threshold);
       res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
       res.end(JSON.stringify(result));
     } catch (err) {
