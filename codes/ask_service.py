@@ -76,38 +76,62 @@ def _polish_rule_answer(question, raw_answer):
         from model_llm import llm_generate
         prompt = (
             "你是严谨的数据问答助手。下面的答案来自确定性的知识库查询, 事实与数字必须原样保留。\n"
-            "请把它改写为自然、带上下文的通顺中文回答(可补充'当前知识库中/根据设备台账等'衔接语), "
-            "但绝不允许新增、删减或篡改任何数字与事实。\n"
+            "硬性要求: 数字一律保持阿拉伯数字形式(如 3 不得写成'三个'), 不得新增/删减/篡改任何数字与事实, "
+            "不得添加原文没有的修饰性叙述。\n"
+            "请改写为简洁、自然的中文回答(可加'当前知识库中/根据设备台账'等轻量衔接), "
+            "保持问答助手口吻, 不要文学化。\n"
             f"用户问题: {question}\n确定性查询结果: {raw_answer}\n"
             "请只输出润色后的回答, 不要解释。"
         )
-        polished = llm_generate(prompt, temperature=0.2, max_tokens=300)
+        polished = llm_generate(prompt, temperature=0.1, max_tokens=300)
         if polished and not polished.startswith("["):
-            return polished.strip()
+            # 事实保真校验(不依赖模型自觉): 原答案里的阿拉伯数字必须原样出现在润色结果中,
+            # 否则视为改写事实(如 2→'两条'), 回退原答案。数字形式是用户的硬标准。
+            import re as _re
+            # 必须按"独立数字"比对, 不能用子串包含 ——
+            # `"2" in "…2026-07-05…"` 会命中 2026 里的字符 2, 让 "有 2 条"→"有两条"
+            # 这种改写悄悄通过校验。加数字边界 (?<!\d)…(?!\d) 才查得出。
+            _nums = _re.findall(r"\d+(?:\.\d+)?", str(raw_answer))
+            # 汉英之间不得加空格(用户的硬标准)。原文 "200L桶" 被润色成 "200L 桶" 就属违规,
+            # 按"新增的汉英间空格数不得多于原文"来判, 而不是一律禁止(原文自带的允许保留)。
+            _gap = r"[\u4e00-\u9fff]\s+[A-Za-z0-9]"
+            _gap_ok = len(_re.findall(_gap, polished)) <= len(_re.findall(_gap, str(raw_answer)))
+            # 单位也必须原样保留。数字管住了还不够: "0.6MPa" 被润色成 "0.6 兆帕",
+            # 数字还在、意思还对, 但用户要看的是原始单位, 且判分/引用都会对不上。
+            # 原文里的拉丁单位串(MPa/kW/℃/L…)必须原样出现在润色结果里。
+            _units = [u for u in _re.findall(r"[A-Za-z][A-Za-z0-9%°/]{1,7}", str(raw_answer))
+                      if not u.isascii() or len(u) >= 2]
+            _unit_ok = all(u in polished for u in _units)
+            if _gap_ok and _unit_ok and all(_re.search(r"(?<!\d)" + _re.escape(n) + r"(?!\d)", polished) for n in _nums):
+                return polished.strip()
     except Exception:
         pass
     return raw_answer
 
 
-def _llm_fallback_answer(question, kb_name):
-    """LLM 兜底: 全部检索答不上时, 生成理解性回答。evidence 空数组 = 无依据。
+def no_basis_reply(kb_name="知识库"):
+    """无依据时的统一回复（确定性，不调 LLM）。
 
-    问题与知识库无关/LLM 不可用时, 返回 None 交给上层走引导, 避免编造。
-    kb_name: 该知识库显示名(由调用方从注册表解析后传入, 保持本模块无全局状态)。
+    历史上这里走过本地小模型"生成可读回答", 但实测小模型会把自己的推理想法
+    当答案输出（"先确认问题：…看知识图谱…但子图里原料只列了 R001 到 R010…
+    没有给任何库存数值"）。用户看到的是模型独白, 且每次说法都不同, 关键词拦不住。
+
+    按"能确定性解决的不交给模型"改为固定话术：答不了就说答不了。
     """
-    try:
-        from model_llm import llm_generate
-        prompt = (
-            f"你是'{kb_name}'的知识库问答助手。针对用户的问题, 若知识库无法检索到确凿依据, "
-            "请诚实说明当前知识库中没有找到相关数据, 并给出基于常识的谨慎、不编造具体数字的回答; "
-            "若问题本身与知识库领域完全无关, 请明确表示无法回答。\n"
-            f"用户问题: {question}"
-        )
-        ans = llm_generate(prompt, temperature=0.4, max_tokens=300)
-        if ans and not ans.startswith("["):
-            return ans.strip()
-    except Exception:
-        pass
+    return f"当前知识库中未找到与这个问题直接对应的数据。可以换个问法，或确认该信息是否已录入{kb_name}。"
+
+
+def _llm_fallback_answer(question, kb_name):
+    """全部检索答不上时的兜底话术。evidence 空数组 = 无依据。
+
+    ★ 这里**不再调 LLM**。原先走本地小模型让它"给个谨慎的回答", 实测小模型
+    会把自己的推理想法当答案吐给用户（"先问一句，你问的是…可图上只有…而且原料的库存
+    是 decimal 类型，但图上没给具体数值…"）。这是体验事故：用户看到的是模型的独白。
+    靠关键词拦截也追不上 —— 换一种说法就绕过去了。
+
+    按"能确定性解决的不交给模型"的原则，改为固定话术：答不了就说答不了，
+    不编造、不推理、不给"常识性猜测"。调用方拿 None 时走引导分支。
+    """
     return None
 
 

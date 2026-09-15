@@ -1,0 +1,7 @@
+# 行尾统一 LF：编辑工具在 Windows 上会把整文件转成 CRLF，
+# 造成"每行都变"的假 diff（曾把 308 行的改动显示成 3933 行）。
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.db binary
+*.xlsx binary

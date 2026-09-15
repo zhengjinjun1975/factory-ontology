@@ -39,6 +39,10 @@ from pydantic import BaseModel
 import graph_rag as gr
 import ontology_qa_v3 as v3
 import multi_table as mt
+import schema_ontology as so
+import fusion
+import query_understand
+import evidence_norm
 
 # 问答融合辅助层(P2 拆分): 证据归一化/LLM润色兜底/RAG+本体融合/文档目录等无状态逻辑
 from ask_service import (  # noqa: E402
@@ -47,10 +51,8 @@ from ask_service import (  # noqa: E402
     _norm_doc_evidence,
     _polish_rule_answer,
     _llm_fallback_answer,
-    _retrieve_doc_chunks,
     _fuse_doc_supplement,
     _doc_rag_fallback,
-    _fuse_q_bigrams,
     _fuse_chunk_relevant,
 )
 
@@ -83,57 +85,63 @@ def _find(tail_name):
     return None
 
 
-def _data_hash():
-    """数据文件集合的哈希(用于增量重建检测)。"""
-    h = hashlib.md5()
-    for f in sorted(os.listdir(DATA)):
-        if f.startswith("food_") and f.endswith(".csv"):
-            h.update(open(os.path.join(DATA, f), "rb").read())
-    return h.hexdigest()
+def _nt_path_for(kb):
+    """kb → 本体文件路径(读 kbs.json 配置, 不假定任何行业)。"""
+    kbc = KBS.get(kb) or {}
+    return os.path.join(ROOT, kbc.get("nt", f"output/{kb}.nt"))
 
 
-def _has_required_relations(nt_file):
-    """校验缓存本体含跨表对象属性(produces/belongsToBatch/usesRawMaterial)。缺失=被污染/损坏, 需重建。"""
-    if not os.path.exists(nt_file):
-        return False
-    try:
-        txt = open(nt_file, encoding="utf-8").read()
-        return all(r in txt for r in ("#produces", "#belongsToBatch", "#usesRawMaterial"))
-    except Exception:
-        return False
+def _ensure_ontology(kb):
+    """通用本体构建: 由 kb 注册表里配置的 schema 驱动。
 
-
-def _ensure_food_ontology():
-    """若本体已存在且数据未变且关系完整则复用(增量); 否则重建。"""
-    cur = _data_hash()
-    state = os.path.join(os.path.dirname(FOOD_NT), "food_data_hash.txt")
-    prev = open(state).read().strip() if os.path.exists(state) else ""
-    if os.path.exists(FOOD_NT) and prev == cur and _has_required_relations(FOOD_NT):
-        logger.info("本体已是最新(数据未变+关系完整), 复用缓存, 增量模式")
+    取代原先写死 food 表名/关系名的引导逻辑 —— 任何行业同一套代码:
+      · kb 配了 schema → 按 schema + data_dir 重建 nt(schema 驱动, 域无关)
+      · kb 没配 schema → 视为外部(闭源注册表)已生成, 原样复用, 不做任何假设
+    这样新增行业只需在 kbs.json 里declare schema, 代码零改动。
+    """
+    kbc = KBS.get(kb) or {}
+    schema_rel = kbc.get("schema")
+    if not schema_rel:
         return
-    logger.info("检测到数据变化/首次构建/关系缺失, 重建本体...")
-    def load(t):
-        return mt.load_table(os.path.join(DATA, f"{t}.csv"))
-    tables = {}
-    for t, idc in [("food_products","id"),("food_raw_materials","id"),("food_batches","id"),
-                   ("food_batch_ingredient","batch_id"),("food_qc","id"),("food_equipment","id")]:
-        n, h, rows = load(t)
-        tables[n] = {"headers": h, "rows": rows, "id_col": idc}
-    rels = {
-        "food_batches": {"product_id": {"target_class":"Food_products","rel":"http://food.example/ontology#produces","label":"生产产品"}},
-        "food_batch_ingredient": {
-            "batch_id": {"target_class":"Food_batches","rel":"http://food.example/ontology#belongsToBatch","label":"属于批次"},
-            "raw_id": {"target_class":"Food_raw_materials","rel":"http://food.example/ontology#usesRawMaterial","label":"使用原料"}},
-    }
-    os.makedirs(os.path.dirname(FOOD_NT), exist_ok=True)
-    mt.build_nt(tables, rels, FOOD_NT)
-    open(state, "w").write(cur)  # 记录当前数据hash, 下次比对
+    nt_file = _nt_path_for(kb)
+    data_dir = os.path.join(ROOT, kbc.get("data_dir", "data"))
+    schema_path = os.path.join(ROOT, schema_rel)
+    if not (os.path.exists(schema_path) and os.path.isdir(data_dir)):
+        return
+    try:
+        data = so.load_all(data_dir)
+        schema = so.load_schema(schema_path)
+        schema = so.fill_iris(schema)
+        lines = so.to_nt(data, schema)
+        os.makedirs(os.path.dirname(nt_file), exist_ok=True)
+        with open(nt_file, "w", encoding="utf-8", newline="\n") as f:
+            f.write("\n".join(lines) + "\n")
+        logger.info("本体已按 schema 重建: kb=%s nt=%s", kb, nt_file)
+    except Exception as e:
+        logger.warning("schema 驱动重建失败(沿用现有本体): kb=%s err=%s", kb, e)
 
 
-def _load():
-    _ensure_food_ontology()
-    graph, labels, vi, rev = gr.build_graph(FOOD_NT)
+def _load(kb=None):
+    kb = (kb or KB_NAME).strip()
+    _ensure_ontology(kb)
+    nt_file = _nt_path_for(kb)
+    if not os.path.exists(nt_file):
+        raise FileNotFoundError(
+            f"本体文件缺失: {nt_file}。请在 kbs.json 里为 kb={kb} 配置 schema(自动构建),"
+            f"或先由建模流程生成该 .nt。")
+    graph, labels, vi, rev = gr.build_graph(nt_file)
     return graph, labels, vi, rev
+
+
+def _reload(kb=None):
+    """通用重载: 失效该 kb 缓存后按配置重建/重载本体。
+
+    取代原先三处写死 food.nt/food_data_hash.txt 的"删文件再重建"逻辑 ——
+    任何 kb 同一套路径, 新增行业无需改代码。
+    """
+    kb = (kb or KB_NAME).strip()
+    _invalidate_kb(kb)
+    return _load(kb)
 
 
 graph, labels, vi, rev = _load()
@@ -155,7 +163,7 @@ def _warm_embedding():
     except Exception:
         pass  # 预热失败静默, 不阻塞服务启动
 
-app = FastAPI(title="食品企业知识库 API", version="0.2.1",
+app = FastAPI(title="食品企业知识库 API", version="0.2.2",
               description="本体驱动的食品企业问答 + 溯源检索（中小型食品企业场景）")
 
 # ── 托管移动端食品溯源 APP（与 API 同源，一套部署） ──
@@ -230,6 +238,10 @@ def ontology_graph(kb: str = Query("")):
     nodes, edges = [], []
     seen_edges = set()
     RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
+    # 局部名 → 中文显示名(类名/关系名/属性名通用)
+    lb_local = {}
+    for _k, _v in lb.items():
+        lb_local[_k.split("#")[-1].split("/")[-1]] = _v
     # 实体类(从URI前缀推断: NS + <类名>_<实例id>); 仅保留实例节点(带 _ 的)
     for uri, props in g.items():
         if uri == RDF_TYPE:
@@ -239,7 +251,34 @@ def ontology_graph(kb: str = Query("")):
         if "_" not in local:
             continue  # 跳过属性/关系/类声明节点(无实例id)
         entity = local.rsplit("_", 1)[0]
-        nodes.append({"id": uri, "name": nm, "entity": entity})
+        # 实例节点: 若没有中文 label，就用它的首个可读字符串属性值作显示名 ——
+        # 否则图上只剩英文标头(productName 之类)而看不到"闸阀 Z41H-16C"这种具体值。
+        disp = nm
+        if nm == local:
+            for k, vals in props.items():
+                if k in ("type", "label") or not vals:
+                    continue
+                v = str(vals[0])
+                if v and not v.startswith("http") and not v.replace(".", "").isdigit():
+                    disp = v
+                    break
+            if disp == local:
+                # 关联明细这类没有可读字符串属性的实例：显示「类名 + 实例号」，不露完整 URI 局部名。
+                # 判据域无关：类名不含数字(实例键才含)，且是 local 的真前缀；取最长匹配。
+                # 任意行业(阀门/食品/...)同一套逻辑，不针对某个域写死。
+                best, cls_label = "", ""
+                for _ck, _cv in lb_local.items():
+                    if not _ck or any(ch.isdigit() for ch in _ck):
+                        continue
+                    if local == _ck or local.startswith(_ck + "_"):
+                        if len(_ck) > len(best):
+                            best, cls_label = _ck, (_cv if _cv != _ck else _ck)
+                if best:
+                    inst_id = local[len(best) + 1:] if local.startswith(best + "_") else ""
+                    disp = f"{cls_label} {inst_id}".strip()
+                else:
+                    disp = local
+        nodes.append({"id": uri, "name": disp, "entity": entity})
     # 边(对象属性: 目标是实体URI)
     node_ids = {n["id"] for n in nodes}
     for uri, props in g.items():
@@ -251,7 +290,7 @@ def ontology_graph(kb: str = Query("")):
             for v in vals:
                 vv = str(v).strip("<>")
                 if vv in node_ids and (uri, vv) not in seen_edges:
-                    edges.append({"from": uri, "to": vv, "rel": rel})
+                    edges.append({"from": uri, "to": vv, "rel": lb_local.get(rel, rel)})
                     seen_edges.add((uri, vv))
     # ── 类级语义关系边(同属区域/生产产品等, 对象属性 domain→range 都是类, 让力导向图显示语义关系链) ──
     # 解析 nt 里的对象属性(domain/range 都指向非 xsd 类型的类 URI), 渲染为 类→类 边(带中文label)
@@ -320,6 +359,10 @@ class AskReq(BaseModel):
     question: str
     kb: str = ""  # 多租户: 指定知识库; 缺省用 FOOD_KB(默认 food), 兼容旧调用
     fuse_docs: bool = True  # RAG+本体融合: 结构化命中时是否并行检索文档补充细节/溯源(One Query 全答)
+    context: dict = None  # 会话上下文(可选): 供指代消解/实体消歧, 形如 {"entity": "P005"}
+    # 深度召回(默认关): 关=确定性命中即返回(秒回, 现状); 开=规则/逻辑命中后仍继续跑
+    # graph/混合/文档, 由 fusion 统一融合(证据更全, 但每问都要等最慢一路, 响应变慢)。
+    deep_recall: bool = False
 
 
 # ── 多租户惰性加载(T-D1 彻底化): 按 kb 加载本体/词典, 缓存多库, 根治串台 ──
@@ -490,20 +533,18 @@ async def admin_upload(file: UploadFile = File(...), table: str = Query("product
     fname = file.filename or "upload.csv"
     if not fname.endswith(".csv"):
         raise HTTPException(400, "仅支持 CSV")
-    target = table if table.startswith("food_") else f"food_{table}"
+    # 表前缀从 kb 配置读(不写死 food_)；未配置则按原名 —— 任何行业同一套代码
+    _prefix = (KBS.get(KB_NAME) or {}).get("table_prefix", "")
+    target = table if not _prefix or table.startswith(_prefix) else f"{_prefix}{table}"
     dest = os.path.join(DATA, f"{target}.csv")
     os.makedirs(DATA, exist_ok=True)
     content = await file.read()
     with open(dest, "wb") as f:
         f.write(content)
-    # 重建(强制, 让新数据生效)
-    for fn in ["food.nt", "food_data_hash.txt"]:
-        p = os.path.join(os.path.dirname(FOOD_NT), fn)
-        if os.path.exists(p):
-            os.remove(p)
+    # 重建(强制, 让新数据生效) —— 通用路径: 按 kb 配置重载, 不写死文件名
     global graph, labels, vi, rev, QDATA
-    graph, labels, vi, rev = _load()
-    QDATA = v3.build_data(v3.parse_nt(FOOD_NT), D)
+    graph, labels, vi, rev = _reload()
+    QDATA = v3.build_data(v3.parse_nt(_nt_path_for(KB_NAME)), D)
     logger.info("上传 %s -> %s, 本体已重建", fname, dest)
     return {"ok": True, "file": fname, "table": target, "nodes": len(graph)}
 
@@ -619,12 +660,8 @@ def _reverse_trace(raw_id):
 def admin_rebuild():
     """管理操作: 强制重建本体(接新数据后调用)。"""
     global graph, labels, vi, rev, QDATA
-    for f in ["food.nt", "food_data_hash.txt"]:
-        p = os.path.join(os.path.dirname(FOOD_NT), f)
-        if os.path.exists(p):
-            os.remove(p)
-    graph, labels, vi, rev = _load()
-    QDATA = v3.build_data(v3.parse_nt(FOOD_NT), D)
+    graph, labels, vi, rev = _reload()
+    QDATA = v3.build_data(v3.parse_nt(_nt_path_for(KB_NAME)), D)
     logger.info("本体已重建, 节点=%d", len(graph))
     return {"ok": True, "message": "本体已重建", "nodes": len(graph)}
 
@@ -641,12 +678,8 @@ def admin_sync():
             imported = import_source(os.path.join(ROOT, src))
         except Exception as e:
             logger.warning("data_import 失败(用现有数据): %s", e)
-    for f in ["food.nt", "food_data_hash.txt"]:
-        p = os.path.join(os.path.dirname(FOOD_NT), f)
-        if os.path.exists(p):
-            os.remove(p)
-    graph, labels, vi, rev = _load()
-    QDATA = v3.build_data(v3.parse_nt(FOOD_NT), D)
+    graph, labels, vi, rev = _reload()
+    QDATA = v3.build_data(v3.parse_nt(_nt_path_for(KB_NAME)), D)
     return {"ok": True, "kb": KB_NAME, "imported": imported, "nodes": len(graph), "message": "已实时同步"}
 
 
@@ -658,7 +691,7 @@ def metrics():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "0.2.1"}
+    return {"status": "ok", "version": "0.2.2"}
 
 
 @app.get("/api/app-config", include_in_schema=False)
@@ -684,6 +717,11 @@ def _ask_impl(req: AskReq):
     D, QDATA, graph = ctx["D"], ctx["QDATA"], ctx["graph"]
     FOOD_NT, FOOD_LEX = ctx["nt_file"], ctx["lex_file"]
     q = req.question
+    # 0. 查询理解(前置): 意图分类 + 实体消歧 + 指代消解 + 跨域判定
+    rel = query_understand.understand(q, D, req.context or None)  # 传上下文以启用指代消解(P1-4)
+    candidates = []  # 检索类候选(graph/hybrid/doc), 交 fusion 统一裁决
+    _graph_context = ""  # 图检索上下文(原 graphrag 返回的 context 字段, 收口时补回)
+    _schema = {"namespace": f"http://factory.example/{ctx['kb']}#"}  # 证据 IRI 补全(按 kb 命名空间)
     # 1. 规则引擎(确定性, 结构化查询) + LLM 润色 + RAG+本体融合
     ans = v3.answer(q, QDATA, D)
     if ans != "暂不支持该问题":
@@ -701,33 +739,53 @@ def _ask_impl(req: AskReq):
                        "no_basis": False, "kb": ctx["kb"]}
             if req.fuse_docs:
                 payload = _fuse_doc_supplement(q, payload, ctx["kb"])
-            return payload
-        # 结构化"无记录"(no_basis) → 文档有而本体无时用文档答: 先让文档 RAG 兜底,
-        # 文档也无有效依据时保留确定性"无记录"答案(不编造)。
-        if req.fuse_docs:
-            doc_payload = _doc_rag_fallback(q, ctx["kb"])
-            if doc_payload:
-                return doc_payload
-        return {"ok": True, "mode": "rule", "answer": polished,
-                "evidence": [], "engines": ["rule"], "structured": None,
-                "no_basis": True, "kb": ctx["kb"]}
-    # 1.5 通用跨域校验(P1, 取代原白名单词表): 规则引擎 miss 后, 若问题是一条明确的数据查询
+            # 统一融合出口: 规则确定性答案经 fusion 收口(补 confidence=high + 证据归一),
+            # 与 graph/hybrid/doc 走同一出口。单候选 → answer 不变。
+            _cand = {
+                "answer": payload["answer"],
+                "evidence": evidence_norm.normalize_evidence(payload.get("evidence") or [], _schema),
+                "source": "rule", "score": fusion.CAND_SCORE["rule"],
+                "structured": payload.get("structured"),
+            }
+            if req.deep_recall:
+                # 深度召回: 不即返, 入候选池继续跑 graph/混合/文档, 末尾统一融合
+                candidates.append(_cand)
+            else:
+                try:
+                    return fusion.fuse(q, [_cand], cross_domain=False, kb=ctx["kb"], schema=_schema)
+                except Exception as e:  # P2-7: 收口异常不得 500, 回落原确定性 payload
+                    logger.warning(f"fusion 收口异常(rule), 回落原 payload: {e}")
+                    return payload
+        else:
+            # 结构化"无记录"(no_basis) → 文档有而本体无时用文档答: 先让文档 RAG 兜底,
+            # 文档也无有效依据时保留确定性"无记录"答案(不编造)。
+            # 注意: 必须用 else 隔离 —— 有据(ev)且 deep_recall 时不返回, 要继续走后续引擎到收口;
+            # 若沿用裸 if, 会掉进本分支直接返回空证据"无记录"(deep 模式规则证据丢失的 bug)。
+            if req.fuse_docs:
+                doc_payload = _doc_rag_fallback(q, ctx["kb"])
+                if doc_payload:
+                    doc_payload.setdefault("confidence", "low")
+                    return doc_payload
+            return {"ok": True, "mode": "rule", "answer": polished,
+                    "evidence": [], "engines": ["rule"], "structured": None,
+                    "no_basis": True, "confidence": "none", "kb": ctx["kb"]}
     #     (计数/列表/极值/范围/统计), 且其中引用的实体概念不在该 kb 本体任何实体类/词典
     #     (kb_vocab: entity/type/status/zone/attr/numeric_fields), 则禁止逻辑桥/图检索/混合/
     #     LLM 兜底编造, 强制返回"无相关数据"。横向覆盖所有跨域问题(书/船/测线/冲床/图纸…),
     #     不靠具体词表。非数据查询(开放式/咨询/建议)不拦 —— 由下方 3.4 咨询拦截/LLM 兜底处理。
     try:
-        from ontology_qa_v3 import is_cross_domain_data_query
         # 咨询/建议型开放问题即使含"哪些/多少"(如"有哪些需要注意的事项")也非数据查询,
         # 跳过跨域校验, 交给 3.4 咨询拦截生成建议。
-        if is_cross_domain_data_query(q, D) and not re.search(
+        # 只信 is_cross_domain(它本身即"是数据查询 + 引用库外概念"的判定)，
+        # 不再叠加 intent=="data_query"——_intent 词表口径更窄(缺"几台/几本")会漏拦。
+        # ponytail: 跨域判定单一来源 = ontology_qa_v3.is_cross_domain_data_query。
+        if not candidates and rel.get("is_cross_domain") and not re.search(
                 r"需要注意|注意事项|建议|注意什么|注意哪些|应当注意|应该注意|风险|隐患|"
                 r"怎么办|措施|方案|如何|怎么(才能|有效|避免|预防)|意义|作用|影响|经验", q):
-            return {"ok": True, "mode": "miss", "answer": "无相关数据（该知识库不含该实体概念）",
-                    "evidence": [], "engines": [], "structured": None,
-                    "no_basis": True, "kb": ctx["kb"]}
+            # 走 fusion 的 cross_domain 拒答分支(文案单一来源: fusion.NO_DATA_ANSWER)
+            return fusion.fuse(q, [], cross_domain=True, kb=ctx["kb"])
     except Exception:
-        pass
+        logger.warning("跨域判定异常, 放行至后续引擎(未拦截)", exc_info=True)
     # 2. 逻辑推理桥(LLM转逻辑查询→确定性执行, 借鉴KAG; 覆盖更多开放式问题而不失确定性)
     try:
         import logical_qa
@@ -752,9 +810,23 @@ def _ask_impl(req: AskReq):
                        "no_basis": False, "kb": ctx["kb"]}
             if req.fuse_docs:
                 payload = _fuse_doc_supplement(q, payload, ctx["kb"])
-            return payload
+            # 统一融合出口: 逻辑桥确定性答案经 fusion 收口(同 rule 路径)
+            _cand = {
+                "answer": payload["answer"],
+                "evidence": evidence_norm.normalize_evidence(payload.get("evidence") or [], _schema),
+                "source": "logical", "score": fusion.CAND_SCORE["logical"],
+                "structured": payload.get("structured"),
+            }
+            if req.deep_recall:
+                candidates.append(_cand)
+            else:
+                try:
+                    return fusion.fuse(q, [_cand], cross_domain=False, kb=ctx["kb"], schema=_schema)
+                except Exception as e:
+                    logger.warning(f"fusion 收口异常(logical), 回落原 payload: {e}")
+                    return payload
     except Exception:
-        pass  # 逻辑桥不可用则跳过
+        logger.warning("逻辑桥异常, 跳过", exc_info=True)
     # 3. GraphRAG(LLM 基于图子图作答)
     gans, gctx = gr.answer_graph(q, FOOD_NT, depth=2, max_nodes=40, lexicon=D)
     # P1: 图引擎命中(种子/子图有据)但 LLM 生成空串时, 不得当成"有据命中"(no_basis=False +
@@ -764,9 +836,9 @@ def _ask_impl(req: AskReq):
         # 图检索有子图依据: evidence 记录图上下文溯源(来源=graph)
         g_ev = [{"entity": None, "attr": "context", "value": gctx[:1000],
                  "source": "graph", "score": 1.0}] if gctx.strip() else []
-        return {"ok": True, "mode": "graphrag", "answer": gans, "context": gctx[:2000],
-                "evidence": g_ev, "engines": ["graph"], "structured": None,
-                "no_basis": not g_ev, "kb": ctx["kb"]}
+        candidates.append({"answer": gans, "evidence": g_ev, "source": "graph",
+                           "score": fusion.CAND_SCORE["graph"], "structured": None})
+        _graph_context = gctx[:2000]
     # 3.5 混合检索(BM25 稀疏 + 向量语义, RRF 融合): 先暂存命中, 继续走知识库 doc 配合
     #     权重/阈值统一见 bm25_retrieval.HYBRID_CFG(放宽召回 + 倒数排名融合, 提升复杂问题命中)
     # 3.4 咨询/建议型开放问题拦截: "有什么需要注意/建议/如何/风险"等是寻求建议, 不是列举实体。
@@ -779,16 +851,16 @@ def _ask_impl(req: AskReq):
         r"需要注意|怎么办|意义|作用|影响|注意什么|流程是|做法是|标准是|原则|"
         r"风险(需要|应该|要)注意|注意(哪些|什么)", re.I)
     # 咨询/建议型问题命中特征词 → 拦截(即便含"哪些/什么"等, 咨询语义优先)
-    _ADVICE_HIT = _ADVICE_RE.search(q)
+    _ADVICE_HIT = _ADVICE_RE.search(q) or rel.get("intent") == "advice"
     # 排除"明确列举实体"类问题: 含具体实体对象词(设备/产品/客户/批次等) + 多少/哪些, 走正常检索
     _ENTITY_LIST = re.search(
         r"(设备|产品|客户|批次|原料|机器|项目|订单|班组|测线|炮点|机组|装置|台账)\s*(有哪些|有多少|几个|多少|类型)", q)
-    if _ADVICE_HIT and not _ENTITY_LIST:
+    if not candidates and _ADVICE_HIT and not _ENTITY_LIST:
         fallback = _llm_fallback_answer(q, KBS.get(ctx["kb"], {}).get("name", "知识库"))
         if fallback:
             return {"ok": True, "mode": "miss", "answer": fallback,
                     "evidence": [], "engines": [], "structured": None,
-                    "no_basis": True, "kb": ctx["kb"]}
+                    "no_basis": True, "confidence": "none", "kb": ctx["kb"]}
     hybrid_payload = None
     hit_engines = []
     try:
@@ -819,8 +891,11 @@ def _ask_impl(req: AskReq):
                               "answer": f"（混合检索）找到相关实体: {ents}",
                               "evidence": ev, "engines": hit_engines,
                               "structured": None, "no_basis": not ev, "kb": ctx["kb"]}
+            candidates.append({"answer": hybrid_payload["answer"], "evidence": ev,
+                               "source": "hybrid", "score": fusion.CAND_SCORE["hybrid"],
+                               "engines": hit_engines, "structured": None})
     except Exception:
-        pass
+        logger.warning("混合检索异常, 跳过 hybrid 候选", exc_info=True)
     # 3.75 文档知识库 RAG(doc 融合引擎): 本体/图答不上时, 检索该 kb 已入库文档
     #      说明书/规范/PDF 文档知识, 返回带溯源的答案。优先于 hybrid 占位。
     try:
@@ -836,45 +911,86 @@ def _ask_impl(req: AskReq):
             _ev = [e for e in _ev if _fuse_chunk_relevant(q, e.get("chunk") or "")]
             _invalid = not _ans.strip() or _ans.startswith("[") or "片段未覆盖" in _ans or not _ev
             if not _invalid:
-                return {"ok": True, "mode": "kb_rag", "answer": _ans,
-                        "evidence": _norm_doc_evidence(_ev), "engines": ["doc"],
-                        "structured": None, "no_basis": False, "kb": ctx["kb"]}
+                candidates.append({"answer": _ans, "evidence": _norm_doc_evidence(_ev),
+                                   "source": "doc", "score": fusion.CAND_SCORE["doc"], "structured": None})
     except Exception:
-        pass
+        logger.warning("文档 RAG 异常, 跳过 doc 候选", exc_info=True)
+    # 3.9 融合决策收口(检索类 graph/hybrid/doc 产候选 → 统一裁决, 确定性优先)
+    #     hybrid 命中不进收口: 保留原"喂 LLM 兜底生成可读回答"路径(下方 847 段),
+    #     避免把"（混合检索）找到相关实体: ..."这类不可读占位直接返回给用户。
+    if candidates:
+        # 证据统一归一到标准 Evidence 结构(补 class/iri), 供融合去重与后续互操作
+        # ponytail: 归一放在收口前一处, 而非各引擎各归一一次。
+        for _c in candidates:
+            _c["evidence"] = evidence_norm.normalize_evidence(_c.get("evidence") or [], _schema)
+        try:
+            _fused = fusion.fuse(q, candidates, cross_domain=False, kb=ctx["kb"], schema=_schema)
+        except Exception as e:
+            logger.warning(f"fusion 收口异常, 回落首个候选: {e}")
+            _fused = None
+        if _fused is None:
+            _first = candidates[0]
+            _fused = {"ok": True, "mode": _first.get("source") or "none",
+                      "answer": _first.get("answer") or "",
+                      "evidence": _first.get("evidence") or [],
+                      "engines": [c.get("source") for c in candidates if c.get("source")],
+                      "structured": None, "no_basis": not _first.get("evidence"),
+                      "confidence": "low", "kb": ctx["kb"]}
+        if _fused.get("mode") != "hybrid":
+            if _fused.get("mode") == "graphrag" and _graph_context:
+                _fused["context"] = _graph_context  # 恢复原 graphrag 的 context 字段
+            return _fused
     # 知识库无有效答案: 若本体 hybrid 命中了实体, 不再直接输出"找到相关实体"占位(那是调试信息, 用户不可读)。
     # 把命中的实体作为线索喂给 LLM 兜底, 让它基于实体生成可读回答; 实体列表仅作为 evidence 溯源保留。
     # 这样"功率最大的设备"(数据无功率字段)会得到诚实的自然语言回答, 而非罗列 Chem_equipment_*。
     if hybrid_payload is not None:
-        try:
-            from model_llm import llm_generate
-            _hint = "\n".join(f"- {f['entity']}" for f in (hybrid_payload.get("evidence") or [])[:8])
-            _prompt = (
-                f"知识库中可能相关的实体: {_hint or '(无)'}\n"
-                f"用户问题: {q}\n"
-                "请基于以上实体线索回答。若实体与问题无直接关系(如问题问极值/属性但实体是类名), "
-                "如实说明知识库中没有该数据, 不要编造数字。回答简洁。"
-            )
-            _llm_ans = llm_generate(_prompt)
-            if _llm_ans:
-                return {"ok": True, "mode": "hybrid", "answer": _llm_ans,
-                        "evidence": hybrid_payload.get("evidence", []),
-                        "engines": hit_engines, "structured": None,
-                        "no_basis": True, "kb": ctx["kb"]}
-        except Exception:
-            pass
-        return hybrid_payload
+        # 原来这里把命中实体喂给本地小模型"生成可读回答"。实测小模型会输出推理独白
+        # （"先确认问题：…但子图里原料只列了 R001 到 R010…没有给任何库存数值"），
+        # 用户看到的是模型的思考过程。改为确定性话术：没有就是没有，实体线索仍留在
+        # evidence 里可溯源，但不当作答案文本抛给用户。
+        from ask_service import no_basis_reply
+        return {"ok": True, "mode": "hybrid",
+                "answer": no_basis_reply(KBS.get(ctx["kb"], {}).get("name", "知识库")),
+                "evidence": hybrid_payload.get("evidence", []),
+                "engines": hit_engines, "structured": None,
+                "no_basis": True, "confidence": "low", "kb": ctx["kb"]}
     # 4. LLM 兜底: 全部检索答不上 → LLM 生成理解性回答, evidence 空数组(无依据)
     fallback = _llm_fallback_answer(q, KBS.get(ctx["kb"], {}).get("name", "知识库"))
     if fallback:
         return {"ok": True, "mode": "miss", "answer": fallback,
                 "evidence": [], "engines": [], "structured": None,
-                "no_basis": True, "kb": ctx["kb"]}
+                "no_basis": True, "confidence": "none", "kb": ctx["kb"]}
     # 4.5 兜底失败(LLM 不可用/问题无关): 从 KB 配置读示例引导(去硬编码)
     examples = KBS.get(ctx["kb"], {}).get("examples", ["乳制品的数量", "原味酸奶是什么"])
     guide = "\n".join(f"· {e}" for e in examples[:5])
     return {"ok": True, "mode": "miss", "answer": f"抱歉，暂未理解该问题。\n可试试问：\n{guide}",
             "evidence": [], "engines": [], "structured": None, "no_basis": True,
-            "kb": ctx["kb"]}
+            "confidence": "none", "kb": ctx["kb"]}
+
+
+def _strip_reasoning_leak(ans):
+    """拦截"模型独白"型答案 —— 面向用户的最后一道闸。
+
+    多个引擎(hybrid/RAG/logical)的 LLM 出口都可能把内部推理当答案吐出来：
+      "先确认问题：…看子图，原料的库存是 decimal 类型，但图中没有直接给出…"
+    这些是模型的思考过程，用户看到会困惑，且每处都要单独堵、说法还总在变。
+
+    所以不逐个堵引擎，在这个统一出口判一次：答案里出现**只可能来自内部实现**的词
+    (子图/知识图谱/decimal/属性类型/"没有给任何"…)，或呈现"先…再…"的自述结构，
+    就判定为泄漏，退化为确定性话术。
+    """
+    s = str(ans or "").strip()
+    if not s:
+        return s
+    _INTERNAL = ("子图", "知识图谱", "decimal", "实体定义", "属性定义", "三元组",
+                 "没有给任何", "没给具体数值", "先确认问题", "先问一句", "先数",
+                 "让我先", "我先看", "第一步", "思考过程", "knowledge graph")
+    if any(w in s for w in _INTERNAL):
+        return None
+    # "先…看…" 开头的自述句（模型独白的典型起手式）
+    if re.match(r"^\s*(先|首先|让我|我需要|我来)", s) and len(s) > 40:
+        return None
+    return s
 
 
 @app.post("/api/ask", dependencies=[Depends(require_key)])
@@ -888,6 +1004,18 @@ def ask(req: AskReq):
     """
     start = time.time()
     result = _ask_impl(req)
+    # 统一出口净化: 任何引擎的 LLM 出口都可能把推理独白当答案(见 _strip_reasoning_leak)。
+    # 放在这里一次判完, 不必逐个引擎去堵。
+    try:
+        _clean = _strip_reasoning_leak(result.get("answer") if result else None)
+        if result is not None and _clean is None:
+            from ask_service import no_basis_reply
+            result["answer"] = no_basis_reply(KBS.get(req.kb or KB_NAME, {}).get("name", "知识库"))
+            result["no_basis"] = True
+        elif result is not None and _clean is not None:
+            result["answer"] = _clean
+    except Exception:
+        pass
     # P1 跨域拦截兜底: 任何引擎若产出"空答案", 一律判为无据(no_basis=True)——
     # no_basis=False + 空答案 是"看似有据实则空答"的假命中, 必须归为无据, 防绕过跨域拦截。
     try:
@@ -949,8 +1077,228 @@ def stats(kb: str = Query("", description="知识库名")):
         if m:
             cls = m.group(1)
             inst_count[cls] = inst_count.get(cls, 0) + 1
-    return {"ok": True, "entities": inst_count, "entity_count": sum(inst_count.values()),
-            "nodes": len(g), "edges": sum(len(v) for v in g.values())}
+    # ── 看板聚合(前端 DashboardPanel 契约): 设备类型/状态分布 + 产线(车间)统计 ──
+    # 各行业设备表名不同(equipment / valve_equipment / ...)，由词典 entity_cn2en['设备'] 解析；
+    # 无设备表的 kb(如纯产品库)返回空数组 → 前端显示空态而非报错。
+    D = ctx.get("D") or {}
+    aliases = D.get("field_aliases", {}) or {}
+    dev_table = str((D.get("entity_cn2en", {}) or {}).get("设备", "") or "").strip()
+
+    def _field(rec, en):
+        for a in ([en] + list(aliases.get(en, []) or [])):
+            v = rec.get(a)
+            if v not in (None, ""):
+                return str(v).strip()
+        return ""
+
+    def _num(rec, en):
+        try:
+            return float(_field(rec, en) or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    RUNNING = {"running", "run", "normal", "working", "active", "online",
+               "运行中", "运行", "正常", "工作中", "在线", "生产中"}
+    FAULT = {"alarm", "maintenance", "offline", "fault", "fail", "failed", "error",
+             "报警", "维护", "离线", "故障", "停机", "异常", "检修"}
+    # 用"包含"而非精确相等: 数据里是"维护中/运行中"这类带后缀的词, 精确匹配会漏。
+    def _hit(val, words):
+        t = (val or "").strip().lower()
+        return any(w in t for w in words) if t else False
+    devs = []
+    if dev_table:
+        pre = dev_table.lower() + "_"
+        for k, rec in qd.items():
+            local = str(k).split("/")[-1].lower()
+            # 只取该表的一级实例(key 形如 <ent>_<table>_<id>，排除 _<n> 的关联实例)
+            if local.startswith(pre) and len(local.split("_")) == len(dev_table.split("_")) + 1:
+                if isinstance(rec, dict):
+                    devs.append(rec)
+    type_cnt, status_cnt, line_map = {}, {}, {}
+    for rec in devs:
+        t = _field(rec, "deviceType")
+        if t:
+            type_cnt[t] = type_cnt.get(t, 0) + 1
+        s = _field(rec, "status")
+        if s:
+            status_cnt[s] = status_cnt.get(s, 0) + 1
+        ln = _field(rec, "workshop") or _field(rec, "location") or _field(rec, "zone") or "未分组"
+        e = line_map.setdefault(ln, {"device_count": 0, "running": 0, "alarm": 0, "total_power_kw": 0.0})
+        e["device_count"] += 1
+        if _hit(s, RUNNING):
+            e["running"] += 1
+        if _hit(s, FAULT):
+            e["alarm"] += 1
+        e["total_power_kw"] += _num(rec, "powerKw")
+    line_stats = [{"line": ln, "name": ln, "area": ln, "supervisor": "",
+                   "device_count": v["device_count"], "running": v["running"],
+                   "alarm": v["alarm"], "total_power_kw": round(v["total_power_kw"], 2)}
+                  for ln, v in sorted(line_map.items(), key=lambda x: -x[1]["device_count"])]
+    fault_cnt = sum(v["alarm"] for v in line_map.values())
+    total_dev = len(devs)
+    return {
+        "ok": True,
+        "entities": inst_count, "entity_count": sum(inst_count.values()),
+        "nodes": len(g), "edges": sum(len(v) for v in g.values()),
+        "stats": {
+            "total_devices": total_dev,
+            "device_type_dist": [{"type": t, "count": c}
+                                 for t, c in sorted(type_cnt.items(), key=lambda x: -x[1])],
+            "status_dist": [{"status": s, "count": c}
+                            for s, c in sorted(status_cnt.items(), key=lambda x: -x[1])],
+            "line_stats": line_stats,
+            "fault_rate": round(fault_cnt / total_dev, 4) if total_dev else 0.0,
+        },
+    }
+
+
+# ── 标准合规 API（GB/T 48000.3：合规度 + 标准导出物）──────────────
+_EXPORT_ALLOW = {"ontology.ttl", "shapes.ttl", "ontology.jsonld"}
+
+
+@app.get("/api/standard/compliance", dependencies=[Depends(require_key)])
+def standard_compliance():
+    """本体标准合规度（GB/T 48000.3 描述项齐备率 + 命名空间 + SHACL + 类层次 + 导出物）。
+
+    与 ontology_check 的 F 类别同源（一处口径），供前端/验收展示。
+    """
+    try:
+        import ontology_check as oc
+        r = oc._check_standard(os.path.dirname(os.path.abspath(__file__)))
+        st = r.get("state") or {}
+        return {
+            "ok": True,
+            "standard_rate": st.get("standard_rate"),
+            "ent_core_rate": st.get("ent_core_rate"),
+            "ent_rate": st.get("ent_rate"),
+            "attr_rate": st.get("attr_rate"),
+            "ns_ok": st.get("ns_ok"),
+            "subclass_count": st.get("subclass_count"),
+            "has_export": st.get("has_export"),
+            "issues": [{"severity": s, "message": m} for s, m in r.get("issues", [])],
+            "standards": ["GB/T 48000.3-2026", "GB/T 42131-2022", "GB/T 41472.2-2022",
+                          "ISO/IEC 21838", "IEEE 知识图谱评估标准"],
+        }
+    except Exception as e:
+        return {"ok": False, "error": f"合规度计算失败: {e}"}
+
+
+@app.post("/api/standard/export", dependencies=[Depends(require_key)])
+def standard_export():
+    """生成标准导出物（ontology.ttl / shapes.ttl / ontology.jsonld），返回文件名与大小。"""
+    try:
+        import ontology_export as ox
+        root = os.path.dirname(os.path.abspath(__file__))
+        outs = ox.export(os.path.join(root, "config", "ontology_schema.json"),
+                         os.path.join(root, "export"))
+        return {"ok": True, "files": [{"name": k, "size": os.path.getsize(v)}
+                                      for k, v in sorted(outs.items())]}
+    except Exception as e:
+        return {"ok": False, "error": f"导出失败: {e}"}
+
+
+@app.get("/api/standard/export/{fname}", dependencies=[Depends(require_key)])
+def standard_export_download(fname: str):
+    """下载标准导出物（白名单文件名，防路径穿越）。"""
+    from fastapi.responses import FileResponse
+    if fname not in _EXPORT_ALLOW:
+        return {"ok": False, "error": "不允许的文件名"}
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "export", fname)
+    if not os.path.exists(p):
+        return {"ok": False, "error": "导出物不存在，请先生成"}
+    return FileResponse(p, filename=fname,
+                        media_type="text/turtle" if fname.endswith(".ttl") else "application/ld+json")
+
+
+@app.get("/api/standard/quality", dependencies=[Depends(require_key)])
+def standard_quality(kb: str = Query("")):
+    """本体建模质量门：标签/定义/外键关系/结构 体检 + 阈值判定。
+
+    kb 配了 schema 就用配置的；没配则从该 kb 数据自动推断(FDE 现场主场景：
+    CSV 丢进来就能体检, 不用先手写 schema)。
+    """
+    try:
+        import ontology_quality as oq
+        kbc = KBS.get((kb or KB_NAME).strip()) or {}
+        root = os.path.dirname(os.path.abspath(__file__))
+        data_dir = os.path.join(root, kbc.get("data_dir", "data"))
+        data = so.load_all(data_dir) if os.path.isdir(data_dir) else {}
+        schema_rel = kbc.get("schema")
+        if schema_rel and os.path.exists(os.path.join(root, schema_rel)):
+            schema, source = so.load_schema(os.path.join(root, schema_rel)), "configured"
+        else:
+            # 快速模式: 质量门只需结构体检, 不调 LLM(否则每次 19s)
+            schema, source = so.suggest_schema(data, use_llm=False), "auto-inferred"
+        rep = oq.inspect(schema, data)
+        return {"ok": True, "source": source, **rep, "verdict": oq.judge(rep)}
+    except Exception as e:
+        return {"ok": False, "error": f"质量门执行失败: {e}"}
+
+
+
+@app.get("/api/standard/roundtrip", dependencies=[Depends(require_key)])
+def standard_roundtrip():
+    """导入层自检：把导出的 ontology.ttl 读回来，与 schema 核对是否无损往返。
+
+    这是导出物质量的可重跑门 —— 导出/导入任一侧退化都会立刻暴露。
+    外部本体对齐（--align）走 CLI：python ontology_import.py --in <外部文件> --schema ... --align
+    """
+    try:
+        import ontology_import as oim
+        root = os.path.dirname(os.path.abspath(__file__))
+        ttl = os.path.join(root, "export", "ontology.ttl")
+        if not os.path.exists(ttl):
+            return {"ok": False, "error": "导出物不存在，请先生成标准导出物"}
+        fmt, data = oim.parse_input(ttl)
+        model = oim.graph_to_model(data[1])
+        rt = oim.roundtrip(model, os.path.join(root, "config", "ontology_schema.json"))
+        return {"ok": bool(rt.get("ok")), **rt,
+                "classes_note": f"{rt.get('classes_imported')}/{rt.get('classes_expected')}",
+                "props_note": f"{rt.get('dataprops_imported')}/{rt.get('props_expected')}"}
+    except Exception as e:
+        return {"ok": False, "error": f"往返自检失败: {e}"}
+
+
+@app.post("/api/standard/import-align", dependencies=[Depends(require_key)])
+def standard_import_align(payload: dict | None = None):
+    """外部本体对齐：入参 {"path": "外部 .ttl"} 或 {"content": "Turtle 文本"}，
+    与 schema 做对齐报告（同名类匹配、外部独有类），供"对标国标"落到可核对清单。"""
+    try:
+        import ontology_import as oim
+        import tempfile
+        root = os.path.dirname(os.path.abspath(__file__))
+        payload = payload or {}
+        path = payload.get("path")
+        tmp = None
+        if not path and payload.get("content"):
+            # 按内容探测后缀：JSON-LD 原文是 JSON，若写成 .ttl 会被按 Turtle 解析(曾静默出 0 类)
+            content = payload["content"]
+            suffix = ".jsonld" if content.lstrip().startswith(("{", "[")) else ".ttl"
+            fd, tmp = tempfile.mkstemp(suffix=suffix, text=True)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(content)
+            path = tmp
+        if not path or not os.path.exists(path):
+            return {"ok": False, "error": "需提供存在的 path 或 content"}
+        try:
+            fmt, data = oim.parse_input(path)
+            triples = oim.graph_from_jsonld(data)[0] if fmt == "jsonld" else data[1]
+            model = oim.graph_to_model(triples)
+            al = oim.align_report(model, os.path.join(root, "config", "ontology_schema.json"))
+            out = {"ok": True, "format": fmt, "external_classes": len(model["classes"]), **al}
+            # 无类可对齐时给出可操作提示（常见误操作：喂了 SHACL 约束文件而非本体文件）
+            if not model["classes"]:
+                n_shapes = sum(1 for t in triples if "shacl#" in str(t[1]))
+                out["hint"] = ("该文件未含 owl:Class，无法对齐。"
+                               + ("看起来是 SHACL 约束文件（shapes.ttl），请改喂本体文件（ontology.ttl / .jsonld）。"
+                                  if n_shapes else "请确认是本体文件（含 owl:Class 的 .ttl / .jsonld）。"))
+                out["ok"] = False
+            return out
+        finally:
+            if tmp and os.path.exists(tmp):
+                os.remove(tmp)
+    except Exception as e:
+        return {"ok": False, "error": f"对齐失败: {e}"}
 
 
 # ── 溯源审计链 API(可选, 审核可追责) ──────────────
@@ -1446,7 +1794,7 @@ def api_version():
     """服务 + 契约版本与能力特性。"""
     start = time.time()
     return _ok_env({
-        "version": getattr(app, "version", "0.2.1"),
+        "version": getattr(app, "version", "0.2.2"),
         "contract_version": CONTRACT_VERSION,
         "features": FEATURES,
         "kb": KB_NAME,
@@ -1534,6 +1882,171 @@ def ontology_build(req: OntologyBuildReq):
                     "status": "built", "ask_ready": True}, start)
 
 
+class OntologySuggestReq(BaseModel):
+    """① AI 建议（预览）请求：指定数据源，拿回推断结果供人工确认。"""
+    kb: str
+    data_dir: str = None
+    csv_path: str = None
+
+
+def _resolve_src(kb: str, data_dir: str, csv_path: str):
+    """校验 kb 名 + 数据源白名单（与 /api/ontology/build 同规则）。
+
+    返回 (src_abs, err)：err 非空表示校验失败，调用方直接返回该错误。
+    """
+    if not kb or kb.startswith(".") or any(c in kb for c in ("/", "\\", "..")):
+        return None, "非法 kb 名"
+    src = data_dir or csv_path
+    if not src:
+        return None, "需提供 csv_path(单表) 或 data_dir(多表)"
+    data_root = os.path.realpath(os.path.join(ROOT, "data"))
+    out_root = os.path.realpath(os.path.join(ROOT, "output"))
+    src_abs = src if os.path.isabs(src) else os.path.realpath(os.path.join(ROOT, src))
+    _rp = os.path.realpath(src_abs)
+    try:
+        _rel = os.path.relpath(_rp, ROOT)
+        _top = _rel.split(os.sep)[0]
+        _ok = _rp.startswith(out_root + os.sep) or (
+            not _rel.startswith("..") and (_top == "data" or _top.startswith("data") or _top == "output"))
+    except Exception:
+        _ok = False
+    if not _ok:
+        return None, f"数据源必须在 data*/ 或 output/ 内(防路径穿越): {src}"
+    if not os.path.exists(src_abs):
+        return None, f"数据源不存在: {src}"
+    return src_abs, None
+
+
+@app.post("/api/ontology/suggest", dependencies=[Depends(require_key)])
+def ontology_suggest(req: OntologySuggestReq):
+    """① AI 建议（预览，不落盘）：从数据推断实体/属性/关系/约束/业务域。
+
+    这是"自助建模四步流程"的第②步 —— 系统先猜、人后拍板。
+    只读、无副作用：不写 nt/lex，不注册 kb，可反复调用直到人工满意。
+    """
+    start = time.time()
+    src_abs, err = _resolve_src((req.kb or "").strip(), req.data_dir, req.csv_path)
+    if err:
+        return _err_env(4001, err, start)
+    try:
+        import schema_ontology as so
+        import data_loader as dl
+        data = {}
+        # data_loader.load_table 返回 (表名, 列名, 行列表) 三元组 —— 不是行列表
+        if os.path.isdir(src_abs):
+            for f in sorted(os.listdir(src_abs)):
+                if f.lower().endswith((".csv", ".xlsx", ".json")):
+                    try:
+                        _name, _cols, rows = dl.load_table(os.path.join(src_abs, f))
+                    except Exception:
+                        continue
+                    if rows:
+                        data[_name] = rows
+        else:
+            _name, _cols, rows = dl.load_table(src_abs)
+            if rows:
+                data[_name] = rows
+        if not data:
+            return _err_env(4001, "数据源为空或未解析出任何表", start)
+        schema = so.suggest_schema(data, use_llm=False, industry=req.kb.strip())
+    except Exception as e:
+        logger.warning(f"API内部错误[suggest 失败]: {e}")
+        return _err_env(5001, "AI 建议失败(内部错误已记录)", start)
+    # 转成前端友好的精简结构：实体(含域/主键/属性)、关系、约束、统计
+    # 注意：属性必须带上 role/required —— 丢了 role，回传 confirm 后词典生成
+    # 就认不出"类型列/状态列"，问答会答"没有相关数据"。
+    ents = [{"id": e["id"], "label": e.get("label"), "table": e.get("table"),
+             "key": e.get("key"), "domain": e.get("domain"),
+             "definition": e.get("definition"),
+             "attributes": [{"name": a["name"], "label": a.get("label"), "type": a.get("type"),
+                             "role": a.get("role"), "required": a.get("required", False)}
+                            for a in e.get("attributes", [])]}
+            for e in schema.get("entities", [])]
+    return _ok_env({"kb": req.kb.strip(), "source": "auto-inferred",
+                    "entities": ents,
+                    "relations": schema.get("relations", []),
+                    "constraints": schema.get("constraints", []),
+                    "stats": {"entities": len(ents),
+                              "relations": len(schema.get("relations", [])),
+                              "constraints": len(schema.get("constraints", [])),
+                              "domains": sorted({e["domain"] for e in ents if e.get("domain")})},
+                    "note": "预览结果未落盘；确认后调 /api/ontology/confirm 生效"}, start)
+
+
+class OntologyConfirmReq(BaseModel):
+    """③ 人拍板：把人工确认/修改后的 schema 提交生效。"""
+    kb: str
+    schema: dict
+    data_dir: str = None      # 数据源目录（缺省从 kbs.json 该 kb 的 data_dir 取）
+
+
+@app.post("/api/ontology/confirm", dependencies=[Depends(require_key)])
+def ontology_confirm(req: OntologyConfirmReq):
+    """③ 人拍板：保存人工确认后的 schema，按它产出 nt + lexicon 并注册 kb。
+
+    与 /api/ontology/build 的区别：build 是纯自动推断直出，confirm 接受人工修正过的
+    schema（改实体名/关系/域/约束），让"人拍板"真能落到产物上。
+    """
+    start = time.time()
+    kb = (req.kb or "").strip()
+    if not kb or kb.startswith(".") or any(c in kb for c in ("/", "\\", "..")):
+        return _err_env(4001, "非法 kb 名", start)
+    sch = req.schema or {}
+    if not sch.get("entities"):
+        return _err_env(4001, "schema 缺少 entities", start)
+    sp = os.path.join(ROOT, "config", f"ontology_schema_{kb}.json")
+    try:
+        with open(sp, "w", encoding="utf-8") as f:
+            json.dump(sch, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.warning(f"API内部错误[schema 落盘失败]: {e}")
+        return _err_env(5001, "schema 保存失败(内部错误已记录)", start)
+    try:
+        import run as run_mod
+        # 注意：这里必须用 setup_schema(数据目录, schema路径) —— run.setup 会把
+        # schema json 当数据源读，报"JSON 无数据行"。
+        dd = req.data_dir
+        if not dd:
+            entry = _load_kbs().get(kb, {})
+            dd = entry.get("data_dir") or f"data_{kb}"
+        dd_abs = dd if os.path.isabs(dd) else os.path.join(ROOT, dd)
+        if not os.path.isdir(dd_abs):
+            _ok = False
+            for cand in (f"data_{kb}", "data"):
+                c = os.path.join(ROOT, cand)
+                if os.path.isdir(c):
+                    dd_abs, _ok = c, True
+                    break
+            if not _ok:
+                return _err_env(4001, f"未找到数据目录: {dd}", start)
+        nt, _lex_unused = run_mod.setup_schema(dd_abs, sp, table=kb)
+        # setup_schema 只产 nt，不产词典 —— 词典另用 multi_model._build_lexicon 生成，
+        # 否则 /api/ask 无词典可用（此前误判为"建本体失败"）。
+        import multi_model as mm_mod
+        import schema_ontology as so2
+        _sch2 = so2.load_schema(sp)
+        _data2 = so2.load_all(dd_abs)
+        lex = os.path.join(ROOT, "config", f"lexicon_{kb}.json")
+        with open(lex, "w", encoding="utf-8") as f:
+            json.dump(mm_mod._build_lexicon(_sch2, _data2), f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.warning(f"API内部错误[confirm 建模失败]: {e}")
+        return _err_env(5001, "按确认 schema 建本体失败(内部错误已记录)", start)
+    if not nt or not lex:
+        return _err_env(5001, "建本体失败: 未产出 nt 或 lexicon", start)
+    nt_rel = os.path.relpath(nt, ROOT).replace("\\", "/")
+    lex_rel = os.path.relpath(lex, ROOT).replace("\\", "/")
+    try:
+        _update_kbs(kb, nt_rel, lex_rel)
+        _set_active_kb(kb, nt_rel, lex_rel)
+    except Exception as e:
+        logger.warning(f"kbs.json/web_state 更新失败: {e}")
+    _invalidate_kb(kb)
+    return _ok_env({"kb": kb, "schema_path": os.path.relpath(sp, ROOT).replace("\\", "/"),
+                    "nt": nt_rel, "lexicon": lex_rel, "status": "confirmed",
+                    "ask_ready": True}, start)
+
+
 def _update_kbs(kb, nt_rel, lex_rel):
     """把 kb 的 nt/lexicon 写回 kbs.json(幂等)。"""
     data = json.load(open(KBS_FILE, encoding="utf-8"))
@@ -1612,7 +2125,7 @@ def _set_active_kb(kb, nt_rel, lex_rel):
 def industry_dict_list():
     """列出公共工业本体词典集(00基础+01泵阀+02化工+03地质)及各规模。"""
     try:
-        from industrial_dict_loader import _load_public, _DICT_DIR
+        from industrial_dict_loader import _DICT_DIR
         items = []
         for fn in sorted(os.listdir(_DICT_DIR)):
             if not fn.endswith(".json") or fn == "index.json":
