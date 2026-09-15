@@ -19,7 +19,8 @@
         {
           "name": "model_code",
           "type": "string",
-          "label": "型号编码"
+          "label": "型号编码",
+          "definition": "产品型号编码, 工厂内部唯一标识产品规格。"
         },
         {
           "name": "product_name",
@@ -34,12 +35,14 @@
         {
           "name": "size_mm",
           "type": "number",
-          "label": "口径(mm)"
+          "label": "口径(mm)",
+          "definition": "阀门公称通径, 单位毫米。"
         },
         {
           "name": "pressure_grade",
           "type": "string",
-          "label": "压力等级"
+          "label": "压力等级",
+          "definition": "阀门公称压力等级(如 PN16), 决定承压能力。"
         },
         {
           "name": "connection",
@@ -71,7 +74,9 @@
           "type": "number",
           "label": "价格"
         }
-      ]
+      ],
+      "parent": "BusinessObject",
+      "definition": "工厂对外销售/交付的成品阀门及其派生型号, 含口径、压力等级、连接方式、密封与阀体材质等规格。"
     },
     {
       "id": "Customer",
@@ -104,9 +109,12 @@
         {
           "name": "credit_level",
           "type": "enum",
-          "label": "信用等级"
+          "label": "信用等级",
+          "definition": "客户信用等级, 用于销售授信与风险控制。"
         }
-      ]
+      ],
+      "parent": "BusinessObject",
+      "definition": "采购阀门产品的客户企业, 记录区域、行业归属与信用等级。"
     },
     {
       "id": "Sale",
@@ -148,7 +156,9 @@
           "type": "number",
           "label": "金额"
         }
-      ]
+      ],
+      "parent": "BusinessObject",
+      "definition": "一次阀门销售记录, 关联产品与客户, 含数量、日期与金额。"
     },
     {
       "id": "Equipment",
@@ -181,7 +191,8 @@
         {
           "name": "power_kw",
           "type": "number",
-          "label": "功率(kW)"
+          "label": "功率(kW)",
+          "definition": "设备装机功率, 单位千瓦。"
         },
         {
           "name": "status",
@@ -191,7 +202,8 @@
         {
           "name": "vibration_mm_s",
           "type": "number",
-          "label": "振动(mm/s)"
+          "label": "振动(mm/s)",
+          "definition": "设备运行振动烈度, 单位 mm/s, 用于状态与故障判定。"
         },
         {
           "name": "temp_c",
@@ -203,7 +215,9 @@
           "type": "number",
           "label": "电流(A)"
         }
-      ]
+      ],
+      "parent": "BusinessObject",
+      "definition": "生产现场的设备台账, 含设备类型、所属车间、装机功率与运行状态。"
     },
     {
       "id": "RawMaterial",
@@ -243,7 +257,9 @@
           "type": "number",
           "label": "库存"
         }
-      ]
+      ],
+      "parent": "BusinessObject",
+      "definition": "采购入库的原材料/零部件, 含材质、供应商与到货质检结果。"
     },
     {
       "id": "Batch",
@@ -289,7 +305,9 @@
           "type": "enum",
           "label": "状态"
         }
-      ]
+      ],
+      "parent": "BusinessObject",
+      "definition": "一次生产批次, 关联生产的产品、用料、班组与批状态。"
     },
     {
       "id": "BatchIngredient",
@@ -311,7 +329,9 @@
           "label": "原料",
           "role": "reference"
         }
-      ]
+      ],
+      "parent": "BusinessObject",
+      "definition": "批次与原材料的多对多配料明细(批次用料构成)。"
     },
     {
       "id": "Qc",
@@ -350,7 +370,8 @@
         {
           "name": "leak_bubbles_min",
           "type": "number",
-          "label": "泄漏率(泡/min)"
+          "label": "泄漏率(泡/min)",
+          "definition": "试压时每分钟允许的泄漏气泡数, 为 0 表示零泄漏。"
         },
         {
           "name": "result",
@@ -367,7 +388,9 @@
           "type": "date",
           "label": "检验日期"
         }
-      ]
+      ],
+      "parent": "BusinessObject",
+      "definition": "批次的质量检验记录, 含检查项目、压力规则、保压时长与泄漏判定结果。"
     }
   ],
   "relations": [
@@ -377,7 +400,8 @@
       "to": "Sale",
       "fk": "valve_sales.product_id",
       "cardinality": "1:N",
-      "label": "被销售"
+      "label": "被销售",
+      "definition": "Product 与 Sale 的业务关联。"
     },
     {
       "id": "boughtBy",
@@ -385,7 +409,8 @@
       "to": "Customer",
       "fk": "valve_sales.customer_id",
       "cardinality": "N:1",
-      "label": "售予客户"
+      "label": "售予客户",
+      "definition": "销售记录指向购买该批产品的客户。"
     },
     {
       "id": "producedIn",
@@ -393,7 +418,8 @@
       "to": "Product",
       "fk": "valve_batches.product_id",
       "cardinality": "N:1",
-      "label": "生产产品"
+      "label": "生产产品",
+      "definition": "生产批次产出哪一个产品。"
     },
     {
       "id": "usesRawMaterial",
@@ -401,7 +427,8 @@
       "to": "RawMaterial",
       "fk": "valve_batch_ingredient.raw_id",
       "cardinality": "N:1",
-      "label": "使用原料"
+      "label": "使用原料",
+      "definition": "BatchIngredient 与 RawMaterial 的业务关联。"
     },
     {
       "id": "belongsToBatch",
@@ -409,7 +436,8 @@
       "to": "Batch",
       "fk": "valve_batch_ingredient.batch_id",
       "cardinality": "N:1",
-      "label": "属于批次"
+      "label": "属于批次",
+      "definition": "BatchIngredient 与 Batch 的业务关联。"
     },
     {
       "id": "checkedBy",
@@ -417,7 +445,8 @@
       "to": "Batch",
       "fk": "valve_qc.batch_id",
       "cardinality": "N:1",
-      "label": "质检批次"
+      "label": "质检批次",
+      "definition": "质检记录对应哪一个生产批次。"
     }
   ],
   "constraints": [
@@ -440,6 +469,43 @@
       "type": "unique",
       "on": "RawMaterial.id",
       "msg": "原材料编号唯一"
+    },
+    {
+      "type": "in",
+      "on": "Product.pressure_grade",
+      "values": [
+        "PN10",
+        "PN16",
+        "PN25",
+        "PN40"
+      ],
+      "msg": "压力等级须为 PN10/16/25/40"
+    },
+    {
+      "type": "pattern",
+      "on": "Product.model_code",
+      "regex": "^[A-Z]{2,4}-?[0-9]{2,6}$",
+      "msg": "型号编码格式: 字母+数字"
+    },
+    {
+      "type": "range",
+      "on": "Equipment.power_kw",
+      "min": 0,
+      "max": 5000,
+      "msg": "装机功率 0-5000 kW"
+    },
+    {
+      "type": "positive",
+      "on": "Sale.quantity",
+      "msg": "销售数量不能为负"
+    },
+    {
+      "type": "datatype",
+      "on": "Batch.produce_date",
+      "value_type": "date",
+      "msg": "生产日期须为日期型"
     }
-  ]
+  ],
+  "prefix": "fac",
+  "version_iri": "https://ontology.example.com/factory/1.0.0"
 }

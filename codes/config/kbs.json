@@ -8,7 +8,7 @@
         "设备类型有哪些",
         "功率最大的设备"
       ],
-      "data_dir": "data",
+      "data_dir": "data_energy_station",
       "lexicon": "lexicon_energy_station.json",
       "nt": "output/energy_station.nt",
       "_sync": "闭源 registry 已接入(能源站)"
@@ -22,7 +22,7 @@
         "功率最大的设备",
         "客户总数"
       ],
-      "data_dir": "data",
+      "data_dir": "data_manufacturing",
       "lexicon": "lexicon_manufacturing.json",
       "nt": "output/manufacturing.nt",
       "_sync": "闭源 registry 已接入(通用制造)"
@@ -51,7 +51,8 @@
         "RM008 用于哪些批次",
         "原味酸奶是什么"
       ],
-      "data_dir": "data",
+      "data_dir": "data_food",
+      "table_prefix": "food_",
       "lexicon": "lexicon_food.json",
       "nt": "output/food.nt"
     },
@@ -151,7 +152,7 @@
         "刀具磨损最大的机器",
         "机器故障的机器"
       ],
-      "data_dir": "data",
+      "data_dir": "data_ai4i",
       "lexicon": "lexicon_ai4i.json",
       "nt": "output/ai4i.nt"
     },
@@ -163,9 +164,9 @@
         "价格最贵的书",
         "图书类型"
       ],
-      "data_dir": "data",
-      "lexicon": "lexicon_library_inventory.json",
-      "nt": "output/library_inventory.nt"
+      "data_dir": "data_library",
+      "lexicon": "lexicon_library.json",
+      "nt": "output/library.nt"
     },
     "huaneng": {
       "data_dir": "data_huaneng",
@@ -289,7 +290,7 @@
     "qipei_2": {
       "nt": "output/qipei_2.nt",
       "lexicon": "lexicon_qipei_2.json",
-      "data_dir": "data",
+      "data_dir": "data_qipei_2",
       "examples": [
         "共有多少客户",
         "客户总数",
@@ -384,7 +385,7 @@
     "onb_251": {
       "nt": "output/onb_251.nt",
       "lexicon": "lexicon_onb_251.json",
-      "data_dir": "data",
+      "data_dir": "data_onb_251",
       "examples": [
         "共有多少批次配料",
         "批次配料总数",
@@ -431,7 +432,7 @@
     "onb_446": {
       "nt": "output/onb_446.nt",
       "lexicon": "lexicon_onb_446.json",
-      "data_dir": "data",
+      "data_dir": "data_onb_446",
       "examples": [
         "共有多少批次配料",
         "批次配料总数",
@@ -478,7 +479,7 @@
     "onb_814": {
       "nt": "output/onb_814.nt",
       "lexicon": "lexicon_onb_814.json",
-      "data_dir": "data",
+      "data_dir": "data_onb_814",
       "examples": [
         "共有多少批次配料",
         "批次配料总数",
@@ -525,7 +526,7 @@
     "onb_979": {
       "nt": "output/onb_979.nt",
       "lexicon": "lexicon_onb_979.json",
-      "data_dir": "data",
+      "data_dir": "data_onb_979",
       "examples": [
         "共有多少批次配料",
         "批次配料总数",
@@ -568,6 +569,26 @@
         "最大温度的记录",
         "温度最大的数据"
       ]
+    },
+    "valve2": {
+      "nt": "output/valve2.nt",
+      "lexicon": "lexicon_valve2.json",
+      "data_dir": "data"
+    },
+    "valve3": {
+      "nt": "output/valve3.nt",
+      "lexicon": "lexicon_valve3.json",
+      "data_dir": "data"
+    },
+    "factory_multi_1789459752280": {
+      "nt": "output/factory_multi_1789459752280.nt",
+      "lexicon": "config/lexicon_factory_multi_1789459752280.json",
+      "data_dir": "data"
+    },
+    "valve9": {
+      "nt": "output/valve9.nt",
+      "lexicon": "lexicon_valve9.json",
+      "data_dir": "data"
     }
   }
 }
