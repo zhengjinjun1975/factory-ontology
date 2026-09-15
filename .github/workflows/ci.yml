@@ -25,6 +25,7 @@ jobs:
         # food 未配 schema, 不会自动重建; 干净检出没有 output/*.nt(生成物不提交),
         # 故在此显式生成, 否则 test_api 会在 import api_server 时报"本体文件缺失"。
         run: |
+          mkdir -p output
           python multi_table.py output/food.nt \
             data_food/food_products.csv data_food/food_raw_materials.csv \
             data_food/food_batches.csv data_food/food_batch_ingredient.csv \
