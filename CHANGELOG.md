@@ -23,6 +23,26 @@
 - 端点：`GET /api/kb/{kb}/lexicon/export`（`bundle=1` 打包整包）、`POST /api/kb/{kb}/lexicon/import`；
   `POST /api/industry/absorb` 改走独立来源判据（返回 promoted / candidates）
 
+**前端入口（闭环最后一段）**
+- BFF（`web/server/index.js`）新增五条转发（均在既有登录门禁内）：`lexicon-export` / `lexicon-import` /
+  `industry-list` / `industry-candidates` / `industry-absorb`
+- `web/src/lib/api.js` 新增五个封装（导出走 blob 下载，必须带 Authorization 头）；
+  新组件 `LexiconAssetPanel.svelte`（导出词典/整包、导入+差异预览+确认、吸收进候选池、
+  公共词典规模、候选池明细）；`App.svelte` 新增「词典资产」标签页；`npm run build` 通过
+- 后端新增 `GET /api/industry/candidates`（候选池状态）
+
+**集成修复（BFF 端到端实测验出）**
+- 导出误判成功：后端业务失败用 HTTP 200 + `{ok:false}`，BFF 只看状态码会把错误 JSON 当词典下载
+  （实测"不存在的 kb"→ 500 `Invalid character in header content`）→ 改为解析响应体判 `ok`
+- 非 ASCII 文件名：kb 含中文时 `Content-Disposition` 让 Node 抛错 → ASCII 兜底 + RFC 5987 `filename*`
+
+**实测与消融（附带发现，均为既有问题）**
+- `scripts/ablation_public_layer.py`：公共/行业层对基本盘问法贡献 **+0.0 个百分点**（44 句同口径同判法）；
+  纯工厂词典 synonym_map 0 条 → 合并后 49 条（别名能力完全依赖公共层）
+- 既有 P0：类型词作主语的问法（"试压设备有多少台"→"有 10 台设备"，真实 2）答成实体总数，
+  摘掉全部词典后同样错 → 与词典无关，是问答实现的语序判定；
+  而 `eval_hit_rate` 的 5 类问句均由数据字段名生成，未覆盖该语序（评测盲区）
+
 **验证脚本**
 - `scripts/verify_ontology_lexicon_relation.py` 扩到 9 项（新增行业层消费、向后兼容断言）
 - `scripts/verify_dict_asset_loop.py`（新）端到端 21 项：导出→导入 round-trip、同源/异构判定、

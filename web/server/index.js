@@ -4,7 +4,7 @@ import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, graphOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, listIndustries, buildIndustry, evalBenchmark, evalIsolate, knowledgeList, assetsList, assetsSnapshot, assetsRollback, suggestOntologySchema, confirmOntologySchema, knowledgeIngest, knowledgeDelete, knowledgeQuery, getEnterprise, saveEnterprise, resetKb, standardCompliance, standardExport, standardDownload, standardRoundtrip, standardImportAlign, standardQuality } from './ontology.js';
+import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, graphOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, listIndustries, buildIndustry, evalBenchmark, evalIsolate, knowledgeList, assetsList, assetsSnapshot, assetsRollback, suggestOntologySchema, confirmOntologySchema, knowledgeIngest, knowledgeDelete, knowledgeQuery, getEnterprise, saveEnterprise, resetKb, standardCompliance, standardExport, standardDownload, standardRoundtrip, standardImportAlign, standardQuality, lexiconExportRaw, lexiconImport, industryList, industryCandidates, industryAbsorb } from './ontology.js';
 import { login as authLogin, logout as authLogout, me as authMe, createUser, updateUser, seedUsersIfEmpty, restoreSessions } from './auth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -310,6 +310,105 @@ const server = createServer(async (req, res) => {
         'Content-Disposition': `attachment; filename="${file}"`,
       });
       res.end(r.text);
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 工厂词典导出（下载；二进制透传后端 /api/kb/:kb/lexicon/export）──
+  if (req.method === 'GET' && url === '/api/ontology/lexicon-export') {
+    try {
+      const sp = new URL(req.url, 'http://x').searchParams;
+      const kb = sp.get('kb') || getCurrentKb();
+      const bundle = sp.get('bundle') === '1';
+      if (!kb) {
+        res.writeHead(400, { 'Content-Type': 'application/json;charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: 'kb 必填' }));
+        return;
+      }
+      const r = await lexiconExportRaw(kb, bundle);
+      if (!r.ok) {
+        res.writeHead(400, { 'Content-Type': 'application/json;charset=utf-8' });
+        res.end(JSON.stringify(r));
+        return;
+      }
+      // HTTP 头只能放 ASCII：kb 名可能含中文，故做 ASCII 兜底 + RFC 5987 的双写法
+      const asciiName = r.filename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '');
+      res.writeHead(200, {
+        'Content-Type': r.contentType,
+        'Content-Disposition': `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(r.filename)}`,
+        'Content-Length': r.buffer.length,
+      });
+      res.end(r.buffer);
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 工厂词典导入（转发后端 POST /api/kb/:kb/lexicon/import）──
+  if (req.method === 'POST' && url === '/api/ontology/lexicon-import') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const { kb, content, mode, dry_run: dryRun } = body;
+      if (!kb || typeof kb !== 'string') {
+        res.writeHead(400, { 'Content-Type': 'application/json;charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: 'kb 必填' }));
+        return;
+      }
+      const result = await lexiconImport(kb.trim(), content, { mode: mode || 'merge', dryRun: !!dryRun });
+      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 公共/行业词典清单（转发后端 /api/industry/list）──
+  if (req.method === 'GET' && url === '/api/ontology/industry-list') {
+    try {
+      const result = await industryList();
+      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 候选池（转发后端 /api/industry/candidates）──
+  if (req.method === 'GET' && url.startsWith('/api/ontology/industry-candidates')) {
+    try {
+      const limit = new URL(req.url, 'http://x').searchParams.get('limit') || 50;
+      const result = await industryCandidates(limit);
+      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 吸收企业词典 → 候选池/行业层（转发后端 /api/industry/absorb）──
+  if (req.method === 'POST' && url === '/api/ontology/industry-absorb') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const { lexicon, industry } = body;
+      if (!lexicon || typeof lexicon !== 'string') {
+        res.writeHead(400, { 'Content-Type': 'application/json;charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: 'lexicon 必填' }));
+        return;
+      }
+      const result = await industryAbsorb(lexicon, industry || '基础');
+      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
       res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));

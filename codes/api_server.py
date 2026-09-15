@@ -2218,6 +2218,35 @@ def industry_dict_export(industry: str = Query("泵阀"), download: bool = Query
         return {"ok": False, "error": str(e)}
 
 
+@app.get("/api/industry/candidates", dependencies=[Depends(require_key)])
+def industry_dict_candidates(limit: int = Query(50)):
+    """候选池：服务过的企业里出现、但独立来源数尚未达阈值的概念。
+
+    返回 {threshold, similarity, file, total, items:[{word, sources, n, key, first_seen, last_seen}]}
+    """
+    try:
+        from absorb_public_dict import load_candidates, CAND_PATH, CROSS_KB_THRESHOLD, SAME_SOURCE_JACCARD
+        cand = load_candidates()
+        items = sorted(cand.items(), key=lambda x: -len(x[1].get("sources", [])))
+        return {
+            "ok": True,
+            "threshold": CROSS_KB_THRESHOLD,
+            "similarity": SAME_SOURCE_JACCARD,
+            "file": CAND_PATH,
+            "total": len(cand),
+            "items": [{
+                "word": w,
+                "sources": e.get("sources", []),
+                "n": len(e.get("sources", [])),
+                "key": e.get("key", ""),
+                "first_seen": e.get("first_seen", ""),
+                "last_seen": e.get("last_seen", ""),
+            } for w, e in items[:limit]],
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 @app.get("/api/kb/{kb}/lexicon/export", dependencies=[Depends(require_key)])
 def kb_lexicon_export(kb: str, download: bool = Query(True), bundle: bool = Query(False)):
     """导出工厂词典 lexicon_<kb>.json。

@@ -186,6 +186,61 @@ export async function fetchLine(lineId, kb) {
   return fetchRetry(`/api/ontology/line/${encodeURIComponent(lineId)}${q}`);
 }
 
+// ── 词典资产（数据资产闭环：导出 / 导入 / 行业积累）──────────────────
+
+/** 导出工厂词典并触发下载。bundle=true 打包 lexicon+schema+nt+meta 为 zip。
+ *  必须走带鉴权头的 fetch 取 blob 再下载（a.href 直连不带 Authorization → 401）。 */
+export async function exportLexicon(kb, bundle = false) {
+  const resp = await fetch(`/api/ontology/lexicon-export?kb=${encodeURIComponent(kb)}&bundle=${bundle ? 1 : 0}`,
+                           { headers: authHeaders() });
+  if (!resp.ok) {
+    let msg = `HTTP ${resp.status}`;
+    try { const j = await resp.json(); if (j && j.error) msg = j.error; } catch (e) { /* 非 JSON */ }
+    throw new Error(msg);
+  }
+  const disp = resp.headers.get('Content-Disposition') || '';
+  const m = disp.match(/filename="?([^";]+)"?/i);
+  const filename = (m && m[1]) || (bundle ? `${kb}_bundle.zip` : `lexicon_${kb}.json`);
+  const url = URL.createObjectURL(await resp.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  return { ok: true, filename };
+}
+
+/** 导入工厂词典（同行业复用他人积累的词）。
+ *  content: 词典 JSON 文本或对象；dryRun=true 只回差异报告不落盘。 */
+export function importLexicon(kb, content, { mode = 'merge', dryRun = false } = {}) {
+  return fetchRetry('/api/ontology/lexicon-import', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ kb, content, mode, dry_run: dryRun }),
+  });
+}
+
+/** 公共/行业词典清单（00基础 / 01泵阀 / 02精细化工 / 03地球物理） */
+export function fetchIndustryDicts() {
+  return fetchRetry('/api/ontology/industry-list');
+}
+
+/** 候选池：企业里出现过、独立来源数未达阈值的概念（含来源与首见时间） */
+export function fetchIndustryCandidates(limit = 50) {
+  return fetchRetry(`/api/ontology/industry-candidates?limit=${limit}`);
+}
+
+/** 吸收某企业词典 → 候选池 → 行业层（lexicon 可传 kb 名或绝对路径） */
+export function absorbToIndustry(lexicon, industry) {
+  return fetchRetry('/api/ontology/industry-absorb', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ lexicon, industry }),
+  });
+}
+
 export async function fetchSchema(kb) {
   const q = kb ? `?kb=${encodeURIComponent(kb)}` : '';
   return fetchRetry(`/api/ontology/schema${q}`, { cache: 'no-store' });

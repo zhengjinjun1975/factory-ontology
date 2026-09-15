@@ -859,6 +859,101 @@ export async function assetsRollback(kb, version) {
   }
 }
 
+/** 工厂词典导出（下载用；可能返回二进制 zip，不能用 apiFetch）。
+ *  bundle=true 时打包 lexicon+schema+nt+meta 为 zip。
+ *  @param {string} kb 知识库名
+ *  @param {boolean} [bundle]
+ *  @returns {Promise<{ok, buffer?, contentType?, filename?, error?}>}
+ */
+export async function lexiconExportRaw(kb, bundle = false) {
+  try {
+    if (!kb) return { ok: false, error: 'kb 必填' };
+    const q = new URLSearchParams({ download: '1', bundle: bundle ? '1' : '0' }).toString();
+    const headers = {};
+    if (API_KEY) headers['X-API-Key'] = API_KEY;
+    const resp = await fetch(`${API_URL}/api/kb/${encodeURIComponent(kb)}/lexicon/export?${q}`, { headers });
+    const ct = resp.headers.get('content-type') || '';
+    // 后端业务失败也用 HTTP 200 + {ok:false}（既有约定），故不能只看状态码：
+    // 非 zip 且响应是 JSON 时，先判断是不是错误体。
+    if (!resp.ok || (ct.includes('json') && !bundle)) {
+      const txt = await resp.text();
+      let payload = null;
+      try { payload = JSON.parse(txt); } catch (e) { /* 非 JSON */ }
+      if (!resp.ok || (payload && payload.ok === false)) {
+        return { ok: false, error: (payload && payload.error) || `HTTP ${resp.status}` };
+      }
+      return {
+        ok: true,
+        buffer: Buffer.from(txt, 'utf-8'),
+        contentType: ct || 'application/json',
+        filename: `lexicon_${kb}.json`,
+      };
+    }
+    return {
+      ok: true,
+      buffer: Buffer.from(await resp.arrayBuffer()),
+      contentType: ct || 'application/octet-stream',
+      filename: bundle ? `${kb}_bundle.zip` : `lexicon_${kb}.json`,
+    };
+  } catch (e) {
+    return { ok: false, error: netErr(e, '导出') };
+  }
+}
+
+/** 工厂词典导入（同行业复用他人积累的词）。
+ *  content: 词典 JSON 文本或对象; mode: merge|replace; dryRun: 只回差异不落盘。
+ *  @returns {Promise<{ok, diff?, backup?, target?, error?}>}
+ */
+export async function lexiconImport(kb, content, { mode = 'merge', dryRun = false } = {}) {
+  try {
+    if (!kb) return { ok: false, error: 'kb 必填' };
+    if (content === undefined || content === null || content === '') return { ok: false, error: '词典内容为空' };
+    const r = await apiFetch(`/api/kb/${encodeURIComponent(kb)}/lexicon/import`,
+                             { method: 'POST', body: { content, mode, dry_run: !!dryRun }, timeout: 60000 });
+    return r && typeof r.ok === 'boolean' ? r : { ok: false, error: (r && r.error) || '导入失败' };
+  } catch (e) {
+    return { ok: false, error: netErr(e, '导入') };
+  }
+}
+
+/** 公共/行业词典清单（00基础/01泵阀/02化工/03地质）。 */
+export async function industryList() {
+  try {
+    const r = await apiFetch('/api/industry/list');
+    return r && r.ok ? { ok: true, items: r.items || [] } : { ok: false, error: (r && r.error) || '行业词典读取失败' };
+  } catch (e) {
+    return { ok: false, error: netErr(e) };
+  }
+}
+
+/** 候选池：企业里出现过、但独立来源数未达阈值的概念（含来源与首见时间）。 */
+export async function industryCandidates(limit = 50) {
+  try {
+    const r = await apiFetch(`/api/industry/candidates?limit=${encodeURIComponent(limit)}`);
+    return r && r.ok ? r : { ok: false, error: (r && r.error) || '候选池读取失败' };
+  } catch (e) {
+    return { ok: false, error: netErr(e) };
+  }
+}
+
+/** 吸收一个企业词典 → 候选池 → 行业层（按「独立来源数」判定，非文件数）。 */
+export async function industryAbsorb(lexicon, industry) {
+  try {
+    if (!lexicon) return { ok: false, error: 'lexicon 路径或 kb 名必填' };
+    // 传 kb 名（不含路径分隔符）时补全为 <codes>/config/lexicon_<kb>.json，
+    // 前端只需知道当前企业 kb，不必知道服务端路径。
+    let path = String(lexicon);
+    if (!path.includes('/') && !path.includes('\\')) {
+      path = join(KIT, 'config', `lexicon_${path}.json`);
+    }
+    const r = await apiFetch('/api/industry/absorb',
+                             { method: 'POST', body: { lexicon: path, industry }, timeout: 60000 });
+    return r && typeof r.ok === 'boolean' ? r : { ok: false, error: (r && r.error) || '吸收失败' };
+  } catch (e) {
+    return { ok: false, error: netErr(e, '吸收') };
+  }
+}
+
 /**
  * 自助建模 · AI 建议（只读预览）：转发后端 POST /api/ontology/suggest
  * 只读无副作用，不写 nt/lex、不注册 kb，可反复调用。返回 {entities, relations, constraints, stats, note}。

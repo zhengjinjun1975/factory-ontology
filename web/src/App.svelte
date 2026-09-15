@@ -10,6 +10,7 @@
   import KnowledgePanel from './components/KnowledgePanel.svelte';
   import AssetPanel from './components/AssetPanel.svelte';
   import SelfModelPanel from './components/SelfModelPanel.svelte';
+  import LexiconAssetPanel from './components/LexiconAssetPanel.svelte';
 
   // ─── 企业用户登录态 ───
   let user = $state(null);        // {username, enterpriseName, logo, industry, kb, onboarded}
@@ -1050,6 +1051,9 @@
     <button class="tab" class:active={activeTab === 'assets'} onclick={() => switchTab('assets')}>
       <span class="tab-icon">📦</span> 资产
     </button>
+    <button class="tab" class:active={activeTab === 'lexasset'} onclick={() => switchTab('lexasset')}>
+      <span class="tab-icon">📖</span> 词典资产
+    </button>
   </nav>
 
   <!-- ═══ 主区域 ═══ -->
@@ -1527,6 +1531,14 @@
       <div class="pane-title">资产版本<span class="pane-sub">管理语义资产快照，支持版本回滚与交付</span></div>
       <div class="dashboard-body">
         <AssetPanel kb={currentKb} />
+      </div>
+    </section>
+    {:else if activeTab === 'lexasset'}
+    <!-- ─── 词典资产（导出/导入/行业积累）─── -->
+    <section class="pane pane-full">
+      <div class="pane-title">词典资产<span class="pane-sub">导出/导入工厂词典；同行业复用积累，独立来源达标才沉淀进行业词典</span></div>
+      <div class="dashboard-body">
+        <LexiconAssetPanel kb={currentKb} />
       </div>
     </section>
     {/if}
