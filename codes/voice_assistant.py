@@ -21,7 +21,8 @@ import sys
 import asyncio
 import argparse
 import tempfile
-import shlex
+import subprocess
+import urllib.request
 import json
 
 # STT 本地模型目录(避免从 HuggingFace 下载被墙; 用 curl 从 hf-mirror 预置)
@@ -30,13 +31,16 @@ WHISPER_MODEL_DIR = os.path.join(os.path.expanduser("~"), "whisper-tiny")
 
 def ask_api(question, base_url="http://localhost:8000"):
     """调用食品知识库 REST API 问答。"""
-    import requests
     if not base_url.startswith(("http://", "https://")):
         return "[API 调用失败] 仅支持 http/https 后端地址", ""
+    req = urllib.request.Request(
+        f"{base_url}/api/ask",
+        data=json.dumps({"question": question}).encode(),
+        headers={"Content-Type": "application/json"})
     try:
-        r = requests.post(f"{base_url}/api/ask", json={"question": question}, timeout=30)
-        d = r.json()
-        return d.get("answer", ""), d.get("mode", "")
+        with urllib.request.urlopen(req, timeout=30) as r:
+            d = json.loads(r.read().decode())
+            return d.get("answer", ""), d.get("mode", "")
     except Exception as e:
         return f"[API 调用失败] {e}", ""
 
@@ -51,9 +55,11 @@ def speak_tts(text, voice="zh-CN-XiaoxiaoNeural"):
             await tts.save(out)
         asyncio.run(_run())
         if os.path.exists(out):
-            # 播放（Windows 用 start / 或 mpg123；无则跳过）——shlex.quote 转义，避免 shell 注入
-            q = shlex.quote(out)
-            os.system(f'start "" {q}' if os.name == "nt" else f'mpg123 {q} >/dev/null 2>&1 &')
+            # 播放：不经过 shell，无注入面
+            if os.name == "nt":
+                os.startfile(out)
+            else:
+                subprocess.Popen(["mpg123", out], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return True
     except Exception as e:
         print(f"[TTS 失败] {e}")
