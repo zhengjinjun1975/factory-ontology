@@ -53,11 +53,12 @@ def main():
     ap.add_argument("--lexicon", default=os.path.join(ROOT, "config", "lexicon_food_products.json"))
     ap.add_argument("--limit", type=int, default=None)
     args = ap.parse_args()
-    # 自动构建: NT 缺失时用 csv_to_owl 从 data/food_products.csv 生成(鲁棒性)
+    # 自动构建: NT 缺失时用 csv_to_owl 从 data_food/food_products.csv 生成(鲁棒性)
+    # (数据已按行业分目录; data/ 下只剩 erp_demo.db)
     if not os.path.exists(args.nt):
         os.makedirs(os.path.dirname(args.nt), exist_ok=True)
         import csv_to_owl
-        csv_to_owl.build_nt(os.path.join(ROOT, "data", "food_products.csv"), args.nt)
+        csv_to_owl.build_nt(os.path.join(ROOT, "data_food", "food_products.csv"), args.nt)
     passed, total, results = evaluate(args.nt, args.lexicon, args.limit)
     print("问题".ljust(22), "结果", "模式", "答案")
     print("-" * 60)

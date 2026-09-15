@@ -1,34 +1,428 @@
 {
-  "entity_cn2en": {},
-  "status_cn2en": {},
-  "type_cn2en": {},
-  "zone_cn2en": {},
-  "attr_cn2en": {},
-  "attr_en2cn": {},
-  "numeric_fields": {},
-  "field_aliases": {},
-  "relations_cn2en": {},
-  "value_fields": {},
-  "review": {
-    "note": "以下为 LexiconAgent 全自动推断产生的待确认项。确认/修正后可将结果写回词典，减少人工补词。",
-    "pending_count": 2,
-    "status": "pending",
-    "items": [
-      {
-        "category": "excluded",
-        "field": "batch_id",
-        "detail": "取值: B001、B002、B003、B004、B005、B006、B007、B008、B009、B010",
-        "reason": "识别为编号/名称/主键字段，未纳入类型枚举。若它实际是产品分类，请手动加入 type_cn2en。",
-        "action": "确认"
-      },
-      {
-        "category": "excluded",
-        "field": "raw_id",
-        "detail": "取值: R001、R002、R003、R004、R005、R006、R007、R008、R009、R010",
-        "reason": "识别为编号/名称/主键字段，未纳入类型枚举。若它实际是产品分类，请手动加入 type_cn2en。",
-        "action": "确认"
-      }
+  "description": "自动生成词典（multi_model, suggest_schema 推断 + LLM 语义聚类同义词 + data profiling 映射 + 公共工业词典合并）",
+  "attr_cn2en": {
+    "批次编号": "batch_id",
+    "原料编号": "raw_id",
+    "编号": "id",
+    "产品编号": "product_id",
+    "生产日期": "produce_date",
+    "数量": "quantity",
+    "原料": "raw_parts",
+    "班组": "team",
+    "状态": "status",
+    "客户名称": "customer_name",
+    "区域": "region",
+    "行业": "industry",
+    "信用等级": "credit_level",
+    "设备名称": "device_name",
+    "设备类型": "device_type",
+    "车间": "workshop",
+    "功率(kW)": "power_kw",
+    "功率": "power_kw",
+    "振动(mm/s)": "vibration_mm_s",
+    "振动": "vibration_mm_s",
+    "温度(℃)": "temp_c",
+    "温度": "temp_c",
+    "电流(A)": "current_a",
+    "电流": "current_a",
+    "型号代码": "model_code",
+    "产品名称": "product_name",
+    "类型": "type",
+    "尺寸(mm)": "size_mm",
+    "尺寸": "size_mm",
+    "压力等级": "pressure_grade",
+    "连接方式": "connection",
+    "密封材质": "seal_material",
+    "阀体材质": "body_material",
+    "标准号": "standard_no",
+    "温度范围": "temp_range",
+    "价格": "price",
+    "检查项目": "check_item",
+    "压力规则": "press_rule",
+    "保压秒数": "hold_sec",
+    "泄漏气泡": "leak_bubbles_min",
+    "结果": "result",
+    "检查员": "checker",
+    "检查日期": "check_date",
+    "部件名称": "part_name",
+    "材质": "material",
+    "供应商": "supplier",
+    "质检结果": "qc_result",
+    "库存": "stock",
+    "客户编号": "customer_id",
+    "销售日期": "sale_date",
+    "金额": "amount"
+  },
+  "attr_en2cn": {
+    "batch_id": "批次编号",
+    "raw_id": "原料编号",
+    "id": "编号",
+    "product_id": "产品编号",
+    "produce_date": "生产日期",
+    "quantity": "数量",
+    "raw_parts": "原料",
+    "team": "班组",
+    "status": "状态",
+    "customer_name": "客户名称",
+    "region": "区域",
+    "industry": "行业",
+    "credit_level": "信用等级",
+    "device_name": "设备名称",
+    "device_type": "设备类型",
+    "workshop": "车间",
+    "power_kw": "功率(kW)",
+    "vibration_mm_s": "振动(mm/s)",
+    "temp_c": "温度(℃)",
+    "current_a": "电流(A)",
+    "model_code": "型号代码",
+    "product_name": "产品名称",
+    "type": "类型",
+    "size_mm": "尺寸(mm)",
+    "pressure_grade": "压力等级",
+    "connection": "连接方式",
+    "seal_material": "密封材质",
+    "body_material": "阀体材质",
+    "standard_no": "标准号",
+    "temp_range": "温度范围",
+    "price": "价格",
+    "check_item": "检查项目",
+    "press_rule": "压力规则",
+    "hold_sec": "保压秒数",
+    "leak_bubbles_min": "泄漏气泡",
+    "result": "结果",
+    "checker": "检查员",
+    "check_date": "检查日期",
+    "part_name": "部件名称",
+    "material": "材质",
+    "supplier": "供应商",
+    "qc_result": "质检结果",
+    "stock": "库存",
+    "customer_id": "客户编号",
+    "sale_date": "销售日期",
+    "amount": "金额"
+  },
+  "status_cn2en": {
+    "运行中": "运行中",
+    "待机": "待机",
+    "报警": "alarm",
+    "维护中": "维护中",
+    "离线": "offline",
+    "合格": "合格",
+    "不合格": "不合格",
+    "已入库": "已入库",
+    "待质检": "待质检",
+    "生产中": "生产中",
+    "停止": "stopped",
+    "故障": "alarm",
+    "待检修": "pending_maintenance"
+  },
+  "type_cn2en": {
+    "机加设备": "机加设备",
+    "试压设备": "试压设备",
+    "铸造设备": "铸造设备",
+    "装配设备": "装配设备",
+    "焊接设备": "焊接设备",
+    "表面处理设备": "表面处理设备",
+    "闸阀": "闸阀",
+    "球阀": "球阀",
+    "蝶阀": "蝶阀",
+    "截止阀": "截止阀",
+    "止回阀": "止回阀",
+    "安全阀": "安全阀",
+    "设备": "equipment",
+    "机器": "machine",
+    "电机": "motor",
+    "泵": "pump",
+    "压缩机": "compressor",
+    "空压机": "air_compressor",
+    "机床": "machine_tool",
+    "数控机床": "cnc_machine",
+    "轴承": "bearing",
+    "齿轮": "gear",
+    "减速器": "reducer",
+    "联轴器": "coupling",
+    "传动轴": "drive_shaft",
+    "传感器": "sensor",
+    "执行器": "actuator",
+    "发电机": "generator",
+    "变压器": "transformer",
+    "锅炉": "boiler",
+    "离心泵": "centrifugal_pump",
+    "柱塞泵": "plunger_pump",
+    "齿轮泵": "gear_pump",
+    "螺杆泵": "screw_pump",
+    "隔膜泵": "diaphragm_pump"
+  },
+  "zone_cn2en": {
+    "华北": "华北",
+    "华东": "华东",
+    "华南": "华南",
+    "西南": "西南",
+    "东北": "东北",
+    "华中": "华中",
+    "西北": "西北",
+    "机加车间": "机加车间",
+    "检测车间": "检测车间",
+    "铸造车间": "铸造车间",
+    "装配车间": "装配车间",
+    "表面处理车间": "表面处理车间"
+  },
+  "synonym_map": {
+    "乳制品": [
+      "奶制品",
+      "酸奶类",
+      "乳品"
+    ],
+    "机加设备": [
+      "机加工设备",
+      "机械加工设备"
+    ],
+    "机加车间": [
+      "机械加工车间"
+    ],
+    "机加": [
+      "机械加工"
+    ],
+    "材质": [
+      "材料",
+      "原料"
+    ],
+    "尺寸": [
+      "尺寸(mm)"
+    ],
+    "温度": [
+      "温度(℃)"
+    ],
+    "压力": [
+      "压力等级",
+      "压力规则"
+    ],
+    "阀门": [
+      "安全阀",
+      "截止阀",
+      "止回阀",
+      "球阀",
+      "蝶阀",
+      "闸阀"
+    ],
+    "设备": [
+      "机加设备",
+      "机加车间",
+      "表面处理设备",
+      "表面处理车间",
+      "装配设备",
+      "装配车间",
+      "试压设备",
+      "设备名称",
+      "设备类型"
+    ],
+    "原料": [
+      "原料编号"
+    ],
+    "客户": [
+      "客户名称",
+      "客户编号"
+    ],
+    "产品": [
+      "产品名称",
+      "产品编号",
+      "型号代码",
+      "批次编号"
+    ],
+    "状态": [
+      "已入库",
+      "库存",
+      "待机",
+      "待质检",
+      "生产中",
+      "不合格",
+      "合格",
+      "维护中",
+      "运行中"
+    ],
+    "区域": [
+      "东北",
+      "华东",
+      "华中",
+      "华北",
+      "华南",
+      "西北",
+      "西南"
+    ],
+    "检查": [
+      "检查员",
+      "检查日期",
+      "检查项目",
+      "检测车间"
+    ],
+    "振动": [
+      "振动(mm/s)"
+    ],
+    "电流": [
+      "电流(A)"
+    ],
+    "功率": [
+      "功率(kW)"
+    ],
+    "焊接": [
+      "焊接设备"
+    ],
+    "铸造": [
+      "铸造设备",
+      "铸造车间"
+    ],
+    "表面处理": [
+      "表面处理设备",
+      "表面处理车间"
+    ],
+    "装配": [
+      "装配设备",
+      "装配车间"
+    ],
+    "试压": [
+      "试压设备"
+    ],
+    "质检": [
+      "质检结果",
+      "检测车间"
+    ],
+    "泄漏": [
+      "泄漏气泡"
+    ],
+    "类型": [
+      "类型代码"
+    ],
+    "结果": [
+      "质检结果"
+    ],
+    "维护": [
+      "维护中"
+    ],
+    "编号": [
+      "产品编号",
+      "批次编号"
+    ],
+    "部件": [
+      "部件名称"
+    ],
+    "销售": [
+      "销售日期"
+    ],
+    "标准": [
+      "标准号"
+    ],
+    "不锈钢": [
+      "304",
+      "316",
+      "cf8",
+      "cf8m",
+      "cf3"
+    ],
+    "碳钢": [
+      "wcb",
+      "a105",
+      "20钢",
+      "20"
+    ],
+    "球墨铸铁": [
+      "qt450",
+      "qt400"
+    ],
+    "灰铸铁": [
+      "ht200",
+      "ht250"
+    ],
+    "合金钢": [
+      "wc6",
+      "wc9",
+      "15crmo"
+    ],
+    "铜": [
+      "铜合金",
+      "h62",
+      "h59"
+    ],
+    "电动": [
+      "电装",
+      "z9"
+    ],
+    "气动": [
+      "q6"
+    ],
+    "电机": [
+      "motor",
+      "马达",
+      "电动机"
+    ],
+    "轴承": [
+      "bearing",
+      "滚动轴承",
+      "滑动轴承"
+    ],
+    "数控机床": [
+      "CNC"
+    ],
+    "运行中": [
+      "运行",
+      "正常",
+      "工作中"
+    ],
+    "待机": [
+      "空闲"
+    ],
+    "停止": [
+      "停机"
+    ],
+    "故障": [
+      "报警",
+      "异常"
+    ],
+    "维护中": [
+      "维修中",
+      "保养中"
     ]
   },
-  "description": "由 LexiconAgent 全自动生成 (valve, 2字段, 2项待确认)"
+  "entity_cn2en": {
+    "批次配料": "valve_batch_ingredient",
+    "批次": "valve_batches",
+    "客户": "valve_customers",
+    "设备": "valve_equipment",
+    "产品": "valve_products",
+    "质检": "valve_qc",
+    "原料": "valve_raw_materials",
+    "销售": "valve_sales",
+    "供应商": "supplier",
+    "订单": "order",
+    "库存": "inventory"
+  },
+  "numeric_fields": {
+    "数量": "quantity",
+    "功率": "power_kw",
+    "振动": "vibration_mm_s",
+    "温度": "temp_c",
+    "电流": "current_a",
+    "尺寸": "size_mm",
+    "价格": "price",
+    "保压秒数": "hold_sec",
+    "泄漏气泡": "leak_bubbles_min",
+    "库存": "stock",
+    "金额": "amount"
+  },
+  "field_aliases": {
+    "status": [
+      "status"
+    ],
+    "deviceType": [
+      "deviceType",
+      "device_type",
+      "type"
+    ],
+    "deviceName": [
+      "deviceName",
+      "device_name",
+      "name"
+    ]
+  },
+  "value_fields": [],
+  "_public_dict_merged": true
 }
