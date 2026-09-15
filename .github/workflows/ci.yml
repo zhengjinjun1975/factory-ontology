@@ -22,19 +22,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r ../requirements.txt -r ../requirements-dev.txt
       - name: 预建本体(api_server 在 import 阶段即读取 output/food.nt)
-        # food 未配 schema, 不会自动重建; 干净检出没有 output/*.nt(生成物不提交),
-        # 故在此显式生成, 否则 test_api 会在 import api_server 时报"本体文件缺失"。
+        # 必须走 food_demo._build_kb(): 它有 food 语义的显式 rels
+        # (belongsToBatch/usesRawMaterial/produces)。直接调 multi_table 只会
+        # "自动检测"出 1 个跨表属性, 建出的本体没有 batch<->raw 边, 溯源接口返回空。
+        # food 未配 schema, 不会自动重建; 干净检出也没有 output/*.nt(生成物不提交)。
         run: |
           mkdir -p output
-          # 表顺序有意义: multi_table 按顺序检测跨表关系, 主表须在前。
-          # 不要用 data_food/*.csv 通配 —— shell 展开顺序不保证, 会漏检关系。
-          python multi_table.py output/food.nt \
-            data_food/food_products.csv \
-            data_food/food_raw_materials.csv \
-            data_food/food_batches.csv \
-            data_food/food_batch_ingredient.csv \
-            data_food/food_qc.csv \
-            data_food/food_equipment.csv
+          python -c "import food_demo; food_demo._build_kb()"
           ls -l output/food.nt
       - name: 运行单测(数据加载/本体生成/规则问答/GraphRAG)
         run: |

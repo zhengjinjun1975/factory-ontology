@@ -21,7 +21,7 @@ import multi_table as mt
 import graph_rag as gr
 import ontology_qa_v3 as v3
 
-DATA = os.path.join(ROOT, "data")
+DATA = os.path.join(ROOT, "data_food")   # 2026-09 数据目录重组: food csv 从 data/ 迁来
 OUT = os.path.join(ROOT, "output")
 FOOD_NT = os.path.join(OUT, "food.nt")
 
