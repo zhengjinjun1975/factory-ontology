@@ -1029,6 +1029,11 @@ def ask(req: AskReq):
             from ask_service import no_basis_reply
             result["answer"] = no_basis_reply(KBS.get(req.kb or KB_NAME, {}).get("name", "知识库"))
             result["no_basis"] = True
+            # mode 也要跟着降级。净化命中 = 该出口的 LLM 没给出可用答案（模型不可用、
+            # 或把独白当答案），语义上就是"没答上来"。只改 answer 不改 mode 会让
+            # 调用方看到 mode=hybrid 却拿到引导语——CI 上（无模型）实测即是此形态:
+            # mode='hybrid' 而 answer 是"暂未理解"话术，断言 mode=='miss' 失败。
+            result["mode"] = "miss"
         elif result is not None and _clean is not None:
             result["answer"] = _clean
     except Exception:
