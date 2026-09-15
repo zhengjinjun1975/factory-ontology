@@ -106,11 +106,14 @@ def _field(rec, canonical, aliases):
     """按字段别名取标准字段值。canonical 如 status/deviceType/deviceName/location。
     别名找不到时，兜底匹配 csv_to_owl 驼峰化后的字段名(pump_status→pumpStatus)。
     再兜底做大小写不敏感的蛇形/驼峰归一化匹配(expiry_days↔expiryDays)。"""
-    for alias in aliases.get(canonical, [canonical]):
+    aliases = aliases or {}   # None 安全：调用方传过 None，否则 None.get 抛异常被吞成"有 0 台"
+    # 也要兜空列表：词典里 field_aliases['status'] 可能是 []（valve 实测如此），
+    # .get(k, default) 对"存在但为空"不生效 → 循环一次不进 → 取空 → 状态过滤答 0。
+    for alias in (aliases.get(canonical) or [canonical]):
         if alias in rec:
             return rec[alias]
     # 驼峰兜底: 对每个别名尝试驼峰化
-    for alias in aliases.get(canonical, [canonical]):
+    for alias in (aliases.get(canonical) or [canonical]):
         parts = [p for p in alias.replace("-", "_").split("_") if p]
         camel = parts[0] + "".join(p.capitalize() for p in parts[1:])
         if camel in rec:
@@ -389,11 +392,18 @@ def _find_enum(dict_data, q, which):
         for term in sorted(reverse, key=len, reverse=True):
             if term and term in q:
                 canon = reverse[term]
-                if canon in en_map:
+                # 🔴 实体名同样要剔除：synonym_map 一旦把状态词并进实体词组
+                # （valve 的 smap 里 '运行中' 的 canon 竟是 '设备'），
+                # "运行中的设备有多少台" 会返回 type=('equipment','设备')，
+                # 进而抢走"状态+类型"组合分支 → 答"有 0 台运行中的设备"。
+                if canon in en_map and canon not in _ents:
                     return en_map[canon], canon
-                # 规范词不在枚举键中，但同义词可能直接等于某枚举键
+                # 规范词不在枚举键中，但同义词可能直接等于某枚举键。
+                # 🔴 候选词必须出现在问题里：synonym_map 一旦混进实体名（valve 的 smap
+                # 有 '设备' 键、其组内含 '运行中'），"设备有多少台" 就会返回
+                # ('运行中','运行中') —— 候选压根不在问句里，下游过滤必然全空。
                 for ck in en_map:
-                    if ck in [canon] + list(smap.get(canon, [])):
+                    if ck in q and ck not in _ents and ck in [canon] + list(smap.get(canon, [])):
                         return en_map[ck], ck
     # status 兜底：中文运维词 → 英文值（词典可能只有英文键，如 {running:running}）
     if which == "status":
