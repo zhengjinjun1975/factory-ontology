@@ -5,7 +5,7 @@
 
 **工厂本体驱动的数据问答框架。** 把结构化台账变成可自然语言提问的语义知识图谱，CSV 进，答案出，每个答案都带证据。
 
-[![Version](https://img.shields.io/badge/version-0.2.1-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.3.1-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
 [![CI](https://github.com/zhengjinjun1975/factory-ontology/actions/workflows/ci.yml/badge.svg)](https://github.com/zhengjinjun1975/factory-ontology/actions)
@@ -308,7 +308,7 @@ cd codes
 python valve_demo.py
 ```
 
-实测输出（v0.2.1，规则部分确定性可复现）：
+实测输出（v0.3.1，规则部分确定性可复现）：
 
 ```
 规则问答:  一共有多少个阀门 → 一共有 8 条记录
@@ -462,9 +462,9 @@ start.bat      # Windows
 
 ## 版本
 
-当前版本 **v0.2.1**。版本历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本 **v0.3.1**。版本历史见 [CHANGELOG.md](CHANGELOG.md)。
 
-0.2.x 为当前版本线（schema 驱动重构 + 检索/评测/上传/前端增强）；0.1.x 为 schema 驱动重构基线；2.9.x 及更早为重构前的能力演进。当前 GitHub release 已更新到 v0.2.1。
+0.3.x 为当前版本线（问答解析层修复 + 词典补译 + 版本号统一为单一事实源）；0.2.x 为 schema 驱动重构 + 检索/评测/上传/前端增强；0.1.x 为 schema 驱动重构基线；2.9.x 及更早为重构前的能力演进。
 
 ## 开源与闭源：开源算法原子层 + 闭源编排层
 

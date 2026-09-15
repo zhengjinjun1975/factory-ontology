@@ -27,6 +27,23 @@ from datetime import datetime
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
 
+
+def _read_app_version():
+    """版本单一事实源 = codes/run.py 的 __version__。
+
+    前端 web/server/index.js 用同一套正则读同一个文件；这里保持一致，
+    避免"前端显示 0.2.1、后端 /health 显示 0.2.2"的漂移（2026-09-15 实测）。
+    """
+    try:
+        with open(os.path.join(ROOT, "run.py"), encoding="utf-8") as f:
+            m = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', f.read())
+            return m.group(1) if m else "0.0.0"
+    except Exception:
+        return "0.0.0"
+
+
+APP_VERSION = _read_app_version()
+
 # ── 结构化日志 ──
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -163,7 +180,7 @@ def _warm_embedding():
     except Exception:
         pass  # 预热失败静默, 不阻塞服务启动
 
-app = FastAPI(title="食品企业知识库 API", version="0.2.2",
+app = FastAPI(title="食品企业知识库 API", version=APP_VERSION,
               description="本体驱动的食品企业问答 + 溯源检索（中小型食品企业场景）")
 
 # ── 托管移动端食品溯源 APP（与 API 同源，一套部署） ──
@@ -691,7 +708,7 @@ def metrics():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "0.2.2"}
+    return {"status": "ok", "version": APP_VERSION}
 
 
 @app.get("/api/app-config", include_in_schema=False)
@@ -1794,7 +1811,7 @@ def api_version():
     """服务 + 契约版本与能力特性。"""
     start = time.time()
     return _ok_env({
-        "version": getattr(app, "version", "0.2.2"),
+        "version": getattr(app, "version", APP_VERSION),
         "contract_version": CONTRACT_VERSION,
         "features": FEATURES,
         "kb": KB_NAME,

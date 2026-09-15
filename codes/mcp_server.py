@@ -50,7 +50,10 @@ def _load_ontology():
         # 不用 config/ontology_schema.json——那是 valve-factory-ontology, 产 Valve_* 前缀,
         # 与 food 语义及本模块 Food_* 前缀错配, 会导致重建后溯源仍空(历史根因)。
         import multi_table as mt
-        DATA = ROOT / "data"
+        # 数据目录在 2026-09 重组过：food 系列 CSV 从 data/ 迁到 data_food/。
+        # 按"哪边有 food_products.csv 用哪边"选，避免再硬编码一个会漂的路径。
+        DATA = next((p for p in (ROOT / "data_food", ROOT / "data")
+                     if (p / "food_products.csv").exists()), ROOT / "data_food")
 
         def _load(t):
             return mt.load_table(os.path.join(str(DATA), f"{t}.csv"))

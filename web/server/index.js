@@ -4,7 +4,7 @@ import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, graphOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, listIndustries, buildIndustry, evalBenchmark, evalIsolate, knowledgeList, assetsList, assetsSnapshot, assetsRollback, knowledgeIngest, knowledgeDelete, knowledgeQuery, getEnterprise, saveEnterprise, resetKb } from './ontology.js';
+import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, graphOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, listIndustries, buildIndustry, evalBenchmark, evalIsolate, knowledgeList, assetsList, assetsSnapshot, assetsRollback, suggestOntologySchema, confirmOntologySchema, knowledgeIngest, knowledgeDelete, knowledgeQuery, getEnterprise, saveEnterprise, resetKb, standardCompliance, standardExport, standardDownload, standardRoundtrip, standardImportAlign, standardQuality } from './ontology.js';
 import { login as authLogin, logout as authLogout, me as authMe, createUser, updateUser, seedUsersIfEmpty, restoreSessions } from './auth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -204,7 +204,8 @@ const server = createServer(async (req, res) => {
         return;
       }
       // kb 可选: 缺省用当前激活 kb(多租户问答), 显式传入则问该 kb
-      const result = await askOntology(question, kb);
+      // deep_recall: 前端「深度召回」开关, 透传到后端 /api/ask
+      const result = await askOntology(question, kb, body.deep_recall);
       res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8' });
       res.end(JSON.stringify(result));
     } catch (err) {
@@ -218,6 +219,101 @@ const server = createServer(async (req, res) => {
   if (url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok', uptime: process.uptime() }));
+    return;
+  }
+
+  // ── API: 本体标准合规度（GB/T 48000.3 描述项 + 命名空间 + SHACL + 类层次 + 导出物）──
+  if (req.method === 'GET' && url === '/api/ontology/standard') {
+    try {
+      const result = await standardCompliance();
+      res.writeHead(result.ok ? 200 : 500,
+        { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 生成标准导出物（OWL/SHACL/JSON-LD）──
+  if (req.method === 'POST' && url === '/api/ontology/standard-export') {
+    try {
+      const result = await standardExport();
+      res.writeHead(result.ok ? 200 : 500,
+        { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 建模质量门（标签/定义/外键关系/结构 体检）──
+  if (req.method === 'GET' && url.startsWith('/api/ontology/standard-quality')) {
+    try {
+      const qs = new URL(url, 'http://localhost').searchParams;
+      const result = await standardQuality(qs.get('kb') || '');
+      res.writeHead(result.ok ? 200 : 500,
+        { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 导入层自检（导出物往返是否无损）──
+  if (req.method === 'GET' && url === '/api/ontology/standard-roundtrip') {
+    try {
+      const result = await standardRoundtrip();
+      res.writeHead(result.ok ? 200 : 500,
+        { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 外部本体对齐（Turtle/JSON-LD 文本 → 与 schema 的同名类匹配报告）──
+  if (req.method === 'POST' && url === '/api/ontology/standard-import-align') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const content = (body && body.content) || '';
+      const result = await standardImportAlign(content);
+      res.writeHead(result.ok ? 200 : 500,
+        { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 下载标准导出物（文本直返 + Content-Disposition）──
+  if (req.method === 'GET' && url === '/api/ontology/standard-download') {
+    try {
+      const file = new URL(req.url, 'http://x').searchParams.get('file') || '';
+      const r = await standardDownload(file);
+      if (!r.ok) {
+        res.writeHead(400, { 'Content-Type': 'application/json;charset=utf-8' });
+        res.end(JSON.stringify(r));
+        return;
+      }
+      res.writeHead(200, {
+        'Content-Type': file.endsWith('.ttl') ? 'text/turtle;charset=utf-8' : 'application/ld+json;charset=utf-8',
+        'Content-Disposition': `attachment; filename="${file}"`,
+      });
+      res.end(r.text);
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
     return;
   }
 
@@ -372,7 +468,7 @@ const server = createServer(async (req, res) => {
 
   // ── API: 代码版本（读 codes/run.py 的 __version__，单一事实源）──
   if (url === '/api/ontology/version') {
-    let version = '0.1.6';
+    let version = '0.3.1';
     try {
       const runSrc = readFileSync(join(__dirname, '..', '..', 'codes', 'run.py'), 'utf-8');
       const m = runSrc.match(/__version__\s*=\s*["']([^"']+)["']/);
@@ -674,6 +770,47 @@ const server = createServer(async (req, res) => {
         return;
       }
       const result = await assetsRollback(kb, version);
+      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 自助建模 · AI 建议（转发后端 /api/ontology/suggest，只读预览不落盘）──
+  if (req.method === 'POST' && url === '/api/ontology/suggest') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const { kb, data_dir } = body;
+      if (!kb || typeof kb !== 'string') {
+        res.writeHead(400, { 'Content-Type': 'application/json;charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: 'kb 必填' }));
+        return;
+      }
+      const result = await suggestOntologySchema(kb.trim(), data_dir);
+      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 自助建模 · 人拍板确认生效（转发后端 /api/ontology/confirm）──
+  // body 上限放宽：人工编辑后的完整 schema（含全部实体属性）可能较大
+  if (req.method === 'POST' && url === '/api/ontology/confirm') {
+    try {
+      const body = JSON.parse((await readBody(req, 8 * 1024 * 1024)) || '{}');
+      const { kb, schema, data_dir } = body;
+      if (!kb || typeof kb !== 'string') {
+        res.writeHead(400, { 'Content-Type': 'application/json;charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: 'kb 必填' }));
+        return;
+      }
+      const result = await confirmOntologySchema(kb.trim(), schema, data_dir);
       res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
       res.end(JSON.stringify(result));
     } catch (err) {

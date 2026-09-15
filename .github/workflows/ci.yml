@@ -27,10 +27,12 @@ jobs:
       - name: 运行对照评测(规则引擎零模型)
         run: |
           # benchmark 需先建本体; 用 data_loader 直接建(无需 LLM 词典的路径已由单测覆盖)
+          # 2026-09 数据目录重组: 各数据集从 data/ 迁到各自的 data_<name>/ 子目录
           python -c "import sys; sys.path.insert(0,'.'); import csv_to_owl as c; import os; \
-            [c.build_nt(os.path.join('data',f), os.path.join('output',f.replace('.csv','.nt'))) for f in ['ai4i.csv','library_inventory.csv','energy_station.csv']]"
-          python benchmark.py data/library_inventory.csv | tail -2
-          python benchmark.py data/energy_station.csv | tail -2
+            pairs=[('data_ai4i','ai4i.csv'),('data_library','library_inventory.csv'),('data_energy_station','energy_station.csv')]; \
+            [c.build_nt(os.path.join(d,f), os.path.join('output',f.replace('.csv','.nt'))) for d,f in pairs]"
+          python benchmark.py data_library/library_inventory.csv | tail -2
+          python benchmark.py data_energy_station/energy_station.csv | tail -2
 
   ontology-check:
     # 本体检查: 核查全库数据质量/链路断链/一致性(纯标准库零依赖, 独立 CLI)

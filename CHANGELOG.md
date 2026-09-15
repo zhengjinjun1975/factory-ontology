@@ -1,3 +1,57 @@
+# Changelog
+
+## [0.3.1] - 2026-09-15
+
+### 问答解析层修复（四库命中率 48.4% → 100%，"答 0" 假答 6 例 → 0 例）
+
+> 本轮全部改动都落在**解析层**，未动数据与建模规则；domain 无关，四库（valve/food/chem/auto_parts）同一套代码。
+
+**修复**
+- `_find_attr` 剔除实体名：实体名混进属性词典后，同长词按插入序抢命中，导致极值/聚合整条链失效
+  （"原料中库存最大是多少" 解析出的属性竟是实体名"原料"）
+- `_find_enum` 三处剔除实体名 + 候选词必须出现在问句里：
+  - 路径1（枚举词典直接命中）早前已剔；本轮补路径2 第一段（规范词）与第二段（候选词）
+  - valve 的 `synonym_map` 把状态词并进了实体词组（`'运行中'` 的规范词竟是 `'设备'`），
+    导致 `_find_enum(q,'type')` 返回 `('equipment','设备')` → 抢走"状态+类型"组合分支
+    → "运行中的设备有多少台" 答"有 0 台运行中的设备"
+- `_field` 容忍 `None` 与**空列表**别名：`.get(k, default)` 对"键存在但值为 `[]`"不返回 default
+  （valve `field_aliases` 曾出现 `'status': []`）→ 取空值 → 状态匹配全 False
+- status 分支让路：`"合格"` 同属 `qc_result` 的值却被 status 值表误收，致"原料中质检结果为合格的有多少条"答 0
+- `_entity_subset` 认 `X中/里` 结构：`"订单中客户编号为C003"` 里 X 才是限定的表
+  （"订单"与"客户"同为 2 字时按插入序会选错表）
+- `_attr_val` 后缀匹配归一化：`orders_customer_id` 这类带表前缀的 snake 键取不到值
+
+**保真与净化**
+- 润色层数字按**独立数字**比对（原 `"2" in "2026"` 子串包含会蒙混过关）+ 单位原样保留 + 汉英不加空格
+- 多引擎 LLM 出口统一净化 `_strip_reasoning_leak`：模型思维链不得进入面向用户的答案
+- 无依据时改确定性话术 `no_basis_reply()`，不再调本地小模型（其独白会被当答案返回）
+
+**词典**
+- 补 14 项未译属性（food/chem/auto_parts），改前备份 `.bak` 可回滚
+- 附 `docs/lexicon-mismatch-2026-09-15.md`：15 条错配清单（只读扫描）+ 复核命令
+
+**版本号统一**
+- 改为**单一事实源**：`codes/run.py` 的 `__version__`，后端 `api_server.py`（3 处硬编码）与
+  前端 `web/server/index.js` 都读它
+- 修此前"前端显示 0.2.1、后端 /health 显示 0.2.2"的漂移；0.3.0 已由插件框架那批占用，本期为 0.3.1
+
+**工程**
+- 新增 `scripts/regression_qa.py`（50 条断言，每类根因一条）
+- 新增 `.gitattributes` 统一 LF（防编辑工具把整文件转 CRLF 造成"每行都变"的假 diff，实测曾把 308 行改动显示成 3933 行）
+
+## [0.3.0] - 2026-08-13
+
+### 生态插件基础框架（第三方可开发插件扩展系统）
+
+> 不改主程序，第三方即可通过「插件」为系统新增能力。核心框架纯标准库零依赖，完全离线可跑。
+
+- **插件加载器**（`codes/plugin_framework.py`）：扫描 `codes/plugins/` 目录 → 解析 `manifest.json`（`name/kind/version/entry/provides`）→ 按 `load → register → run → unload` 生命周期调度。清单缺字段/kind 非法/name 与目录名不符/入口缺失时逐个容错报告，不中断整体扫描
+- **扩展点注册表**（`ExtensionRegistry`）：四类扩展点 `decision`（决策规则）/ `data_source`（数据源）/ `push`（推送通道）/ `template`（模板渲染），按 `(kind, id)` 注册、调用、注销，重复占用抛冲突；卸载插件自动注销其扩展点
+- **CLI**（`run.py plugin`）：`plugin list [kind]` / `plugin run <名> ['<json>']` / `plugin ext <kind> <id> ['<json>']` / `plugin install <目录|zip|tar.gz> [--name 别名] [--force]` / `plugin remove <名>`；安装支持本地目录、zip、tar.gz 归档，别名安装自动改写 manifest
+- **示例插件**（`codes/plugins/example_decision/`）：决策类插件，按温度/磨损/转速阈值输出设备维护优先级（正常/关注/预警/紧急），登记 `decision/maintenance_priority` 与 `decision/failure_alert` 两个扩展点；提供独立运行自测（`python plugin.py`）
+- **测试**：`tests/test_plugin_framework.py` 6 项（扫描/生命周期/注册表/冲突/安装移除/zip 安装）；全量 pytest **35 passed**
+- **文档**：`docs/插件框架.md` 第三方开发指南（目录结构/manifest 字段/生命周期/扩展点/CLI/写插件步骤）
+
 ## [0.2.1] - 2026-08-14
 
 ### 新增
@@ -13,20 +67,6 @@
 - 本地文件建模 kb 为空时 fallback 到行业 kb
 
 # Changelog
-
-## [0.3.0] - 2026-08-13
-
-### 生态插件基础框架（第三方可开发插件扩展系统）
-
-> 不改主程序，第三方即可通过「插件」为系统新增能力。核心框架纯标准库零依赖，完全离线可跑。
-
-- **插件加载器**（`codes/plugin_framework.py`）：扫描 `codes/plugins/` 目录 → 解析 `manifest.json`（`name/kind/version/entry/provides`）→ 按 `load → register → run → unload` 生命周期调度。清单缺字段/kind 非法/name 与目录名不符/入口缺失时逐个容错报告，不中断整体扫描
-- **扩展点注册表**（`ExtensionRegistry`）：四类扩展点 `decision`（决策规则）/ `data_source`（数据源）/ `push`（推送通道）/ `template`（模板渲染），按 `(kind, id)` 注册、调用、注销，重复占用抛冲突；卸载插件自动注销其扩展点
-- **CLI**（`run.py plugin`）：`plugin list [kind]` / `plugin run <名> ['<json>']` / `plugin ext <kind> <id> ['<json>']` / `plugin install <目录|zip|tar.gz> [--name 别名] [--force]` / `plugin remove <名>`；安装支持本地目录、zip、tar.gz 归档，别名安装自动改写 manifest
-- **示例插件**（`codes/plugins/example_decision/`）：决策类插件，按温度/磨损/转速阈值输出设备维护优先级（正常/关注/预警/紧急），登记 `decision/maintenance_priority` 与 `decision/failure_alert` 两个扩展点；提供独立运行自测（`python plugin.py`）
-- **测试**：`tests/test_plugin_framework.py` 6 项（扫描/生命周期/注册表/冲突/安装移除/zip 安装）；全量 pytest **35 passed**
-- **文档**：`docs/插件框架.md` 第三方开发指南（目录结构/manifest 字段/生命周期/扩展点/CLI/写插件步骤）
-
 
 ## [0.2.0] - 2026-08-13
 
