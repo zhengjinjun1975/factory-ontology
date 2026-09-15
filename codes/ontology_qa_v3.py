@@ -813,12 +813,17 @@ def answer(q, data, D):
                 or re.search(cn + r'(总数|共有多少|有多少|共多少)', q)  # 设备总数 / 炮点总数
                 or re.search(r'共\s*多少\s*' + cn, q)):   # 共多少设备
             # 跨行业泛化守卫：被状态/类型/区域词修饰时跳过实体总数（走下方过滤计数）。
-            # 关键: 判定前先去掉实体词本身, 否则"设备"既作实体类名又被 _find_enum 当成类型值,
-            # 守卫恒真 → "有多少台设备"被误跳过实体总数, 落到类型计数返回"有 0 设备"。
-            _q_wo_cn = q.replace(cn, "")
-            if (_find_enum(D, _q_wo_cn, "status")[0]
-                    or _find_enum(D, _q_wo_cn, "type")[0]
-                    or _find_enum(D, _q_wo_cn, "zone")[0]):
+            # 关键: 直接用完整问句判定，但排除"命中的枚举词恰好等于实体词本身"的情况。
+            # 若先把实体词 replace 掉，类型词含实体词时（"试压设备"含"设备"）会被破坏成"试压"，
+            # _find_enum 匹配不到 → 守卫失效 → 误返回实体总数。
+            # 反之若不做排除，"设备"既作实体类名又被 _find_enum 当成类型值 → 守卫恒真
+            # → "有多少台设备"被误跳过实体总数, 落到类型计数返回"有 0 设备"。
+            _t_en, _t_cn = _find_enum(D, q, "type")
+            _s_en, _s_cn = _find_enum(D, q, "status")
+            _z_en, _z_cn = _find_enum(D, q, "zone")
+            if ((_t_en and _t_cn != cn)
+                    or (_s_en and _s_cn != cn)
+                    or (_z_en and _z_cn != cn)):
                 continue
             uri_sub = _entity_map[cn]
             n = sum(1 for k in data if uri_sub.lower() in k.lower())

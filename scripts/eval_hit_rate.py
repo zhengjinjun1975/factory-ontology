@@ -121,7 +121,8 @@ def gen_questions(tables, n_per_type=12):
     return out
 
 
-def ask(question, kb, base=(os.environ.get("FACTORY_API_BASE") or "http://127.0.0.1:8000"), key="test-read-key"):
+def ask(question, kb, base=(os.environ.get("FACTORY_API_BASE") or "http://127.0.0.1:8000"),
+        key=(os.environ.get("FACTORY_READ_KEY") or "test-read-key")):
     body = json.dumps({"question": question, "kb": kb}, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(base + "/api/ask", data=body,
                                  headers={"X-API-Key": key, "Content-Type": "application/json"})
