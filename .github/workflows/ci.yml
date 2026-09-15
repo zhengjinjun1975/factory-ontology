@@ -21,6 +21,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r ../requirements.txt -r ../requirements-dev.txt
+      - name: 预建本体(api_server 在 import 阶段即读取 output/food.nt)
+        # food 未配 schema, 不会自动重建; 干净检出没有 output/*.nt(生成物不提交),
+        # 故在此显式生成, 否则 test_api 会在 import api_server 时报"本体文件缺失"。
+        run: |
+          python multi_table.py output/food.nt \
+            data_food/food_products.csv data_food/food_raw_materials.csv \
+            data_food/food_batches.csv data_food/food_batch_ingredient.csv \
+            data_food/food_qc.csv data_food/food_equipment.csv
+          ls -l output/food.nt
       - name: 运行单测(数据加载/本体生成/规则问答/GraphRAG)
         run: |
           python -m pytest tests/ -v --tb=short
