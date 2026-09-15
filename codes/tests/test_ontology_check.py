@@ -325,7 +325,7 @@ def test_run_check_returns_report_and_ok():
         assert isinstance(r, dict)
         assert r["ok"] is True, r
         assert r["score"] >= 60
-        assert set(r["categories"].keys()) == {"chain", "csv", "nt", "lexicon", "consistency"}
+        assert set(r["categories"].keys()) == {"chain", "csv", "nt", "lexicon", "consistency", "standard"}
         assert r["critical"] == 0
     finally:
         _cleanup(tmp)

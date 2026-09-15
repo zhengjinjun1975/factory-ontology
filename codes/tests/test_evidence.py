@@ -17,7 +17,7 @@ from evidence import extract_evidence
 def _build_food(tmp_path):
     """用食品产品数据建本体 + 词典, 返回 (data, D)。"""
     ntp = str(tmp_path / "food.nt")
-    c2o.build_nt(os.path.join(ROOT, "data", "food_products.csv"), ntp)
+    c2o.build_nt(os.path.join(ROOT, "data_food", "food_products.csv"), ntp)
     lex = os.path.join(ROOT, "config", "lexicon_food_products.json")
     D = v3.load_dict(lex)
     data = v3.build_data(v3.parse_nt(ntp), D)

@@ -125,6 +125,8 @@ def llm_generate(prompt, temperature=0.3, max_tokens=800, model_key=None):
                     "model": model,
                     "prompt": prompt,
                     "stream": False,
+                    # 本地模型一律关思考: 开 think 会偶发白卷/泄漏 </think>(生产不稳)
+                    "think": False,
                     "options": {"temperature": temperature, "num_predict": max_tokens},
                 },
                 timeout=180,

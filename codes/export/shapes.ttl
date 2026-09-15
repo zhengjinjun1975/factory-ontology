@@ -1,0 +1,84 @@
+# valve-factory-ontology — SHACL 约束导出（ontology_export.py v0.3.0）
+# constraints 与运行时 validate 同源派生（避免双写漂移）
+
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix fac: <http://factory.example/ontology#> .
+
+fac:sh_Product_id_unique a sh:PropertyShape ;
+    sh:path fac:id ;
+    sh:maxCount 1 ;
+    sh:message "产品编号唯一"@zh .
+
+fac:sh_Customer_id_unique a sh:PropertyShape ;
+    sh:path fac:id ;
+    sh:maxCount 1 ;
+    sh:message "客户编号唯一"@zh .
+
+fac:sh_Equipment_id_unique a sh:PropertyShape ;
+    sh:path fac:id ;
+    sh:maxCount 1 ;
+    sh:message "设备编号唯一"@zh .
+
+fac:sh_RawMaterial_id_unique a sh:PropertyShape ;
+    sh:path fac:id ;
+    sh:maxCount 1 ;
+    sh:message "原材料编号唯一"@zh .
+
+fac:sh_Product_pressureGrade_in a sh:PropertyShape ;
+    sh:path fac:pressureGrade ;
+    sh:in ( "PN10" "PN16" "PN25" "PN40" ) ;
+    sh:message "压力等级须为 PN10/16/25/40"@zh .
+
+fac:sh_Product_modelCode_pattern a sh:PropertyShape ;
+    sh:path fac:modelCode ;
+    sh:pattern "^[A-Z]{2,4}-?[0-9]{2,6}$" ;
+    sh:message "型号编码格式: 字母+数字"@zh .
+
+fac:sh_Equipment_powerKw_range a sh:PropertyShape ;
+    sh:path fac:powerKw ;
+    sh:minInclusive 0 ;
+    sh:maxInclusive 5000 ;
+    sh:message "装机功率 0-5000 kW"@zh .
+
+fac:sh_Sale_quantity_positive a sh:PropertyShape ;
+    sh:path fac:quantity ;
+    sh:minInclusive 0 ;
+    sh:message "销售数量不能为负"@zh .
+
+fac:sh_Batch_produceDate_datatype a sh:PropertyShape ;
+    sh:path fac:produceDate ;
+    sh:datatype xsd:date ;
+    sh:message "生产日期须为日期型"@zh .
+
+fac:BatchShape a sh:NodeShape ;
+    sh:targetClass fac:Valve_batches ;
+    sh:property fac:sh_Batch_produceDate_datatype .
+
+fac:CustomerShape a sh:NodeShape ;
+    sh:targetClass fac:Valve_customers ;
+    sh:property fac:sh_Customer_id_unique .
+
+fac:EquipmentShape a sh:NodeShape ;
+    sh:targetClass fac:Valve_equipment ;
+    sh:property fac:sh_Equipment_id_unique ,
+        fac:sh_Equipment_powerKw_range .
+
+fac:ProductShape a sh:NodeShape ;
+    sh:targetClass fac:Valve_products ;
+    sh:property fac:sh_Product_id_unique ,
+        fac:sh_Product_pressureGrade_in ,
+        fac:sh_Product_modelCode_pattern .
+
+fac:RawMaterialShape a sh:NodeShape ;
+    sh:targetClass fac:Valve_raw_materials ;
+    sh:property fac:sh_RawMaterial_id_unique .
+
+fac:SaleShape a sh:NodeShape ;
+    sh:targetClass fac:Valve_sales ;
+    sh:property fac:sh_Sale_quantity_positive .
+

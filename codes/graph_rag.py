@@ -81,7 +81,9 @@ def build_graph(nt_file):
             if tail(o) == "Class":
                 labels[s] = tail(s)
             continue
-        if pn == "label" and str(o).startswith('"'):
+        if pn == "label":
+            # parse_nt 已剥掉引号(返回 '批次' 而非 '"批次"')，不能再要求以 " 开头，
+            # 否则中文 label 全部落空、被当数据属性 —— 图上只剩英文标头。
             labels[s] = str(o).strip('"')
             continue
         if _is_entity(o):

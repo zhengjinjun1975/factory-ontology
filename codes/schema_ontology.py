@@ -123,23 +123,7 @@ def classify_properties(schema: dict) -> dict:
 
 
 # ═══════════ 类型体系（Type hierarchy）═══════════
-def build_class_hierarchy(schema: dict) -> list:
-    """类型体系：Enterprise → BusinessObject → 业务域类 → 实体（Is-A）。"""
-    hierarchy = [
-        {"name": "Enterprise", "super": None, "label": "企业"},
-        {"name": "BusinessObject", "super": "Enterprise", "label": "业务对象"},
-    ]
-    domains = {}
-    for e in schema.get("entities", []):
-        d = e.get("domain", "其他域")
-        domains.setdefault(d, {"name": d, "super": "BusinessObject", "label": d, "children": []})
-        domains[d]["children"].append(e["id"])
-    for d in domains.values():
-        hierarchy.append({"name": d["name"], "super": "BusinessObject", "label": d["label"], "entities": d["children"]})
-    for e in schema.get("entities", []):
-        if "category" in [a["name"] for a in e.get("attributes", [])]:
-            hierarchy.append({"name": f"{e['id']}Category", "super": e["id"], "label": f"{e['label']}类别", "kind": "is_a"})
-    return hierarchy
+# build_class_hierarchy 见下方「标准字段层」段落（显式 parent 优先，回退 domain 分组）
 
 
 def enrich_links(schema: dict) -> dict:
@@ -173,6 +157,9 @@ _REL_CN = {
     "product": "生产产品", "raw": "使用原料", "batch": "所属批次",
     "customer": "售予客户", "equipment": "使用设备", "supplier": "采购自供应商",
     "material": "使用原料",
+    # 市场域关系标签兜底(competitor_id/region_id/channel_id/trend_id 等外键词 → 中文)
+    "competitor": "与竞品竞争", "region": "售于区域", "channel": "经由渠道",
+    "trend": "趋势影响", "market": "市场关联",
 }
 
 
@@ -452,6 +439,12 @@ _ENTITY_CN = {
     "product": "产品", "products": "产品", "customer": "客户", "customers": "客户",
     "equipment": "设备", "raw_material": "原料", "raw_materials": "原料",
     "sale": "销售", "sales": "销售", "qc": "质检", "qc_check": "质检",
+    # 市场域(市场本体, 一处定义三域同读): Region/Competitor/Channel/MarketTrend
+    "region": "区域", "regions": "区域",
+    "competitor": "竞品", "competitors": "竞品",
+    "channel": "渠道", "channels": "渠道",
+    "market_trend": "市场趋势", "market_trends": "市场趋势",
+    "trend": "市场趋势", "market": "市场", "markettrend": "市场趋势",
 }
 _ATTR_CN = {
     "id": "编号", "name": "名称", "type": "类型", "status": "状态",
@@ -487,17 +480,111 @@ def _looks_english(s: str) -> bool:
     return bool(s) and not any("\u4e00" <= ch <= "\u9fff" for ch in str(s))
 
 
+# 通用业务词表扩充（不限行业；新增行业词往这里加即可，算法自动吃任意前缀）
+_ENTITY_CN.update({
+    "order": "订单", "orders": "订单", "supplier": "供应商", "suppliers": "供应商",
+    "warehouse": "仓库", "inventory": "库存", "shipment": "发货", "delivery": "交付",
+    "payment": "付款", "invoice": "发票", "contract": "合同", "project": "项目",
+    "employee": "员工", "staff": "员工", "department": "部门", "team": "班组",
+    "machine": "机器", "machinery": "机器", "device": "装置", "sensor": "传感器",
+    "meter": "仪表", "reading": "读数", "log": "日志", "alert": "告警", "event": "事件",
+    "report": "报表", "record": "记录", "category": "类别", "class": "类别",
+    "spec": "规格", "specification": "规格", "model": "型号", "brand": "品牌",
+    "price": "价格", "cost": "成本", "revenue": "营收", "profit": "利润",
+    "defect": "缺陷", "fault": "故障", "inspection": "检验", "test": "试验",
+    "standard": "标准", "document": "文档", "drawing": "图纸", "process": "工序",
+    "procedure": "流程", "station": "工位", "line": "产线", "workshop": "车间",
+    "factory": "工厂", "plant": "厂区", "company": "公司", "enterprise": "企业",
+    "region": "区域", "area": "区域", "industry": "行业", "sector": "行业",
+    "material": "物料", "materials": "物料", "part": "零件", "parts": "零件",
+    "component": "部件", "spare": "备件", "tool": "工装", "mold": "模具",
+    "batch": "批次", "lot": "批号", "serial": "序列号", "bom": "物料清单",
+    "ingredient": "配料", "recipe": "配方", "formula": "配方",
+    "qc": "质检", "quality": "质量", "trace": "溯源", "traceability": "溯源",
+    "maintenance": "维护", "repair": "维修", "upkeep": "保养", "energy": "能耗",
+    "power": "功率", "consumption": "消耗", "emission": "排放", "safety": "安全",
+    "person": "人员", "user": "用户", "account": "账户", "role": "角色",
+    "task": "任务", "plan": "计划", "schedule": "排程", "step": "步骤",
+})
+_ATTR_CN.update({
+    "shelf_life": "保质期", "expiry": "有效期", "expire_date": "到期日",
+    "produce_date": "生产日期", "production_date": "生产日期", "mfg_date": "生产日期",
+    "unit": "单位", "uom": "单位", "remark": "备注", "note": "备注",
+    "address": "地址", "phone": "电话", "contact": "联系方式",
+    "spec": "规格", "model": "型号", "brand": "品牌",
+    "status": "状态", "level": "等级", "grade": "等级",
+    "power": "功率", "voltage": "电压", "current": "电流", "temperature": "温度",
+    "pressure": "压力", "speed": "转速", "capacity": "产能", "throughput": "产量",
+    "workshop": "车间", "line": "产线", "station": "工位", "department": "部门",
+    "owner": "负责人", "operator": "操作人", "supplier": "供应商", "customer": "客户",
+    "cost": "成本", "price": "价格", "tax": "税", "total": "合计",
+    "qty": "数量", "num": "数量", "count": "数量", "number": "数量",
+    "duration": "时长", "start": "开始", "end": "结束",
+})
+
+
+def _deplural(w: str) -> str:
+    """英文复数归一：materials→material、batches→batch。仅用于查表，不改原值。"""
+    return w[:-1] if w.endswith("s") and len(w) > 3 and not w.endswith("ss") else w
+
+
+def _entity_cn_definition(e: dict) -> str:
+    """实体结构性定义（规则兜底，域无关，零 token）。
+
+    据实描述：该实体属于哪个业务域、由哪张表承载、以什么唯一标识、记录哪些关键信息。
+    原则：每一句都来自 schema 实件（domain/table/key/attributes），不编造语义。
+    这是"结构性定义"，用于满足国标表1 的 Definition 描述项；有语义定义时可覆盖。
+    """
+    label = e.get("label") or e.get("id") or "实体"
+    dom = str(e.get("domain") or "").strip()
+    s = f"{dom}中的{label}" if dom else f"业务实体{label}"
+    table = e.get("table")
+    if table:
+        s += f"，数据来源于 {table} 表"
+    key = e.get("key")
+    if key:
+        s += f"，以 {key} 唯一标识"
+    attrs = [a.get("label") or a.get("name") for a in (e.get("attributes") or [])]
+    attrs = [a for a in attrs if a and a != key][:5]
+    if attrs:
+        s += f"，记录{'、'.join(attrs)}等信息"
+    return s + "。"
+
+
 def _entity_cn_label(name: str) -> str:
-    """实体中文 label（规则兜底）：表名/实体id → 中文名。Valve_batches→批次、Valve_equipment→设备。"""
-    core = str(name).lower()
-    for pref in ("valve_", "factory_", "t_", "tb_"):
-        if core.startswith(pref):
-            core = core[len(pref):]
-            break
-    if core in _ENTITY_CN:
-        return _ENTITY_CN[core]
-    last = core.split("_")[-1]
-    return _ENTITY_CN.get(last, last)
+    """实体中文 label（规则兜底，域无关）：任意前缀 + 复数归一 + 片段窗口匹配。
+
+    food_raw_materials→原料、Valve_batch_ingredient→批次配料。
+    原则：不假定任何行业前缀（旧版写死 valve_/factory_/t_，food_ 之类就漏掉，
+    且取"最后一段"会把 raw_materials 剩成 materials 而丢掉中文）。
+    """
+    words = [w for w in str(name).replace("-", "_").replace(" ", "_").lower().split("_") if w]
+    if not words:
+        return name
+    # 已含中文(如 h_波纹管) → 剥掉纯英文前缀, 直接留中文部分
+    if any("\u4e00" <= ch <= "\u9fff" for ch in str(name)):
+        cn = "".join(w for w in words if any("\u4e00" <= ch <= "\u9fff" for ch in w))
+        return cn or name
+
+    def _look(chunk: str):
+        return _ENTITY_CN.get(chunk) or _ENTITY_CN.get("_".join(_deplural(w) for w in chunk.split("_")))
+
+    # 1) 整名命中（含去复数）
+    hit = _look("_".join(words))
+    if hit:
+        return hit
+    # 2) 片段窗口：从长到短；同长度优先靠后的片段 —— 英文表名核心词通常在末尾
+    #    (energy_station_devices 应命中 devices→设备，而非 energy→能耗)
+    n = len(words)
+    for size in range(n, 0, -1):
+        for i in range(n - size, -1, -1):
+            hit = _look("_".join(words[i:i + size]))
+            if hit:
+                return hit
+    # 3) 逐词拼接（每词查表，未收录保留原词）；拼出中文才算成功, 否则保留原名
+    parts = [_ENTITY_CN.get(_deplural(w)) or _ENTITY_CN.get(w) or w for w in words]
+    joined = "".join(parts)
+    return joined if any("\u4e00" <= ch <= "\u9fff" for ch in joined) else name
 
 
 def _attr_cn_label(name: str) -> str:
@@ -509,23 +596,37 @@ def _attr_cn_label(name: str) -> str:
             base = name[:-len(suf)]
             return (_ATTR_CN.get(base, base) if base else "编号") + "编号"
     words = [w for w in str(name).replace("-", "_").lower().split("_") if w]
-    return "".join(_ATTR_CN.get(w, w) for w in words) if words else name
+    if not words:
+        return name
+    parts = [_ATTR_CN.get(_deplural(w)) or _ATTR_CN.get(w) or w for w in words]
+    joined = "".join(parts)
+    # 拼不出中文就保留原名 —— 别产出 "unknowncol" 这种半英文怪名
+    return joined if any("\u4e00" <= ch <= "\u9fff" for ch in joined) else name
 
 
 def llm_enhance(schema: dict, use_llm: bool = True) -> dict:
-    """LLM 中文 label 增强（实体 + 属性）。
+    """中文 label + 定义增强（实体 + 属性）。
 
-    参考 sme modeling.llm_enhance：规则引擎兜底（确定性中文名）+ LLM 可选精修，
-    失败/无 key/断网一律回落规则，不阻塞建模。label 写入 schema 实体/属性，
-    to_nt 用中文 RDFS label 展示。
+    参考 sme modeling.llm_enhance：规则引擎兜底（确定性中文名 + 结构性定义）+ LLM 可选精修，
+    失败/无 key/断网一律回落规则，不阻塞建模。label/definition 写入 schema，
+    to_nt / 导出层用中文 RDFS label 与 skos:definition 展示（国标表1/表2 描述项）。
     """
     # 1) 规则兜底：保证所有实体/属性有中文 label（零 token，确定性）
     for e in schema.get("entities", []):
         if not e.get("label") or e["label"] == e["id"] or _looks_english(e["label"]):
             e["label"] = _entity_cn_label(e.get("table") or e["id"])
+        # 定义兜底：国标表1 要求每个实体类型有 Definition。
+        # 这里生成的是**结构性定义**（据实描述该实体由哪张表承载、主键、关键属性），
+        # 不是语义学定义 —— 好处是零 token、离线、确定性、且每句都有实件依据；
+        # 已有手写/LLM 语义定义时一律不覆盖。
+        if not e.get("definition"):
+            e["definition"] = _entity_cn_definition(e)
         for a in e.get("attributes", []):
             if not a.get("label") or a["label"] == a["name"] or _looks_english(a["label"]):
                 a["label"] = _attr_cn_label(a["name"])
+            if not a.get("definition"):
+                owner = e.get("label") or e.get("id")
+                a["definition"] = f"{owner}的{a['label']}。"
     if not use_llm:
         return schema
     # 2) LLM 精修（可选）：无 key 直接回落（规则 label 已够）
@@ -551,12 +652,41 @@ def llm_enhance(schema: dict, use_llm: bool = True) -> dict:
     return schema
 
 
-def suggest_schema(data: dict) -> dict:
+def _infer_domain(table: str, cols) -> str:
+    """表 → 业务域（规则兜底，域无关）：按表名 + 列名词根匹配通用业务域。
+
+    为什么要这一步：导出层做"根→域→实体"三层层次需要 entity.domain，
+    而自动推断的 schema 原本没有该字段 → 三层层次对自动库失效。这里补上。
+    词表是**通用业务域概念**（销售/采购/生产/质量/库存/设备/财务），不绑定具体行业。
+    匹配不到 → "业务域"（仍有一层，不让实体裸挂根）。
+    """
+    txt = (str(table) + " " + " ".join(str(c) for c in cols)).lower()
+    for dom, keys in _DOMAIN_KEYWORDS:
+        if any(k in txt for k in keys):
+            return dom
+    return "业务域"
+
+
+# 通用业务域词表（有序：先匹配到的域优先）。中英双语词根，覆盖常见企业台账列名。
+_DOMAIN_KEYWORDS = [
+    ("销售域", ("sale", "order", "customer", "订单", "客户", "销售")),
+    ("采购域", ("purchase", "supplier", "raw_material", "material", "采购", "供应商", "原料")),
+    ("质量域", ("qc", "quality", "inspect", "defect", "质检", "质量", "检验")),
+    ("设备域", ("equipment", "device", "machine", "maintenance", "设备", "维护")),
+    ("库存域", ("inventory", "stock", "warehouse", "库存", "仓储")),
+    ("财务域", ("invoice", "payment", "account", "cost", "财务", "账", "成本")),
+    ("生产域", ("batch", "produce", "product", "manufactur", "workshop", "生产", "批次", "产品")),
+]
+
+
+def suggest_schema(data: dict, use_llm: bool = True, industry: str = None) -> dict:
     """从多表数据自动推断 schema（schema-free，无需手写 ontology_schema.json）。
 
     遍历 {表名: [行...]}，每表建一个实体（id=表名首字母大写，key=id 或 *_id 或首列，
     attributes=行字段名 + 自动推断类型，复用 _infer_prop_role 标注语义角色）；
     复用 _infer_relations 推断跨表关系；每表主键生成 unique 约束。
+    industry: 传入后写入 schema，触发按行业的命名空间隔离
+              （resolve_namespace 走 {org}industry/{industry}#，国标第9章要求）。
     返回可直接喂给 build_graph / validate / to_nt 的 schema dict。
     """
     entities = []
@@ -576,19 +706,26 @@ def suggest_schema(data: dict) -> dict:
                 attr["required"] = True
             attributes.append(attr)
         eid = _cap(table)
-        entities.append({"id": eid, "label": eid, "table": table, "key": key, "attributes": attributes})
+        entities.append({"id": eid, "label": eid, "table": table, "key": key,
+                         "domain": _infer_domain(table, sample.keys()),
+                         "attributes": attributes})
         constraints.append({"type": "unique", "on": f"{eid}.{key}", "msg": f"{eid} 主键 {key} 唯一"})
     schema = {
         "version": "1.0",
         "name": "auto-inferred-ontology",
         "entities": entities,
-        "relations": (_rels := _infer_relations(data)) + _infer_relations_llm(data, _rels),
+        "relations": (_rels := _infer_relations(data))
+        + (_infer_relations_llm(data, _rels) if use_llm else []),
         "constraints": constraints,
     }
+    # 行业命名空间隔离（国标第9章）：显式传入才生效，未传保持旧默认字节不变
+    if industry:
+        schema["industry"] = industry
     # 与 load_schema 对齐：注入 {id: entity} 索引，供 build_graph/validate/to_nt 直接消费
     schema["_entities"] = {e["id"]: e for e in entities}
-    # 中文 label 增强（规则兜底 + LLM 可选精修），label 供 to_nt RDFS label 中文展示
-    schema = llm_enhance(schema, use_llm=True)
+    # 中文 label 增强（规则兜底 + LLM 可选精修），label 供 to_nt RDFS label 中文展示。
+    # use_llm=False 时纯规则兜底: 确定性、毫秒级 —— 质量门/批量体检这类只需结构的场景走这条。
+    schema = llm_enhance(schema, use_llm=use_llm)
     return schema
 
 
@@ -720,7 +857,10 @@ def traverse(graph: dict, entity: str, eid) -> list:
 
 
 # ═══════════ 统一 N-Triples 输出（替代 csv_to_owl / multi_table 的建本体职责）═══════════
-NS = "http://factory.example/ontology#"
+# ── 命名空间（GB/T 48000.3 §9 扩展原则：支持版本化 + 行业子路径；缺省保持原值，向后兼容） ──
+DEFAULT_NS = "http://factory.example/ontology#"
+NS = DEFAULT_NS                      # 模块级默认：旧调用方/未声明 namespace 的 schema 行为不变
+NS_ORG = "https://ontology.example.com/"   # 组织根命名空间（新方案：{根}/{域}# + 行业子路径）
 RDF_TYPE = "<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"
 OWL_CLASS = "<http://www.w3.org/2002/07/owl#Class>"
 OWL_OBJPROP = "<http://www.w3.org/2002/07/owl#ObjectProperty>"
@@ -730,6 +870,118 @@ RDFS_RANGE = "<http://www.w3.org/2000/01/rdf-schema#range>"
 RDFS_LABEL = "<http://www.w3.org/2000/01/rdf-schema#label>"
 RDFS_SUBCLASS = "<http://www.w3.org/2000/01/rdf-schema#subClassOf>"
 _NS_URI = "http://www.w3.org/2001/XMLSchema#"
+# 标准词汇（v0.x.1 新增：本体头 / 定义 / 公理）
+OWL_ONTOLOGY = "<http://www.w3.org/2002/07/owl#Ontology>"
+OWL_VERSIONIRI = "<http://www.w3.org/2002/07/owl#versionIRI>"
+OWL_RESTRICTION = "<http://www.w3.org/2002/07/owl#Restriction>"
+OWL_ONPROPERTY = "<http://www.w3.org/2002/07/owl#onProperty>"
+OWL_MAXCARD = "<http://www.w3.org/2002/07/owl#maxCardinality>"
+OWL_MINQUALIFIED = "<http://www.w3.org/2002/07/owl#minQualifiedCardinality>"
+OWL_ONCLASS = "<http://www.w3.org/2002/07/owl#onClass>"
+SKOS_DEFINITION = "<http://www.w3.org/2004/02/skos/core#definition>"
+
+# 属性类型 → xsd 映射（国标表2 range 项；未列出的回退 xsd:string）
+_XSD_BY_TYPE = {"number": "decimal", "integer": "integer", "date": "date",
+                "boolean": "boolean", "string": "string"}
+
+
+def resolve_namespace(schema: dict) -> dict:
+    """解析 schema 的命名空间治理字段（缺省全部可推导，不阻塞）。
+
+    支持字段（全可选）：
+      namespace / prefix / name / label / version / version_iri / org / industry
+    返回 {ns, prefix, version_iri, name, label}。
+    """
+    org = str(schema.get("org") or NS_ORG)
+    if not org.endswith(("/", "#")):
+        org += "/"
+    industry = str(schema.get("industry") or "").strip("/")
+    name = str(schema.get("name") or "ontology").strip("/") or "ontology"
+    # 命名空间解析(向后兼容关键): 显式 namespace > 显式 org/industry(新方案) > 原硬编码默认值
+    explicit = str(schema.get("namespace") or "")
+    if explicit:
+        ns = explicit
+    elif industry:
+        ns = f"{org}industry/{industry}#"          # 行业扩展命名空间(国标第9章: 新命名空间+不冲突)
+    elif schema.get("org"):
+        ns = f"{org}{name}#"
+    else:
+        ns = DEFAULT_NS                            # 未声明 → 保持原值, 旧产物字节不变
+    prefix = str(schema.get("prefix") or "o")
+    ver = str(schema.get("version") or "").strip()
+    viri = str(schema.get("version_iri") or "")
+    if not viri:
+        base = ns[:-1] if ns.endswith(("#", "/")) else ns
+        viri = f"{base}/{ver}" if ver else base
+    return {"ns": ns, "prefix": prefix, "version_iri": viri, "name": name,
+            "label": str(schema.get("label") or name)}
+
+
+def _pascal(name: str) -> str:
+    """id/列名 → PascalCase 局部名（IRI 自动补全用）。"""
+    parts = [p for p in str(name).replace("-", "_").split("_") if p]
+    return "".join(p[:1].upper() + p[1:] for p in parts) if parts else "Item"
+
+
+def fill_iris(schema: dict) -> dict:
+    """按命名空间自动补全实体/属性的 iri（国标表1/表2 的 IRI 描述项）。
+
+    已有 iri 尊重原值；缺省用 namespace + PascalCase(id) / camelCase(attr)，写回 schema（幂等）。
+    """
+    m = resolve_namespace(schema)
+    ns = m["ns"]
+    for e in schema.get("entities", []):
+        if not e.get("iri"):
+            # 与 to_nt 的 eid_to_cls 保持一致(表名 capitalize)，避免类 URI 与实例引用不一致
+            local = str(e["table"]).capitalize() if e.get("table") else _pascal(e.get("id", ""))
+            e["iri"] = ns + local
+        for a in e.get("attributes", []):
+            if not a.get("iri"):
+                a["iri"] = ns + _local_name(a.get("name", ""))
+    for r in schema.get("relations", []):
+        if not r.get("iri"):
+            r["iri"] = ns + _local_name(r.get("id", "rel"))
+    schema["_ns"] = m
+    return schema
+
+
+def build_class_hierarchy(schema: dict) -> list:
+    """类型体系：显式 parent 优先（国标 §5.3 根→一级→二级派生），回退 domain 分组 + 根 Enterprise。
+
+    schema 声明 entity.parent 时按声明建层次；未声明则保持原 domain 分组逻辑（向后兼容）。
+    """
+    ents = schema.get("entities", [])
+    if any(e.get("parent") for e in ents):
+        nodes = [{"name": "Enterprise", "super": None, "label": "企业"},
+                 {"name": "BusinessObject", "super": "Enterprise", "label": "业务对象"}]
+        seen = {"Enterprise", "BusinessObject"}
+        for e in ents:
+            p = e.get("parent") or "BusinessObject"
+            if p not in seen:
+                nodes.append({"name": p, "super": "BusinessObject", "label": p})
+                seen.add(p)
+            nodes.append({"name": e["id"], "super": p, "label": e.get("label") or e["id"]})
+        return nodes
+    return _hierarchy_by_domain(schema)
+
+
+def _hierarchy_by_domain(schema: dict) -> list:
+    """原 domain 分组层次（无显式 parent 时的回退）。"""
+    hierarchy = [
+        {"name": "Enterprise", "super": None, "label": "企业"},
+        {"name": "BusinessObject", "super": "Enterprise", "label": "业务对象"},
+    ]
+    domains = {}
+    for e in schema.get("entities", []):
+        d = e.get("domain", "其他域")
+        domains.setdefault(d, {"name": d, "super": "BusinessObject", "label": d, "children": []})
+        domains[d]["children"].append(e["id"])
+    for d in domains.values():
+        hierarchy.append({"name": d["name"], "super": "BusinessObject", "label": d["label"], "entities": d["children"]})
+    for e in schema.get("entities", []):
+        if "category" in [a["name"] for a in e.get("attributes", [])]:
+            hierarchy.append({"name": f"{e['id']}Category", "super": e["id"], "label": f"{e['label']}类别", "kind": "is_a"})
+    return hierarchy
 
 def _guess_type(value) -> str:
     """从实际值推断 xsd 类型（数据驱动）。"""
@@ -756,23 +1008,50 @@ def _local_name(col: str) -> str:
 def _q(v) -> str:
     return '"%s"' % str(v).replace("\\", "\\\\").replace('"', '\\"')
 
-def _nt_class_decls(entities, eid_to_cls, L):
-    """类声明：每实体一个 owl:Class + 中文 label。返回 eid->类名映射已由调用方维护。"""
+def _nt_class_decls(entities, eid_to_cls, L, ns, m):
+    """类声明：本体头 + 根类 + 每实体 owl:Class（label / skos:definition / subClassOf）。
+
+    覆盖 GB/T 48000.3 §5.3-5.5：类声明、中文 label、中文定义、类层次派生。
+    """
+    L.append(f"<{ns}> {RDF_TYPE} {OWL_ONTOLOGY} .")
+    L.append(f"<{ns}> {OWL_VERSIONIRI} <{m['version_iri']}> .")
+    L.append(f"<{ns}> {RDFS_LABEL} {_q(m['label'])} .")
+    declared = set(eid_to_cls.values())
+    # 显式 parent 但非已声明实体的父类（如 BusinessObject / 领域类）→ 单独声明为 owl:Class
+    for ent in entities.values():
+        p = ent.get("parent")
+        if p and p not in entities:
+            pcls = _pascal(p)
+            if pcls not in declared:
+                L.append(f"<{ns}{pcls}> {RDF_TYPE} {OWL_CLASS} .")
+                L.append(f"<{ns}{pcls}> {RDFS_LABEL} {_q(p)} .")
+                declared.add(pcls)
     for eid, ent in entities.items():
-        cls_uri = NS + eid_to_cls[eid]
+        cls_uri = ent.get("iri") or (ns + eid_to_cls[eid])
         L.append(f"<{cls_uri}> {RDF_TYPE} {OWL_CLASS} .")
         L.append(f"<{cls_uri}> {RDFS_LABEL} {_q(ent.get('label') or eid_to_cls[eid])} .")
+        if ent.get("definition"):
+            L.append(f"<{cls_uri}> {SKOS_DEFINITION} {_q(ent['definition'])} .")
+        if ent.get("equivalent_class"):
+            L.append(f"<{cls_uri}> <http://www.w3.org/2002/07/owl#equivalentClass> {ent['equivalent_class']} .")
+        p = ent.get("parent")
+        if p:
+            pcls = eid_to_cls.get(p) or _pascal(p)
+            L.append(f"<{cls_uri}> {RDFS_SUBCLASS} <{ns}{pcls}> .")
 
 
-def _nt_property_decls(entities, relations, data, eid_to_cls, L):
-    """数据属性 + 对象属性声明（跳过主键/外键列，对象属性用关系英文id）。"""
+def _nt_property_decls(entities, relations, data, eid_to_cls, L, ns):
+    """数据属性 + 对象属性声明（跳过主键/外键列，对象属性用关系英文id）。
+
+    覆盖 GB/T 48000.3 表2 描述项：IRI/Name/Label/Domain/Range/typeofTerms(+skos:definition)。
+    """
     for eid, ent in entities.items():
-        cls_uri = NS + eid_to_cls[eid]
+        cls_uri = ent.get("iri") or (ns + eid_to_cls[eid])
         table = ent.get("table")
         if table not in data or not data[table]:
             continue
         key = ent.get("key")
-        rel_cols = {r["fk"].split(".")[1] for r in relations if r.get("fk", "").startswith(table + ".")}
+        rel_cols = {r["fk"].split(".")[1] for r in relations if (r.get("fk") or "").startswith(table + ".")}
         for attr in ent.get("attributes", []):
             aname = attr["name"]
             if aname == key or aname in rel_cols:
@@ -780,47 +1059,98 @@ def _nt_property_decls(entities, relations, data, eid_to_cls, L):
             p = _local_name(aname)
             vals = [r.get(aname) for r in data[table] if r.get(aname)]
             t = _guess_type(vals[0]) if vals else "xsd:string"
-            L.append(f"<{NS}{p}> {RDF_TYPE} {OWL_DATAPROP} .")
-            L.append(f"<{NS}{p}> {RDFS_DOMAIN} <{cls_uri}> .")
-            L.append(f"<{NS}{p}> {RDFS_RANGE} <{_NS_URI}{t.split(':')[1]}> .")
+            L.append(f"<{ns}{p}> {RDF_TYPE} {OWL_DATAPROP} .")
+            L.append(f"<{ns}{p}> {RDFS_DOMAIN} <{cls_uri}> .")
+            # range: 显式 range 优先，否则按值类型映射
+            rng = attr.get("range") or (_NS_URI + _XSD_BY_TYPE.get(attr.get("type"), t.split(":")[1]))
+            if str(rng).startswith("http"):
+                L.append(f"<{ns}{p}> {RDFS_RANGE} <{rng}> .")
+            else:
+                L.append(f"<{ns}{p}> {RDFS_RANGE} <{_NS_URI}{str(rng).split(':')[-1]}> .")
+            L.append(f"<{ns}{p}> {RDFS_LABEL} {_q(attr.get('label') or aname)} .")
+            if attr.get("definition"):
+                L.append(f"<{ns}{p}> {SKOS_DEFINITION} {_q(attr['definition'])} .")
+        # 纯连接表被折叠为直连后(_nt_instances 里已把非主键 FK 提升为 父→目标 边):
+        #   · 非主键 FK 关系的 domain 上提到父类(否则 domain 指向一个没有实例的空类, 语义冲突)
+        #   · 主键 FK 关系(父连接)已被吸收, 不再声明
+        own_attrs = [a["name"] for a in ent.get("attributes", [])
+                     if a["name"] != key and a["name"] not in rel_cols]
+        folded_uri = None
+        if ent.get("detail") and not own_attrs:
+            _pr = next((r for r in relations
+                        if (r.get("fk") or "").startswith(table + ".") and r["fk"].split(".")[1] == key), None)
+            if _pr:
+                folded_uri = f"{ns}{eid_to_cls.get(_pr['to'], _pr['to'])}"
         for r in relations:
-            if r.get("fk", "").startswith(table + "."):
-                rel = NS + r["id"]  # 对象属性 URI 用关系 id（下游消费一致）
+            if (r.get("fk") or "").startswith(table + "."):
+                rel = r.get("iri") or (ns + r["id"])   # 对象属性 URI(显式 iri 优先, 否则关系 id)
+                if folded_uri:
+                    if r["fk"].split(".")[1] == key:
+                        continue                        # 父连接关系已吸收
+                    dom_uri = folded_uri                # domain 上提到父类
+                else:
+                    dom_uri = cls_uri
                 L.append(f"<{rel}> {RDF_TYPE} {OWL_OBJPROP} .")
-                L.append(f"<{rel}> {RDFS_DOMAIN} <{cls_uri}> .")
-                L.append(f"<{rel}> {RDFS_RANGE} <{NS}{eid_to_cls.get(r['to'], r['to'])}> .")
+                L.append(f"<{rel}> {RDFS_DOMAIN} <{dom_uri}> .")
+                L.append(f"<{rel}> {RDFS_RANGE} <{ns}{eid_to_cls.get(r['to'], r['to'])}> .")
                 L.append(f"<{rel}> {RDFS_LABEL} {_q(r.get('label', '关联'))} .")
+                if r.get("definition"):
+                    L.append(f"<{rel}> {SKOS_DEFINITION} {_q(r['definition'])} .")
 
 
-def _nt_category_hierarchy(entities, data, eid_to_cls, L):
+def _nt_category_hierarchy(entities, data, eid_to_cls, L, ns):
     """类别类层级 + 类型体系(subClassOf)：实体含 category 列 → Category 类 + isA。"""
     for eid, ent in entities.items():
         cls = eid_to_cls[eid]
+        cls_uri = ent.get("iri") or (ns + cls)
         table = ent.get("table")
         if table not in data or not data[table] or "category" not in data[table][0]:
             continue
         cat_cls = f"{cls}Category"
-        L.append(f"<{NS}{cat_cls}> {RDF_TYPE} {OWL_CLASS} .")
-        L.append(f"<{NS}{cat_cls}> {RDFS_SUBCLASS} <{NS}{cls}> .")
+        L.append(f"<{ns}{cat_cls}> {RDF_TYPE} {OWL_CLASS} .")
+        L.append(f"<{ns}{cat_cls}> {RDFS_SUBCLASS} <{cls_uri}> .")
         for row in data[table]:
             cat = row.get("category")
             if cat:
-                cat_uri = f"{NS}{cat_cls}_{cat}"
+                cat_uri = f"{ns}{cat_cls}_{cat}"
                 L.append(f"<{cat_uri}> {RDF_TYPE} {OWL_CLASS} .")
-                L.append(f"<{cat_uri}> {RDFS_SUBCLASS} <{NS}{cat_cls}> .")
+                L.append(f"<{cat_uri}> {RDFS_SUBCLASS} <{ns}{cat_cls}> .")
 
 
-def _nt_instances(entities, relations, data, eid_to_cls, L):
+def _nt_instances(entities, relations, data, eid_to_cls, L, ns):
     """实例 + 数据/对象属性（FK join，明细实体按行建实例）。"""
     for eid, ent in entities.items():
-        cls_uri = NS + eid_to_cls[eid]
+        cls_uri = ent.get("iri") or (ns + eid_to_cls[eid])
         table = ent.get("table")
         if table not in data or not data[table]:
             continue
         key = ent.get("key")
         detail = ent.get("detail", False)
-        rels_of_table = [r for r in relations if r.get("fk", "").startswith(table + ".")]
+        rels_of_table = [r for r in relations if (r.get("fk") or "").startswith(table + ".")]
         rel_cols = {r["fk"].split(".")[1] for r in rels_of_table}
+        # 纯连接表(多对多中间表): 只有主键 + 外键, 没有自身列。
+        # 通用判据, 域无关 —— 这类表若建成 N-ary 实体, 检索要多跳一层(父→连接实体→目标)
+        # 且引入无信息节点, 反而降低精度; 直接把非主键外键提升为 父→目标 直连边。
+        # 一旦该表出现自身列(用量/时间/操作人…), own_attrs 非空, 自动回到 N-ary 建实体。
+        own_attrs = [a["name"] for a in ent.get("attributes", [])
+                     if a["name"] != key and a["name"] not in rel_cols]
+        if detail and not own_attrs:
+            parent_rel = next((r for r in rels_of_table if r["fk"].split(".")[1] == key), None)
+            if parent_rel:
+                pcls = eid_to_cls.get(parent_rel["to"], parent_rel["to"])
+                for row in data[table]:
+                    pv = row.get(key)
+                    if pv is None or str(pv).strip() == "":
+                        continue
+                    pinst = f"{ns}{pcls}_{pv}"
+                    for r in rels_of_table:
+                        fcol = r["fk"].split(".")[1]
+                        if fcol == key or not row.get(fcol):
+                            continue
+                        rel = r.get("iri") or (ns + r["id"])
+                        tcls = eid_to_cls.get(r["to"], r["to"])
+                        L.append(f"<{pinst}> <{rel}> <{ns}{tcls}_{row[fcol]}> .")
+            continue
         seen_ids = set()
         for i, row in enumerate(data[table]):
             kid = row.get(key) or f"{i+1}"
@@ -830,7 +1160,7 @@ def _nt_instances(entities, relations, data, eid_to_cls, L):
             inst_uri = f"{cls_uri}_{kid}" + (f"@{i}" if detail else "")
             L.append(f"<{inst_uri}> {RDF_TYPE} <{cls_uri}> .")
             if "category" in row and row.get("category"):
-                L.append(f"<{inst_uri}> <{NS}hasCategory> <{NS}{eid_to_cls[eid]}Category_{row['category']}> .")
+                L.append(f"<{inst_uri}> <{ns}hasCategory> <{ns}{eid_to_cls[eid]}Category_{row['category']}> .")
             for attr in ent.get("attributes", []):
                 aname = attr["name"]
                 if aname == key or aname in rel_cols:
@@ -838,12 +1168,12 @@ def _nt_instances(entities, relations, data, eid_to_cls, L):
                 if aname in row and row.get(aname) is not None and str(row.get(aname)).strip() != "":
                     p = _local_name(aname)
                     t = _guess_type(row[aname])
-                    L.append(f"<{inst_uri}> <{NS}{p}> {_q(row[aname])}^^<{_NS_URI}{t.split(':')[1]}> .")
+                    L.append(f"<{inst_uri}> <{ns}{p}> {_q(row[aname])}^^<{_NS_URI}{t.split(':')[1]}> .")
             for r in rels_of_table:
                 fcol = r["fk"].split(".")[1]
                 if fcol in row and row.get(fcol):
-                    rel = NS + r["id"]
-                    L.append(f"<{inst_uri}> <{rel}> <{NS}{eid_to_cls.get(r['to'], r['to'])}_{row[fcol]}> .")
+                    rel = r.get("iri") or (ns + r["id"])
+                    L.append(f"<{inst_uri}> <{rel}> <{ns}{eid_to_cls.get(r['to'], r['to'])}_{row[fcol]}> .")
 
 
 def to_nt(data: dict, schema: dict, outpath: str = None) -> list:
@@ -857,16 +1187,20 @@ def to_nt(data: dict, schema: dict, outpath: str = None) -> list:
     """
     L = []
     entities = schema.get("_entities", schema)
+    # 命名空间 + IRI 自动补全（幂等；schema 已填 _ns 则复用）
+    schema = fill_iris(schema)
+    m = schema.get("_ns") or resolve_namespace(schema)
+    ns = m["ns"]
     declared_fks = {r.get("fk") for r in schema.get("relations", []) if r.get("fk")}
     inferred = [r for r in _infer_relations(data) if r.get("fk") not in declared_fks]
     relations = list(schema.get("relations", [])) + inferred
     # 实体 ID -> 类局部名（用表名风格，与 multi_table 下游兼容）
     eid_to_cls = {eid: (ent.get("table", eid).capitalize() if ent.get("table") else eid)
                   for eid, ent in entities.items()}
-    _nt_class_decls(entities, eid_to_cls, L)
-    _nt_property_decls(entities, relations, data, eid_to_cls, L)
-    _nt_category_hierarchy(entities, data, eid_to_cls, L)
-    _nt_instances(entities, relations, data, eid_to_cls, L)
+    _nt_class_decls(entities, eid_to_cls, L, ns, m)
+    _nt_property_decls(entities, relations, data, eid_to_cls, L, ns)
+    _nt_category_hierarchy(entities, data, eid_to_cls, L, ns)
+    _nt_instances(entities, relations, data, eid_to_cls, L, ns)
     if outpath:
         with open(outpath, "w", encoding="utf-8") as f:
             f.write("\n".join(L) + "\n")

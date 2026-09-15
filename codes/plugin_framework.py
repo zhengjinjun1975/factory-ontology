@@ -362,11 +362,17 @@ class PluginManager:
                 os.makedirs(tmp, exist_ok=True)
                 if source.endswith(".zip"):
                     with zipfile.ZipFile(source) as z:
-                        z.extractall(tmp)
+                        try:
+                            z.extractall(tmp, filter="data")   # 3.12+ 安全过滤
+                        except TypeError:
+                            z.extractall(tmp)                  # 旧 zipfile 无 filter 参数
                 else:
                     import tarfile
                     with tarfile.open(source, "r:gz") as t:
-                        t.extractall(tmp)
+                        try:
+                            t.extractall(tmp, filter="data")
+                        except TypeError:
+                            t.extractall(tmp)
                 # 归档可能解出单目录或散落文件，找到含 manifest.json 的顶层
                 candidates = []
                 for root, dirs, files in os.walk(tmp):

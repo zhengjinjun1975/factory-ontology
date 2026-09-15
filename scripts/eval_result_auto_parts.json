@@ -1,0 +1,30 @@
+{
+  "kb": "auto_parts",
+  "n": 25,
+  "hit": 25,
+  "rate": 1.0,
+  "by_type": {
+    "count": {
+      "hit": 4,
+      "n": 4
+    },
+    "enum": {
+      "hit": 8,
+      "n": 8
+    },
+    "extreme": {
+      "hit": 6,
+      "n": 6
+    },
+    "aggregate": {
+      "hit": 3,
+      "n": 3
+    },
+    "filter": {
+      "hit": 4,
+      "n": 4
+    }
+  },
+  "miss": [],
+  "ts": "2026-09-15 19:40:32"
+}

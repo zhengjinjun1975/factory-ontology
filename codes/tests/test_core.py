@@ -19,6 +19,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # codes/
 sys.path.insert(0, ROOT)
 
 DATA = os.path.join(ROOT, "data")
+# 数据已按行业分目录存放(DATA 下只剩 erp_demo.db); 各单测指向真实文件所在目录, 不再假设都平铺在 data/。
+DATA_EQ = os.path.join(ROOT, "data_manufacturing")     # equipment.csv
+DATA_ES = os.path.join(ROOT, "data_energy_station")    # energy_station.csv
 
 
 def _make_db(path):
@@ -35,7 +38,7 @@ def _make_db(path):
 def test_data_loader_csv_json_sqlite():
     import data_loader as dl
     # CSV
-    _, h, rows = dl.load_table(os.path.join(DATA, "equipment.csv"))
+    _, h, rows = dl.load_table(os.path.join(DATA_EQ, "equipment.csv"))
     assert len(rows) >= 3 and "device_name" in h
     # JSON
     jp = os.path.join(DATA, "_tmp_test.json")
@@ -55,7 +58,7 @@ def test_data_loader_csv_json_sqlite():
 def test_csv_to_owl_builds_ontology(tmp_path):
     import csv_to_owl as c2o
     out = str(tmp_path / "eq.nt")
-    c2o.build_nt(os.path.join(DATA, "equipment.csv"), out)
+    c2o.build_nt(os.path.join(DATA_EQ, "equipment.csv"), out)
     txt = open(out, encoding="utf-8").read()
     assert "Equipment" in txt and "deviceName" in txt
 
@@ -77,7 +80,7 @@ def test_qa_rule_templates(tmp_path):
     import csv_to_owl as c2o
     import ontology_qa_v3 as v3
     # 用合成小数据建本体 + 词典
-    csvp = os.path.join(DATA, "energy_station.csv")
+    csvp = os.path.join(DATA_ES, "energy_station.csv")
     ntp = str(tmp_path / "es.nt")
     c2o.build_nt(csvp, ntp)
     lex = os.path.join(ROOT, "config", "lexicon_energy_station.json")

@@ -86,8 +86,12 @@ def _read_mysql(cfg):
         import pymysql
     except ImportError:
         return {"error": "MySQL 需安装驱动: pip install pymysql"}
-    conn = pymysql.connect(host=cfg["host"], port=cfg["port"] or 3306,
-                           user=cfg["user"], password=cfg["password"],
+    # 配置缺字段时返回错误 dict(而非 KeyError), 让调用方按统一错误通道处理。
+    _missing = [k for k in ("host", "user", "database") if not cfg.get(k)]
+    if _missing:
+        return {"error": f"MySQL 配置缺字段: {', '.join(_missing)}"}
+    conn = pymysql.connect(host=cfg["host"], port=cfg.get("port") or 3306,
+                           user=cfg["user"], password=cfg.get("password", ""),
                            database=cfg["database"], charset="utf8mb4")
     cur = conn.cursor()
     cur.execute(f"SELECT * FROM `{cfg['table']}`")   # 表名已白名单校验

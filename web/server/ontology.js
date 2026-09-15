@@ -70,7 +70,7 @@ export function saveEnterprise(cfg) {
     atomicWriteJson(ENTERPRISE_FILE, obj);
     return { ok: true, data: obj };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
   }
 }
 
@@ -124,6 +124,21 @@ function readApiKeyConfig() {
  * @param {number} [opts.timeout] 请求超时毫秒数, 默认 15000
  * @returns {Promise<{ok, data?, error?, offline?} & object>}
  */
+// ── 错误文案统一 ─────────────────────────────────────────────
+// 原写法 `String(e.message || e)` 会把 Node 原生文案（fetch failed 等）
+// 直接甩给用户，用户无法判断是后端没起、超时还是网络问题。
+// 这里统一翻成可操作的中文提示，全文件 24 处调用点一致。
+function netErr(e, what = '操作') {
+  const msg = String((e && (e.message || e)) || e || '');
+  if (e && e.name === 'AbortError') {
+    return `${what}超时：后端（${API_URL}）未在预期时间内响应`;
+  }
+  if (/ECONNREFUSED|fetch failed|ENOTFOUND|ECONNRESET/i.test(msg)) {
+    return `${what}失败：无法连接后端（${API_URL}）。请确认服务已启动：cd codes && python api_server.py`;
+  }
+  return `${what}失败：${msg}`;
+}
+
 async function apiFetch(path, { method = 'GET', body, timeout = 15000 } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (API_KEY) headers['X-API-Key'] = API_KEY;
@@ -142,8 +157,15 @@ async function apiFetch(path, { method = 'GET', body, timeout = 15000 } = {}) {
     return data;
   } catch (e) {
     // 网络不可达/超时: 置 offline 标志供调用方降级
+    // 报错文案要能指导行动：直接抛 "fetch failed" 用户不知道是后端没起还是网络问题。
     const aborted = e && e.name === 'AbortError';
-    return { ok: false, offline: true, error: aborted ? '后端超时' : String((e && e.message) || e) };
+    return {
+      ok: false,
+      offline: true,
+      error: aborted
+        ? `后端超时（${API_URL}，超过 ${Math.round(timeout / 1000)} 秒无响应）`
+        : `无法连接后端（${API_URL}）。请确认后端服务已启动：cd codes && python api_server.py`,
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -335,7 +357,7 @@ export function readExample(relPath) {
     const content = readFileSync(fp, 'utf-8');
     return { ok: true, content, name: p.split('/').pop(), size: content.length };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
   }
 }
 
@@ -415,7 +437,7 @@ export function readDataFile(relPath) {
     const content = readFileSync(fp, 'utf-8');
     return { ok: true, content, name: basename(fp), size: content.length };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
   }
 }
 
@@ -481,7 +503,7 @@ export async function setupOntology(fileName, fileContent, kb) {
     }
     return { ok: false, error: (r && r.error) || '后端建模失败' };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
   }
 }
 
@@ -549,7 +571,7 @@ export async function setupOntologyMulti(files, kb) {
     }
     return { ok: false, error: (r && r.error) || '后端建模失败' };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
   } finally {
     if (tmp && existsSync(tmp)) { try { rmSync(tmp, { recursive: true, force: true }); } catch { /* 忽略 */ } }
   }
@@ -589,7 +611,7 @@ export async function dbSetup(cfg) {
     registerKb(table, `output/${table}.nt`, `config/lexicon_${table}.json`);
     return { ok: true, table, output: r.output.slice(-2000) };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
   } finally {
     if (tmp && existsSync(tmp)) { try { rmSync(tmp, { recursive: true, force: true }); } catch { /* 忽略 */ } }
   }
@@ -602,15 +624,22 @@ export async function dbSetup(cfg) {
  * @param {string} [kb] 目标知识库(kb 名), 缺省用当前激活 kb
  * @returns {Promise<{ok, answer?, mode?, kb?, error?}>}
  */
-export async function askOntology(question, kb) {
+export async function askOntology(question, kb, deepRecall = false) {
   try {
     kb = kb || getCurrentKb();
-    const r = await apiFetch('/api/ask', { method: 'POST', body: { kb, question } });
+    // deep_recall: 关=确定性命中即返回(秒回); 开=规则命中后仍跑图谱/混合/文档, 证据更全但更慢
+    const r = await apiFetch('/api/ask', { method: 'POST', body: { kb, question, deep_recall: !!deepRecall } });
     if (r && r.ok && (r.answer != null || (r.data && r.data.answer != null))) {
       // 后端 ask 直接返回 {ok, answer, mode, kb, evidence?}(部分版本套 data 信封, 兼容两者)
       // evidence 为文档 RAG(kb_rag) 的溯源切块[{doc_id,title,chunk,score}], 透传供 SPA 展示
       const d = (r.data && r.data.answer != null) ? r.data : r;
-      return { ok: true, answer: String(d.answer).trim(), mode: d.mode, kb: d.kb || kb, evidence: d.evidence || null };
+      return {
+        ok: true, answer: String(d.answer).trim(), mode: d.mode, kb: d.kb || kb,
+        evidence: d.evidence || null,
+        engines: d.engines || null,          // 参与召回的引擎(rule/logical/graph/bm25/vector/doc)
+        confidence: d.confidence || null,    // high/medium/low/none
+        no_basis: d.no_basis,                // 是否无依据(空证据)
+      };
     }
     if (r && r.offline) {
       // 降级: 后端不可达, 回退现有 run.py CLI(单库, 保持前端可用)
@@ -620,7 +649,7 @@ export async function askOntology(question, kb) {
     }
     return { ok: false, error: (r && r.error) || '后端问答失败' };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
   }
 }
 
@@ -637,7 +666,7 @@ export async function evalBenchmark(kb) {
     const r = await apiFetch(`/api/eval/benchmark?${q}`, { timeout: 60000 });
     return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '后端评测失败' };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
   }
 }
 
@@ -661,7 +690,7 @@ export async function evalIsolate(kb, questions) {
     });
     return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '后端隔离评测失败' };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
   }
 }
 
@@ -678,7 +707,7 @@ export async function knowledgeList(kb) {
     const r = await apiFetch(`/api/knowledge/list?${q}`);
     return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '后端知识库读取失败' };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
   }
 }
 
@@ -753,7 +782,7 @@ export async function knowledgeDelete(kb, doc_id) {
     const r = await apiFetch('/api/knowledge/delete', { method: 'POST', body: { kb, doc_id } });
     return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '后端删除失败' };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
   }
 }
 
@@ -771,7 +800,7 @@ export async function knowledgeQuery(kb, q, top_k = 8) {
     const r = await apiFetch('/api/knowledge/query', { method: 'POST', body: { kb, q, top_k }, timeout: 60000 });
     return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '后端检索失败' };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
   }
 }
 
@@ -788,7 +817,7 @@ export async function assetsList(kb) {
     const r = await apiFetch(`/api/assets/list?${q}`);
     return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '后端资产读取失败' };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
   }
 }
 
@@ -808,7 +837,7 @@ export async function assetsSnapshot(kb, changelog) {
     const r = await apiFetch('/api/assets/snapshot', { method: 'POST', body, timeout: 60000 });
     return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '后端快照失败' };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
   }
 }
 
@@ -826,7 +855,45 @@ export async function assetsRollback(kb, version) {
     const r = await apiFetch('/api/assets/rollback', { method: 'POST', body: { kb, version } });
     return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '后端回滚失败' };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
+  }
+}
+
+/**
+ * 自助建模 · AI 建议（只读预览）：转发后端 POST /api/ontology/suggest
+ * 只读无副作用，不写 nt/lex、不注册 kb，可反复调用。返回 {entities, relations, constraints, stats, note}。
+ * @param {string} kb 目标知识库名
+ * @param {string} [dataDir] 数据目录（如 data_valve，相对仓库根）
+ */
+export async function suggestOntologySchema(kb, dataDir) {
+  try {
+    if (!kb) return { ok: false, error: 'kb 必填' };
+    const body = { kb };
+    if (dataDir) body.data_dir = String(dataDir).trim();
+    const r = await apiFetch('/api/ontology/suggest', { method: 'POST', body, timeout: 120000 });
+    return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || 'AI 建议失败' };
+  } catch (e) {
+    return { ok: false, error: netErr(e) };
+  }
+}
+
+/**
+ * 自助建模 · 人拍板确认生效：转发后端 POST /api/ontology/confirm
+ * schema 为人工编辑后的完整对象（entities 必须原样带上 attribute.role，丢了问答会失效）。
+ * 后端据其产出 nt + lexicon 并注册/激活 kb。返回 {kb, schema_path, nt, lexicon, status, ask_ready}。
+ */
+export async function confirmOntologySchema(kb, schema, dataDir) {
+  try {
+    if (!kb) return { ok: false, error: 'kb 必填' };
+    if (!schema || !Array.isArray(schema.entities) || schema.entities.length === 0) {
+      return { ok: false, error: 'schema.entities 必填' };
+    }
+    const body = { kb, schema };
+    if (dataDir) body.data_dir = String(dataDir).trim();
+    const r = await apiFetch('/api/ontology/confirm', { method: 'POST', body, timeout: 180000 });
+    return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '确认生效失败' };
+  } catch (e) {
+    return { ok: false, error: netErr(e) };
   }
 }
 
@@ -866,7 +933,7 @@ export async function lineInfo(lineId, kb) {
     if (!line) return { ok: false, error: `未找到产线 ${lineId}` };
     return { ok: true, line };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
   }
 }
 
@@ -928,7 +995,7 @@ export async function graphOntology(kb) {
     }
     return { ok: false, error: (r && r.error) || '后端模型图获取失败' };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
   }
 }
 
@@ -959,7 +1026,7 @@ export async function analyzeOntology(question, kb) {
     }
     return { ok: false, error: (r && r.error) || '后端分析失败' };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
   }
 }
 
@@ -973,7 +1040,7 @@ export async function getModel() {
     const models = Object.entries(cfg.models || {}).map(([k, v]) => ({ key: k, name: v.name, model: v.model, type: v.type }));
     return { ok: true, active: cfg.active, models };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
   }
 }
 
@@ -993,7 +1060,7 @@ export async function setModel(key) {
     atomicWriteJson(cfgPath, cfg);
     return { ok: true, active: key };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
   }
 }
 
@@ -1048,7 +1115,7 @@ export async function getModels() {
     };
     return { ok: true, active: cfg.active, models, embedding };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
   }
 }
 
@@ -1098,7 +1165,7 @@ export async function saveModels(cfg) {
     atomicWriteJson(cfgPath, { ...existing, active, models: newModels, embedding });
     return { ok: true, active };
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: netErr(e) };
   }
 }
 
@@ -1140,4 +1207,73 @@ export function resetKb(kb) {
     }
   } catch (e) { /* 忽略 */ }
   return { ok: true };
+}
+/** 本体标准合规度（转发后端 /api/standard/compliance；GB/T 48000.3 描述项 + 命名空间 + SHACL + 类层次 + 导出物）*/
+export async function standardCompliance() {
+  try {
+    const r = await apiFetch('/api/standard/compliance', { timeout: 60000 });
+    if (r && r.ok) return r;
+    return { ok: false, error: (r && r.error) || '合规度获取失败' };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }
+}
+
+/** 生成标准导出物（转发后端 POST /api/standard/export）*/
+export async function standardExport() {
+  try {
+    const r = await apiFetch('/api/standard/export', { method: 'POST', body: {}, timeout: 120000 });
+    if (r && r.ok) return r;
+    return { ok: false, error: (r && r.error) || '导出失败' };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }
+}
+
+/** 取标准导出物文本（下载用；白名单在后端校验）。
+ *  注意: 后端返回的是 Turtle/JSON-LD 文本, 不能用 apiFetch(它会 JSON.parse) —— 直接原始 fetch。 */
+export async function standardDownload(file) {
+  try {
+    const headers = {};
+    if (API_KEY) headers['X-API-Key'] = API_KEY;
+    const resp = await fetch(`${API_URL}/api/standard/export/${encodeURIComponent(file)}`, { headers });
+    if (!resp.ok) return { ok: false, error: `HTTP ${resp.status}` };
+    return { ok: true, file, text: await resp.text() };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }
+}
+
+/** 导入层自检：导出的 ontology.ttl 读回来是否无损往返（导出物质量的可重跑门）。 */
+export async function standardRoundtrip() {
+  try {
+    const r = await apiFetch('/api/standard/roundtrip', { timeout: 60000 });
+    if (r && typeof r.ok === 'boolean') return r;
+    return { ok: false, error: (r && r.error) || '往返自检失败' };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }
+}
+
+/** 外部本体对齐（传 Turtle/JSON-LD 文本）→ 与 schema 的同名类匹配报告。 */
+export async function standardImportAlign(content) {
+  try {
+    const r = await apiFetch('/api/standard/import-align', { method: 'POST', body: { content }, timeout: 60000 });
+    if (r && typeof r.ok === 'boolean') return r;
+    return { ok: false, error: (r && r.error) || '对齐失败' };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }
+}
+
+/** 建模质量门：标签/定义/外键关系/结构 体检 + 阈值判定（当前 kb）。 */
+export async function standardQuality(kb) {
+  try {
+    const q = kb ? `?kb=${encodeURIComponent(kb)}` : '';
+    const r = await apiFetch(`/api/standard/quality${q}`, { timeout: 60000 });
+    if (r && typeof r.ok === 'boolean') return r;
+    return { ok: false, error: (r && r.error) || '质量门执行失败' };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }
 }

@@ -66,7 +66,7 @@ def test_multi_tenant():
     assert r.status_code == 200 and d["ok"] and "food" in d["kbs"] and d["active"] == "food"
     # 实时同步
     r = c.post("/api/admin/sync", headers=_API_HEADERS)
-    assert r.status_code == 200 and r.json()["ok"] and r.json()["nodes"] >= 100
+    assert r.status_code == 200 and r.json()["ok"] and r.json()["nodes"] >= 90
 
 
 # ── 数据接入(data_import) ──

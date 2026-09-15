@@ -26,10 +26,12 @@
   // 运行中设备数：与后端 status_dist 真实状态取值对齐，同时匹配中英文运行状态
   // （ontology_stats 的状态是数据原始存储值，可能为 运行中/运行/正常 或 running/run/normal/active）
   const RUNNING_STATUS = ['running','run','normal','working','active','online','运行中','运行','正常','工作中','在线','生产中'];
-  const running = $derived((stats?.status_dist || []).filter(s => RUNNING_STATUS.includes((s.status || '').toLowerCase())).reduce((sum, s) => sum + (s.count || 0), 0));
+  // 用"包含"匹配: 数据是"运行中/维护中"这类带后缀词, 精确相等会漏("维护中"≠"维护")
+  const hasAny = (val, words) => { const t = String(val || '').toLowerCase(); return t ? words.some(w => t.includes(w)) : false; };
+  const running = $derived((stats?.status_dist || []).filter(s => hasAny(s.status, RUNNING_STATUS)).reduce((sum, s) => sum + (s.count || 0), 0));
   // 异常/故障设备数：与后端 ontology_stats FAULT_STATUS 同一口径(含中文状态词)
   const FAULT_STATUS = ['alarm','maintenance','offline','fault','fail','failed','error','报警','维护','离线','故障','停机','异常','检修'];
-  const anomalyCount = $derived((stats?.status_dist || []).filter(s => FAULT_STATUS.includes((s.status||'').toLowerCase())).reduce((sum, s) => sum + (s.count || 0), 0));
+  const anomalyCount = $derived((stats?.status_dist || []).filter(s => hasAny(s.status, FAULT_STATUS)).reduce((sum, s) => sum + (s.count || 0), 0));
   const faultPct = $derived(Math.round((stats?.fault_rate ?? 0) * 100));
   const anomalyPct = $derived(total ? Math.round(anomalyCount / total * 100) : 0);
   const faultAlert = $derived(faultPct > 5 || anomalyCount > 0);

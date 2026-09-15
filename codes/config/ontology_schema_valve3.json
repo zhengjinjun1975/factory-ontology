@@ -1,0 +1,583 @@
+{
+  "entities": [
+    {
+      "id": "Valve_batch_ingredient",
+      "label": "批次配料",
+      "table": "valve_batch_ingredient",
+      "key": "batch_id",
+      "domain": "生产域",
+      "definition": "生产域中的批次配料，数据来源于 valve_batch_ingredient 表，以 batch_id 唯一标识，记录raw_id等信息。",
+      "attributes": [
+        {
+          "name": "batch_id",
+          "label": "批次编号",
+          "type": "string",
+          "role": "reference",
+          "required": true
+        },
+        {
+          "name": "raw_id",
+          "label": "原料编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_batches",
+      "label": "批次",
+      "table": "valve_batches",
+      "key": "id",
+      "domain": "生产域",
+      "definition": "生产域中的批次，数据来源于 valve_batches 表，以 id 唯一标识，记录product_id、produce_date、quantity、raw_parts、team等信息。",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "product_id",
+          "label": "产品编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "produce_date",
+          "label": "生产日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "quantity",
+          "label": "数量",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "raw_parts",
+          "label": "原料",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "team",
+          "label": "班组",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_customers",
+      "label": "客户",
+      "table": "valve_customers",
+      "key": "id",
+      "domain": "销售域",
+      "definition": "销售域中的客户，数据来源于 valve_customers 表，以 id 唯一标识，记录customer_name、region、industry、credit_level等信息。",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "customer_name",
+          "label": "客户名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "region",
+          "label": "区域",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "industry",
+          "label": "行业",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "credit_level",
+          "label": "信用等级",
+          "type": "string",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_equipment",
+      "label": "设备(人工确认)",
+      "table": "valve_equipment",
+      "key": "id",
+      "domain": "设备域",
+      "definition": "设备域中的设备，数据来源于 valve_equipment 表，以 id 唯一标识，记录device_name、device_type、workshop、power_kw、status等信息。",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "device_name",
+          "label": "设备名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "device_type",
+          "label": "设备类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "workshop",
+          "label": "车间",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "power_kw",
+          "label": "功率(kW)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "vibration_mm_s",
+          "label": "振动(mm/s)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "temp_c",
+          "label": "温度(℃)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "current_a",
+          "label": "电流(A)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_products",
+      "label": "产品",
+      "table": "valve_products",
+      "key": "id",
+      "domain": "采购域",
+      "definition": "采购域中的产品，数据来源于 valve_products 表，以 id 唯一标识，记录model_code、product_name、type、size_mm、pressure_grade等信息。",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "model_code",
+          "label": "型号代码",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "product_name",
+          "label": "产品名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "type",
+          "label": "类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "size_mm",
+          "label": "尺寸(mm)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "pressure_grade",
+          "label": "压力等级",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "connection",
+          "label": "连接方式",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "seal_material",
+          "label": "密封材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "body_material",
+          "label": "阀体材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "standard_no",
+          "label": "标准号",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "temp_range",
+          "label": "温度范围",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "price",
+          "label": "价格",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_qc",
+      "label": "质检",
+      "table": "valve_qc",
+      "key": "id",
+      "domain": "质量域",
+      "definition": "质量域中的质检，数据来源于 valve_qc 表，以 id 唯一标识，记录batch_id、check_item、press_rule、hold_sec、leak_bubbles_min等信息。",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "batch_id",
+          "label": "批次编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "check_item",
+          "label": "检查项目",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "press_rule",
+          "label": "压力规则",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "hold_sec",
+          "label": "保压秒数",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "leak_bubbles_min",
+          "label": "泄漏气泡",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "result",
+          "label": "结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "checker",
+          "label": "检查员",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "check_date",
+          "label": "检查日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_raw_materials",
+      "label": "原料",
+      "table": "valve_raw_materials",
+      "key": "id",
+      "domain": "采购域",
+      "definition": "采购域中的原料，数据来源于 valve_raw_materials 表，以 id 唯一标识，记录part_name、material、supplier、qc_result、stock等信息。",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "part_name",
+          "label": "部件名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "material",
+          "label": "材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "supplier",
+          "label": "供应商",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "qc_result",
+          "label": "质检结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "stock",
+          "label": "库存",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_sales",
+      "label": "销售",
+      "table": "valve_sales",
+      "key": "id",
+      "domain": "销售域",
+      "definition": "销售域中的销售，数据来源于 valve_sales 表，以 id 唯一标识，记录product_id、customer_id、quantity、sale_date、amount等信息。",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "product_id",
+          "label": "产品编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "customer_id",
+          "label": "客户编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "quantity",
+          "label": "数量",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "sale_date",
+          "label": "销售日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "amount",
+          "label": "金额",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "id": "valve_batch_ingredient_batch_id",
+      "from": "Valve_batch_ingredient",
+      "to": "Valve_batches",
+      "fk": "valve_batch_ingredient.batch_id",
+      "cardinality": "N:1",
+      "label": "所属批次",
+      "auto": true,
+      "source": "fk"
+    },
+    {
+      "id": "valve_batch_ingredient_raw_id",
+      "from": "Valve_batch_ingredient",
+      "to": "Valve_raw_materials",
+      "fk": "valve_batch_ingredient.raw_id",
+      "cardinality": "N:1",
+      "label": "使用原料",
+      "auto": true,
+      "source": "fk"
+    },
+    {
+      "id": "valve_batches_product_id",
+      "from": "Valve_batches",
+      "to": "Valve_products",
+      "fk": "valve_batches.product_id",
+      "cardinality": "N:1",
+      "label": "生产产品",
+      "auto": true,
+      "source": "fk"
+    },
+    {
+      "id": "valve_qc_batch_id",
+      "from": "Valve_qc",
+      "to": "Valve_batches",
+      "fk": "valve_qc.batch_id",
+      "cardinality": "N:1",
+      "label": "所属批次",
+      "auto": true,
+      "source": "fk"
+    },
+    {
+      "id": "valve_sales_product_id",
+      "from": "Valve_sales",
+      "to": "Valve_products",
+      "fk": "valve_sales.product_id",
+      "cardinality": "N:1",
+      "label": "生产产品",
+      "auto": true,
+      "source": "fk"
+    },
+    {
+      "id": "valve_sales_customer_id",
+      "from": "Valve_sales",
+      "to": "Valve_customers",
+      "fk": "valve_sales.customer_id",
+      "cardinality": "N:1",
+      "label": "售予客户",
+      "auto": true,
+      "source": "fk"
+    }
+  ],
+  "constraints": [
+    {
+      "type": "unique",
+      "on": "Valve_batch_ingredient.batch_id",
+      "msg": "Valve_batch_ingredient 主键 batch_id 唯一"
+    },
+    {
+      "type": "unique",
+      "on": "Valve_batches.id",
+      "msg": "Valve_batches 主键 id 唯一"
+    },
+    {
+      "type": "unique",
+      "on": "Valve_customers.id",
+      "msg": "Valve_customers 主键 id 唯一"
+    },
+    {
+      "type": "unique",
+      "on": "Valve_equipment.id",
+      "msg": "Valve_equipment 主键 id 唯一"
+    },
+    {
+      "type": "unique",
+      "on": "Valve_products.id",
+      "msg": "Valve_products 主键 id 唯一"
+    },
+    {
+      "type": "unique",
+      "on": "Valve_qc.id",
+      "msg": "Valve_qc 主键 id 唯一"
+    },
+    {
+      "type": "unique",
+      "on": "Valve_raw_materials.id",
+      "msg": "Valve_raw_materials 主键 id 唯一"
+    },
+    {
+      "type": "unique",
+      "on": "Valve_sales.id",
+      "msg": "Valve_sales 主键 id 唯一"
+    }
+  ],
+  "version": "1.0",
+  "name": "v3",
+  "industry": "valve3"
+}

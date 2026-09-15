@@ -103,11 +103,11 @@ export async function dbSetup(cfg) {
   });
 }
 
-export async function askOntology(question, kb) {
+export async function askOntology(question, kb, deepRecall = false) {
   return fetchRetry('/api/ontology/ask', {
     method: 'POST',
     headers: JSON_HEADERS,
-    body: JSON.stringify({ question, kb }),
+    body: JSON.stringify({ question, kb, deep_recall: !!deepRecall }),
   });
 }
 
@@ -129,6 +129,56 @@ export async function setKb(kb) {
 export async function fetchStats(kb) {
   const q = kb ? `?kb=${encodeURIComponent(kb)}` : '';
   return fetchRetry(`/api/ontology/stats${q}`);
+}
+
+/** 本体标准合规度（GB/T 48000.3 描述项 + 命名空间 + SHACL + 类层次 + 导出物） */
+export function fetchStandard() {
+  return fetchRetry('/api/ontology/standard');
+}
+
+/** 生成标准导出物（ontology.ttl / shapes.ttl / ontology.jsonld） */
+export function buildStandardExport() {
+  return fetchRetry('/api/ontology/standard-export', { method: 'POST' });
+}
+
+/** 导入层自检：导出的 ontology.ttl 读回来是否无损往返 */
+export function fetchRoundtrip() {
+  return fetchRetry('/api/ontology/standard-roundtrip');
+}
+
+/** 外部本体对齐：把外部本体（Turtle/JSON-LD 文本）与 schema 做同名类匹配报告 */
+export function importAlign(content) {
+  return fetchRetry('/api/ontology/standard-import-align', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  });
+}
+
+/** 建模质量门：标签/定义/外键关系/结构 体检 + 阈值判定（当前 kb） */
+export function fetchQuality(kb) {
+  return fetchRetry('/api/ontology/standard-quality' + (kb ? `?kb=${encodeURIComponent(kb)}` : ''));
+}
+
+/** 下载标准导出物。
+ *  必须走带鉴权头的 fetch：直接 a.href 导航不会带 Authorization → 服务端 401,
+ *  浏览器就报"无法从网站上提取文件"。取回 blob 再触发下载。 */
+export async function downloadStandard(file) {
+  const resp = await fetch(`/api/ontology/standard-download?file=${encodeURIComponent(file)}`,
+                           { headers: authHeaders() });
+  if (!resp.ok) {
+    let msg = `HTTP ${resp.status}`;
+    try { const j = await resp.json(); if (j && j.error) msg = j.error; } catch (e) { /* 非 JSON */ }
+    throw new Error(msg);
+  }
+  const url = URL.createObjectURL(await resp.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = file;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
 export async function fetchLine(lineId, kb) {
@@ -209,6 +259,27 @@ export async function browseFiles(dir) {
 
 export async function readDataFile(path) {
   return fetchRetry(`/api/ontology/read-data?path=${encodeURIComponent(path)}`);
+}
+
+// ── 自助建模（四步流程的前三步：选数据源 → AI 建议可编辑 → 人拍板确认生效）──
+/** ① AI 建议（只读预览，不落盘）：从 kb + 数据目录推断实体/属性/关系/约束/业务域。
+ *  可反复调用直到人工满意，不产生任何产物。 */
+export async function suggestSchema(kb, dataDir) {
+  return fetchRetry('/api/ontology/suggest', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ kb, data_dir: dataDir }),
+  });
+}
+
+/** ② 人拍板：把人工确认/修改后的完整 schema 原样回传（entities 必须含 attribute.role），
+ *  后端按它产出 nt + lexicon 并注册 kb。 */
+export async function confirmSchema(kb, schema, dataDir) {
+  return fetchRetry('/api/ontology/confirm', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ kb, schema, data_dir: dataDir }),
+  });
 }
 
 // ── 企业设置（企业名/logo/行业，后端持久化）──

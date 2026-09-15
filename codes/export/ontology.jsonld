@@ -1,0 +1,654 @@
+{
+  "@context": {
+    "@vocab": "http://factory.example/ontology#",
+    "definition": "skos:definition",
+    "domain": "rdfs:domain",
+    "label": "rdfs:label",
+    "owl": "http://www.w3.org/2002/07/owl#",
+    "owl:versionIRI": "http://www.w3.org/2002/07/owl#versionIRI",
+    "range": "rdfs:range",
+    "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+    "skos": "http://www.w3.org/2004/02/skos/core#",
+    "subClassOf": "rdfs:subClassOf",
+    "xsd": "http://www.w3.org/2001/XMLSchema#"
+  },
+  "@graph": [
+    {
+      "@id": "http://factory.example/ontology#",
+      "@type": "owl:Ontology",
+      "label": "阀门工厂本体",
+      "owl:versionIRI": {
+        "@id": "https://ontology.example.com/factory/1.0.0"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#Valve_products",
+      "@type": "owl:Class",
+      "definition": "工厂对外销售/交付的成品阀门及其派生型号, 含口径、压力等级、连接方式、密封与阀体材质等规格。",
+      "label": "产品",
+      "subClassOf": {
+        "@id": "http://factory.example/ontology#BusinessObject"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#Valve_customers",
+      "@type": "owl:Class",
+      "definition": "采购阀门产品的客户企业, 记录区域、行业归属与信用等级。",
+      "label": "客户",
+      "subClassOf": {
+        "@id": "http://factory.example/ontology#BusinessObject"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#Valve_sales",
+      "@type": "owl:Class",
+      "definition": "一次阀门销售记录, 关联产品与客户, 含数量、日期与金额。",
+      "label": "销售",
+      "subClassOf": {
+        "@id": "http://factory.example/ontology#BusinessObject"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#Valve_equipment",
+      "@type": "owl:Class",
+      "definition": "生产现场的设备台账, 含设备类型、所属车间、装机功率与运行状态。",
+      "label": "设备",
+      "subClassOf": {
+        "@id": "http://factory.example/ontology#BusinessObject"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#Valve_raw_materials",
+      "@type": "owl:Class",
+      "definition": "采购入库的原材料/零部件, 含材质、供应商与到货质检结果。",
+      "label": "原材料",
+      "subClassOf": {
+        "@id": "http://factory.example/ontology#BusinessObject"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#Valve_batches",
+      "@type": "owl:Class",
+      "definition": "一次生产批次, 关联生产的产品、用料、班组与批状态。",
+      "label": "批次",
+      "subClassOf": {
+        "@id": "http://factory.example/ontology#BusinessObject"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#Valve_batch_ingredient",
+      "@type": "owl:Class",
+      "definition": "批次与原材料的多对多配料明细(批次用料构成)。",
+      "label": "批次原料",
+      "subClassOf": {
+        "@id": "http://factory.example/ontology#BusinessObject"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#Valve_qc",
+      "@type": "owl:Class",
+      "definition": "批次的质量检验记录, 含检查项目、压力规则、保压时长与泄漏判定结果。",
+      "label": "质检",
+      "subClassOf": {
+        "@id": "http://factory.example/ontology#BusinessObject"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#BusinessObject",
+      "@type": "owl:Class",
+      "label": "BusinessObject"
+    },
+    {
+      "@id": "http://factory.example/ontology#bodyMaterial",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_products"
+      },
+      "label": "阀体材质",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#connection",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_products"
+      },
+      "label": "连接形式",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#modelCode",
+      "@type": "owl:DatatypeProperty",
+      "definition": "产品型号编码, 工厂内部唯一标识产品规格。",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_products"
+      },
+      "label": "型号编码",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#pressureGrade",
+      "@type": "owl:DatatypeProperty",
+      "definition": "阀门公称压力等级(如 PN16), 决定承压能力。",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_products"
+      },
+      "label": "压力等级",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#price",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_products"
+      },
+      "label": "价格",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#decimal"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#productName",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_products"
+      },
+      "label": "产品名",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#sealMaterial",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_products"
+      },
+      "label": "密封面材质",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#sizeMm",
+      "@type": "owl:DatatypeProperty",
+      "definition": "阀门公称通径, 单位毫米。",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_products"
+      },
+      "label": "口径(mm)",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#decimal"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#standardNo",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_products"
+      },
+      "label": "标准号",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#tempRange",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_products"
+      },
+      "label": "温度范围",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#type",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_products"
+      },
+      "label": "阀门类型",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#creditLevel",
+      "@type": "owl:DatatypeProperty",
+      "definition": "客户信用等级, 用于销售授信与风险控制。",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_customers"
+      },
+      "label": "信用等级",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#customerName",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_customers"
+      },
+      "label": "客户名",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#industry",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_customers"
+      },
+      "label": "行业",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#region",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_customers"
+      },
+      "label": "区域",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#amount",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_sales"
+      },
+      "label": "金额",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#decimal"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#quantity",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_sales"
+      },
+      "label": "数量",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#decimal"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#saleDate",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_sales"
+      },
+      "label": "销售日期",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#date"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#currentA",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_equipment"
+      },
+      "label": "电流(A)",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#decimal"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#deviceName",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_equipment"
+      },
+      "label": "设备名",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#deviceType",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_equipment"
+      },
+      "label": "设备类型",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#powerKw",
+      "@type": "owl:DatatypeProperty",
+      "definition": "设备装机功率, 单位千瓦。",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_equipment"
+      },
+      "label": "功率(kW)",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#decimal"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#status",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_equipment"
+      },
+      "label": "状态",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#tempC",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_equipment"
+      },
+      "label": "温度(℃)",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#decimal"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#vibrationMmS",
+      "@type": "owl:DatatypeProperty",
+      "definition": "设备运行振动烈度, 单位 mm/s, 用于状态与故障判定。",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_equipment"
+      },
+      "label": "振动(mm/s)",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#decimal"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#workshop",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_equipment"
+      },
+      "label": "车间",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#material",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_raw_materials"
+      },
+      "label": "材质",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#partName",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_raw_materials"
+      },
+      "label": "部件名",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#qcResult",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_raw_materials"
+      },
+      "label": "质检结果",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#stock",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_raw_materials"
+      },
+      "label": "库存",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#decimal"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#supplier",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_raw_materials"
+      },
+      "label": "供应商",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#produceDate",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_batches"
+      },
+      "label": "生产日期",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#date"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#quantity",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_batches"
+      },
+      "label": "数量",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#decimal"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#rawParts",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_batches"
+      },
+      "label": "原料",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#status",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_batches"
+      },
+      "label": "状态",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#team",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_batches"
+      },
+      "label": "班组",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#checkDate",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_qc"
+      },
+      "label": "检验日期",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#date"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#checkItem",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_qc"
+      },
+      "label": "检验项",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#checker",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_qc"
+      },
+      "label": "检验员",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#holdSec",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_qc"
+      },
+      "label": "保压(秒)",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#decimal"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#leakBubblesMin",
+      "@type": "owl:DatatypeProperty",
+      "definition": "试压时每分钟允许的泄漏气泡数, 为 0 表示零泄漏。",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_qc"
+      },
+      "label": "泄漏率(泡/min)",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#decimal"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#pressRule",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_qc"
+      },
+      "label": "试验压力",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#result",
+      "@type": "owl:DatatypeProperty",
+      "domain": {
+        "@id": "http://factory.example/ontology#Valve_qc"
+      },
+      "label": "结果",
+      "range": {
+        "@id": "http://www.w3.org/2001/XMLSchema#string"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#belongsToBatch",
+      "@type": "owl:ObjectProperty",
+      "definition": "BatchIngredient 与 Batch 的业务关联。",
+      "domain": {
+        "@id": "http://factory.example/ontology#BatchIngredient"
+      },
+      "label": "属于批次",
+      "range": {
+        "@id": "http://factory.example/ontology#Batch"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#boughtBy",
+      "@type": "owl:ObjectProperty",
+      "definition": "销售记录指向购买该批产品的客户。",
+      "domain": {
+        "@id": "http://factory.example/ontology#Sale"
+      },
+      "label": "售予客户",
+      "range": {
+        "@id": "http://factory.example/ontology#Customer"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#checkedBy",
+      "@type": "owl:ObjectProperty",
+      "definition": "质检记录对应哪一个生产批次。",
+      "domain": {
+        "@id": "http://factory.example/ontology#Qc"
+      },
+      "label": "质检批次",
+      "range": {
+        "@id": "http://factory.example/ontology#Batch"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#producedIn",
+      "@type": "owl:ObjectProperty",
+      "definition": "生产批次产出哪一个产品。",
+      "domain": {
+        "@id": "http://factory.example/ontology#Batch"
+      },
+      "label": "生产产品",
+      "range": {
+        "@id": "http://factory.example/ontology#Product"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#sells",
+      "@type": "owl:ObjectProperty",
+      "definition": "Product 与 Sale 的业务关联。",
+      "domain": {
+        "@id": "http://factory.example/ontology#Product"
+      },
+      "label": "被销售",
+      "range": {
+        "@id": "http://factory.example/ontology#Sale"
+      }
+    },
+    {
+      "@id": "http://factory.example/ontology#usesRawMaterial",
+      "@type": "owl:ObjectProperty",
+      "definition": "BatchIngredient 与 RawMaterial 的业务关联。",
+      "domain": {
+        "@id": "http://factory.example/ontology#BatchIngredient"
+      },
+      "label": "使用原料",
+      "range": {
+        "@id": "http://factory.example/ontology#RawMaterial"
+      }
+    }
+  ]
+}

@@ -31,6 +31,9 @@ if ! command -v "$PY" >/dev/null 2>&1; then
 fi
 
 MODE="${1:-all}"
+MODE="${MODE#--}"   # 兼容两种写法：./start.sh --serve-only 与 ./start.sh serve-only
+                    # （原版只认不带 -- 的，而本文件用法注释里写的是带 -- 的，
+                    #   导致 --serve-only 匹配不上、启动段被跳过、脚本打印"完成。"就退出）
 
 # ---------- [1/3] 装依赖 ----------
 if [ "$MODE" = "all" ] || [ "$MODE" = "build-only" ] || [ "$MODE" = "install" ]; then

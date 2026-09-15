@@ -1,7 +1,7 @@
 <script>
   // 工厂智能体 · 本体问答 — 独立 Web 应用（工业软件浅色风格）
   import { onMount } from 'svelte';
-  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, setModel, getModels, saveModels, fetchVersion, browseFiles, readDataFile, fetchExample, fetchKbs, setKb, fetchEnterprise, saveEnterprise, authLogin, authRegister, authMe, authLogout, onboardEnterprise, resetEnterprise, getToken, setToken, fetchIndustries, switchIndustry } from './lib/api.js';
+  import { setupOntologyMulti, dbSetup, askOntology, analyzeOntology, setModel, getModels, saveModels, fetchVersion, browseFiles, readDataFile, fetchExample, fetchKbs, setKb, fetchEnterprise, saveEnterprise, authLogin, authRegister, authMe, authLogout, onboardEnterprise, resetEnterprise, getToken, setToken, fetchIndustries, switchIndustry, fetchStandard, buildStandardExport, downloadStandard, fetchRoundtrip, importAlign, fetchQuality } from './lib/api.js';
   import DashboardPanel from './components/DashboardPanel.svelte';
   import ModelGraph from './components/ModelGraph.svelte';
   import WelcomeModel from './components/WelcomeModel.svelte';
@@ -9,6 +9,7 @@
   import EvalPanel from './components/EvalPanel.svelte';
   import KnowledgePanel from './components/KnowledgePanel.svelte';
   import AssetPanel from './components/AssetPanel.svelte';
+  import SelfModelPanel from './components/SelfModelPanel.svelte';
 
   // ─── 企业用户登录态 ───
   let user = $state(null);        // {username, enterpriseName, logo, industry, kb, onboarded}
@@ -194,7 +195,7 @@
   }
 
   // ─── 状态 ───
-  let activeTab = $state('model');   // model | query | dashboard | eval | knowledge | assets
+  let activeTab = $state('model');   // model | selfmodel | query | dashboard | eval | knowledge | assets
   let showModel = $state(false);      // 数据建模右栏：默认欢迎界面，点"显示本体模型"才显示模型图
   // ─── 文件浏览框（学习 solo-agent-kit /api/browse，默认 data_valve 示例目录）───
   let browseDir = $state('data_valve');    // 当前目录（相对 codes/）
@@ -226,6 +227,19 @@
   let answerHTML = $state(null);   // 结构化答案 HTML（列表/表格）；null 则退回 <pre>
   let evidence = $state(null);     // 问答证据溯源
   let evidenceOpen = $state(false);
+  let deepRecall = $state(false);  // 深度召回开关: 关=确定性命中秒回; 开=命中后仍跑图谱/混合/文档
+  let recallMeta = $state(null);   // 召回元信息 {deep, mode, engines[], confidence, n}
+  // 本体标准合规（GB/T 48000.3）
+  let compliance = $state(null);
+  let complianceLoading = $state(false);
+  let exportBusy = $state(false);
+  let exportMsg = $state('');
+  let roundtrip = $state(null);   // 导入层自检结果（导出物往返是否无损）
+  let quality = $state(null);     // 建模质量门结果（标签/定义/关系/结构）
+  let alignReport = $state(null); // 外部本体对齐报告
+  let alignBusy = $state(false);
+  let alignFileName = $state('');
+  let alignInput = $state(null);  // 文件 input 引用
   let analysis = $state(null);       // {report, stats} 智能分析结果
   let modelList = $state([]);        // 可用模型
   let activeModel = $state('');      // 当前生效模型 key
@@ -415,6 +429,8 @@
     await loadKbs();
     // 企业设置：读取登录企业用户的信息（顶部品牌跟随）
     await loadEnterprise();
+    // 本体标准合规度（GB/T 48000.3）：后台加载，不阻塞进入
+    loadCompliance();
     try {
       const res = await getModels();
       if (res.ok) {
@@ -437,6 +453,106 @@
     authLoading = false;
     await initAppData();
   });
+
+  // ─── 本体标准合规（GB/T 48000.3，数据建模 tab 卡片）───
+  async function loadCompliance() {
+    complianceLoading = true;
+    try {
+      const r = await fetchStandard();
+      compliance = (r && r.ok) ? r : null;
+    } catch (e) {
+      compliance = null;
+    } finally {
+      complianceLoading = false;
+    }
+  }
+
+  // 生成标准导出物（OWL/SHACL/JSON-LD）并刷新合规度
+  async function doExportOntology() {
+    exportBusy = true; exportMsg = '';
+    try {
+      const r = await buildStandardExport();
+      if (r && r.ok) {
+        exportMsg = '已生成：' + ((r.files || []).map(f => `${f.name} (${(f.size / 1024).toFixed(1)} KB)`).join('、'));
+        await loadCompliance();
+      } else {
+        exportMsg = '导出失败：' + ((r && r.error) || '未知错误');
+      }
+    } catch (e) {
+      exportMsg = '导出失败：' + (e && e.message ? e.message : e);
+    } finally {
+      exportBusy = false;
+    }
+  }
+
+  // 下载标准导出物（带鉴权，失败给出可见提示，不静默）
+  async function doDownloadStd(file) {
+    exportMsg = '';
+    try {
+      await downloadStandard(file);
+      exportMsg = `已下载：${file}`;
+    } catch (e) {
+      exportMsg = `下载失败：${e && e.message ? e.message : e}`;
+    }
+  }
+
+  // 外部本体对齐：选本地 .ttl/.jsonld → 读文本 → 与 schema 做同名类匹配
+  async function doImportAlign() {
+    const f = alignInput && alignInput.files && alignInput.files[0];
+    if (!f) { exportMsg = '请先选择外部本体文件（.ttl / .jsonld）'; return; }
+    alignBusy = true;
+    alignReport = null;
+    alignFileName = f.name;
+    exportMsg = '';
+    try {
+      const r = await importAlign(await f.text());
+      if (r && r.ok) {
+        alignReport = r;
+        exportMsg = `对齐完成：外部类 ${r.external_classes}、同名匹配 ${r.matched}、外部独有 ${r.external_only}`;
+      } else {
+        exportMsg = `对齐失败：${(r && r.error) || (r && r.hint) || '未知错误'}`;
+      }
+    } catch (e) {
+      exportMsg = `对齐失败：${e && e.message ? e.message : e}`;
+    } finally {
+      alignBusy = false;
+    }
+  }
+
+  // 导入层自检：导出的 ontology.ttl 读回来，与 schema 核对是否无损往返
+  async function doRoundtrip() {
+    exportMsg = '';
+    roundtrip = null;
+    try {
+      const r = await fetchRoundtrip();
+      roundtrip = r;
+      exportMsg = r && r.ok
+        ? `往返无损：类 ${r.classes_note}、属性 ${r.props_note}`
+        : `往返有丢失：${(r && r.error) || '见下'}`;
+    } catch (e) {
+      exportMsg = `往返自检失败：${e && e.message ? e.message : e}`;
+    }
+  }
+
+  // 建模质量门：标签/定义/外键关系/结构 一次体检，不达标直接报红
+  async function doQuality() {
+    exportMsg = '';
+    quality = null;
+    try {
+      const r = await fetchQuality(currentKb);
+      quality = r;
+      if (r && r.ok) {
+        const v = r.verdict || {};
+        exportMsg = v.passed
+          ? `建模质量通过：标签 ${r.label.rate}%、关系 ${r.relations.rate}%`
+          : `建模质量不达标：${(v.hard || []).join('；')}`;
+      } else {
+        exportMsg = `质量门执行失败：${(r && r.error) || '见下'}`;
+      }
+    } catch (e) {
+      exportMsg = `质量门执行失败：${e && e.message ? e.message : e}`;
+    }
+  }
 
   // ─── 用行业示例自动建模（事件驱动无死角，走后端全量行业清单）───
   // 欢迎页示例传的是行业 dir，这里解析为行业名后调用 switchIndustry 自动建模并联动 kb。
@@ -638,6 +754,7 @@
     if (q.length > 200) { setStatus('err', '问题过长，请控制在 200 字以内'); return; }
     question = ''; asking = true; status = 'asking';
     answer = ''; answerHTML = null; evidence = null; evidenceOpen = false; analysis = null;
+    recallMeta = null;
     setStatus('info', `查询：${q}`);
     try {
       if (isAnalyzeQuestion(q)) {
@@ -653,7 +770,7 @@
         }
       } else {
         // 普通问答
-        const res = await askOntology(q, currentKb);
+        const res = await askOntology(q, currentKb, deepRecall);
         if (!res.ok) {
           setStatus('err', formatError(res, null) || '问答失败'); status = 'ready';
         } else {
@@ -665,6 +782,11 @@
           answer = a || '（无结果）';
           answerHTML = renderAnswerHTML(a);
           evidence = res.evidence || null;
+          recallMeta = {
+            deep: deepRecall, mode: res.mode, engines: res.engines || [],
+            confidence: res.confidence,
+            n: Array.isArray(res.evidence) ? res.evidence.length : (res.evidence ? 1 : 0),
+          };
           status = 'ready';
           setStatus('ok', `查询完成：${q}`);
         }
@@ -909,6 +1031,9 @@
   <nav class="tabbar">
     <button class="tab" class:active={activeTab === 'model'} onclick={() => switchTab('model')}>
       <span class="tab-icon">📊</span> 数据建模
+    </button>
+    <button class="tab" class:active={activeTab === 'selfmodel'} onclick={() => switchTab('selfmodel')}>
+      <span class="tab-icon">🧭</span> 自助建模
     </button>
     <button class="tab" class:active={activeTab === 'query'} onclick={() => switchTab('query')}>
       <span class="tab-icon">💬</span> 查询分析
@@ -1170,6 +1295,84 @@
           </div>
         {/if}
       </div>
+      <!-- ─── 本体标准合规（GB/T 48000.3 描述项 + 命名空间 + SHACL + 类层次 + 导出物）─── -->
+      <div class="std-card">
+        <div class="std-head">
+          <span class="std-title">本体标准合规</span>
+          <span class="std-badge" class:ok={(compliance && compliance.standard_rate != null) ? compliance.standard_rate >= 90 : false}>
+            {compliance && compliance.standard_rate != null ? compliance.standard_rate + ' / 100' : '—'}
+          </span>
+        </div>
+        {#if complianceLoading}
+          <div class="std-hint">检查中…</div>
+        {:else if compliance && compliance.ok !== false}
+          <div class="std-metrics">
+            <span class="std-chip">核心描述项 {compliance.ent_core_rate}%</span>
+            <span class="std-chip">属性描述项 {compliance.attr_rate}%</span>
+            <span class="std-chip">类层次 {compliance.subclass_count}</span>
+            <span class="std-chip" class:ok={compliance.ns_ok}>命名空间 {compliance.ns_ok ? 'versionIRI 已治理' : '未治理'}</span>
+            <span class="std-chip" class:ok={compliance.has_export}>导出物 {compliance.has_export ? '已生成' : '未生成'}</span>
+          </div>
+          <div class="std-standards">对标：{(compliance.standards || []).join(' · ')}</div>
+          {#each (compliance.issues || []) as it}
+            <div class="std-issue" class:err={it.severity === 'major'}>{it.message}</div>
+          {/each}
+          <div class="std-actions">
+            <button class="std-btn" onclick={doExportOntology} disabled={exportBusy}>
+              {exportBusy ? '生成中…' : '生成标准导出物'}
+            </button>
+            <button class="std-btn ghost" onclick={() => doDownloadStd('ontology.ttl')}>ontology.ttl</button>
+            <button class="std-btn ghost" onclick={() => doDownloadStd('shapes.ttl')}>shapes.ttl</button>
+            <button class="std-btn ghost" onclick={() => doDownloadStd('ontology.jsonld')}>jsonld</button>
+            <button class="std-btn ghost" onclick={doRoundtrip}>往返自检</button>
+            <button class="std-btn ghost" onclick={doQuality}>建模质量门</button>
+            <button class="std-btn ghost" onclick={() => alignInput && alignInput.click()} disabled={alignBusy}>
+              {alignBusy ? '对齐中…' : '外部本体对齐'}
+            </button>
+            <input bind:this={alignInput} type="file" accept=".ttl,.jsonld,.json" class="std-file" onchange={doImportAlign} />
+          </div>
+          {#if exportMsg}<div class="std-hint">{exportMsg}</div>{/if}
+          {#if quality && quality.ok}
+            <div class="std-metrics">
+              <span class="std-chip" class:ok={quality.label.rate >= 80}>中文标签 {quality.label.rate}%</span>
+              <span class="std-chip" class:ok={quality.definition.rate >= 50}>定义 {quality.definition.rate}%</span>
+              <span class="std-chip" class:ok={quality.relations.rate >= 100}>外键关系 {quality.relations.rate}%</span>
+              <span class="std-chip">实体 {quality.counts.entities} / 属性 {quality.counts.attributes}</span>
+              <span class="std-chip" class:ok={(quality.verdict || {}).passed}>
+                {(quality.verdict || {}).passed ? '达标' : '不达标'}
+              </span>
+            </div>
+            {#each ((quality.verdict || {}).hard || []) as h}
+              <div class="std-issue err">{h}</div>
+            {/each}
+            {#each ((quality.verdict || {}).warns || []) as w}
+              <div class="std-issue">{w}</div>
+            {/each}
+          {/if}
+          {#if alignReport}
+            <div class="std-align">
+              <div class="std-align-head">外部本体对齐 · {alignFileName}</div>
+              <div class="std-metrics">
+                <span class="std-chip">外部类 {alignReport.external_classes}</span>
+                <span class="std-chip" class:ok={alignReport.matched > 0}>同名匹配 {alignReport.matched}</span>
+                <span class="std-chip">外部独有 {alignReport.external_only}</span>
+              </div>
+              {#each (alignReport.rows || []).slice(0, 8) as row}
+                <div class="std-issue">
+                  {row.theirs
+                    ? `✓ 外部 ${String(row.theirs).split('#').pop()} ←→ 本库 ${String(row.ours).split('#').pop()}`
+                    : `· 本库 ${String(row.ours).split('#').pop()}：外部无同名类`}
+                </div>
+              {/each}
+              {#if (alignReport.external_only_sample || []).length}
+                <div class="std-issue">外部独有（前几项）：{(alignReport.external_only_sample || []).map(u => String(u).split('#').pop()).join('、')}</div>
+              {/if}
+            </div>
+          {/if}
+        {:else}
+          <div class="std-hint">合规度不可用（后端未就绪或 schema 缺失）</div>
+        {/if}
+      </div>
     </section>
 
     <!-- ─── 右栏：模型结构图（默认欢迎界面，点"显示本体模型"才显示模型图）─── -->
@@ -1188,6 +1391,14 @@
           <!-- 未点显示模型：科幻风格 SVG 企业欢迎页（企业欢迎词 + 建模示例），按企业所属行业识别 -->
           <WelcomeModel kb={currentKb} kbList={kbList} industries={INDUSTRIES} industry={user && user.industry} onModel={(dir) => doDefaultExample(dir)} />
         {/if}
+      </div>
+    </section>
+    {:else if activeTab === 'selfmodel'}
+    <!-- ─── 自助建模（三步：选数据源 → AI 建议可编辑 → 人拍板确认生效）─── -->
+    <section class="pane pane-full">
+      <div class="pane-title">自助建模<span class="pane-sub">选数据源 → 看 AI 建议并修改 → 人拍板确认生效（人工可控的建模流程）</span></div>
+      <div class="dashboard-body">
+        <SelfModelPanel kb={currentKb} />
       </div>
     </section>
     {:else if activeTab === 'query'}
@@ -1210,6 +1421,11 @@
         </div>
 
         <div class="quick-bar">
+          <label class="deep-toggle">
+            <input type="checkbox" bind:checked={deepRecall} disabled={asking || status !== 'ready'} />
+            深度召回
+            <span class="deep-hint">规则命中后仍跑图谱/混合/文档，证据更全但更慢</span>
+          </label>
           {#each quickQuestions as q}
             <button class="quick-btn" onclick={() => doAsk(q)} disabled={asking || status !== 'ready'}>{q}</button>
           {/each}
@@ -1248,6 +1464,15 @@
           {:else if answer}
             <div class="result-head">
               <span class="result-label">查询结果</span>
+              {#if recallMeta}
+                <span class="recall-meta">
+                  <span class="rm rm-strong">{recallMeta.deep ? '深度召回' : '快速'}</span>
+                  {#if recallMeta.mode}<span class="rm">模式 {recallMeta.mode}</span>{/if}
+                  {#if recallMeta.engines && recallMeta.engines.length}<span class="rm">引擎 {recallMeta.engines.join('+')}</span>{/if}
+                  {#if recallMeta.confidence}<span class="rm">置信 {recallMeta.confidence}</span>{/if}
+                  <span class="rm">证据 {recallMeta.n} 条</span>
+                </span>
+              {/if}
             </div>
             <div class="result-scroll result-fade" bind:this={answerBox}>
               {#if answerHTML}
@@ -1998,6 +2223,52 @@
     font-size: 12px; color: #334155;
   }
   :global(.ans-table th) { background: #f1f5f9; color: #475569; font-weight: 600; }
+
+  /* ─── 本体标准合规卡片（GB/T 48000.3）─── */
+  .std-card {
+    margin: 12px 0 0; padding: 14px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius-md); box-shadow: var(--shadow-card);
+  }
+  .std-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .std-title { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+  .std-badge {
+    font-size: 14px; font-weight: 700; font-family: ui-monospace, Consolas, monospace;
+    color: #94a3b8; background: var(--bg-hover); border-radius: 4px; padding: 2px 10px;
+  }
+  .std-badge.ok { color: #0d9488; background: rgba(13, 148, 136, .12); }
+  .std-metrics { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .std-chip { font-size: 11px; color: #475569; background: #eef2f7; border-radius: 4px; padding: 2px 8px; }
+  .std-chip.ok { background: rgba(16, 185, 129, .14); color: #047857; }
+  .std-standards { font-size: 11px; color: #94a3b8; margin-bottom: 8px; line-height: 1.5; }
+  .std-issue { font-size: 11px; color: #64748b; line-height: 1.6; }
+  .std-issue.err { color: #dc2626; }
+  .std-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .std-btn {
+    font-size: 12px; padding: 5px 12px; cursor: pointer; border-radius: var(--radius-sm);
+    background: var(--brand); color: #fff; border: 1px solid var(--brand);
+  }
+  .std-btn:disabled { background: #94a3b8; border-color: #94a3b8; cursor: not-allowed; }
+  .std-btn.ghost { background: var(--bg-card); color: var(--brand); border-color: var(--brand-line); }
+  .std-hint { font-size: 11px; color: #94a3b8; margin-top: 6px; }
+  .std-file { display: none; }
+  .std-align { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); }
+  .std-align-head { font-size: 11px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+
+  /* ─── 深度召回开关 + 召回元信息 ─── */
+  .deep-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; color: #475569; cursor: pointer;
+    padding: 2px 10px 2px 0; user-select: none;
+  }
+  .deep-toggle input { margin: 0; cursor: pointer; }
+  .deep-toggle .deep-hint { color: #94a3b8; font-size: 11px; }
+  .recall-meta { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+  .recall-meta .rm {
+    background: #eef2f7; color: #475569; border-radius: 4px;
+    padding: 1px 7px; font-size: 11px; line-height: 1.6;
+  }
+  .recall-meta .rm-strong { background: #dbeafe; color: #1d4ed8; font-weight: 600; }
 
   /* ─── 证据溯源 ─── */
   .evidence-wrap { border-top: 1px solid #e2e8f0; background: #f8fafc; }

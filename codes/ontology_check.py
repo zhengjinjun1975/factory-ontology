@@ -41,12 +41,16 @@ VERSION = "1.0.0"
 
 # ── 类别权重（合计 100）─────────────────────────────
 WEIGHTS = {
-    "chain": 20,   # A 链路断链
-    "csv": 25,     # B CSV 数据质量
-    "nt": 20,      # C NT 本体质量
-    "lexicon": 15, # D 词典一致性
+    "chain": 15,   # A 链路断链
+    "csv": 20,     # B CSV 数据质量
+    "nt": 15,      # C NT 本体质量
+    "lexicon": 10, # D 词典一致性
     "consistency": 20,  # E 本体一致性
+    "standard": 20,     # F 标准合规(GB/T 48000.3 描述项 + 命名空间 + SHACL + 类层次 + 导出物)
 }
+
+# constraints.type → 可映射 SHACL 的集合(与 ontology_export._SHACL_BY_TYPE 同源)
+_SHACL_TYPES = {"unique", "required", "positive", "range", "in", "pattern", "datatype"}
 
 # 本体命名空间(与 csv_to_owl/multi_table 一致)
 NS = "http://factory.example/ontology#"
@@ -406,6 +410,81 @@ _SEV_PENALTY = {"critical": 10, "major": 5, "minor": 1, "info": 0}
 _CAT_MAX_PENALTY = 45  # 单类别最多扣 45 分 -> 子分下限 55
 
 
+# ── F 标准合规（GB/T 48000.3 描述项）─────────────────
+def _check_standard(codes_dir, tracked=None):
+    """F 标准合规：实体 8 描述项 / 属性 7 描述项齐备率 + 命名空间 + SHACL 覆盖 + 类层次 + 导出物。
+
+    依据 GB/T 48000.3-2026 表1(实体)/表2(属性)/§5.3.3(类层次)/§5.1(e)(OWL/SHACL)/§9(命名空间扩展)。
+    衡量的是"本体的形式化完备度", 与 B/C/D/E 的数据质量口径互补(不重复)。
+    """
+    schema_path = os.path.join(codes_dir, "config", "ontology_schema.json")
+    if not os.path.exists(schema_path):
+        return {"issues": [("minor", "未找到 config/ontology_schema.json, 标准合规未评估")],
+                "state": {"standard_rate": None}}
+    try:
+        import schema_ontology as so
+        schema = so.load_schema(schema_path)
+        so.fill_iris(schema)
+    except Exception as e:
+        return {"issues": [("major", f"schema 加载失败, 标准合规未评估: {e}")],
+                "state": {"standard_rate": None}}
+
+    ents = schema.get("entities", [])
+    n = max(len(ents), 1)
+
+    def _ent_items(e):
+        """实体 8 描述项: IRI/Name/Label/Definition/Properties/Subclass/HasSubclass/EquivalentClass。"""
+        has_sub = any(x.get("parent") == e["id"] for x in ents)
+        return [e.get("iri"), e.get("id"), e.get("label"), e.get("definition"),
+                e.get("attributes"), e.get("parent"), has_sub, e.get("equivalent_class")]
+
+    ent_rate = sum(sum(1 for v in _ent_items(e) if v) for e in ents) / (n * 8.0)
+    # 核心 6 项(IRI/Name/Label/Definition/Properties/Subclass) 与 扩展 2 项(HasSubclass/EquivalentClass) 分开:
+    # 判据只看核心齐备度 —— 扩展项在本体生态里普遍缺省(等价类需外部词汇对齐, 子类需细分模型),
+    # 不拿它们当"不合规"的大棒, 但仍在报告里如实显示, 便于需要时再补。
+    ent_core_rate = sum(sum(1 for v in _ent_items(e)[:6] if v) for e in ents) / (n * 6.0)
+
+    # 属性 7 描述项: IRI/Name/Label/Definition/Domain/Range/typeofTerms
+    # Domain/Range/typeofTerms 由 to_nt 按 schema 自动生成, 故 schema 侧视为已具备(值类型可推导)
+    attrs = [a for e in ents for a in e.get("attributes", [])]
+    na = max(len(attrs), 1)
+    attr_rate = sum(sum(1 for v in [a.get("iri"), a.get("name"), a.get("label"), a.get("definition"),
+                                    True, True, a.get("type") or True]) for a in attrs) / (na * 7.0)
+
+    m = schema.get("_ns") or {}
+    ns_ok = bool(schema.get("namespace") or m.get("version_iri"))
+    cons = schema.get("constraints", [])
+    shacl_rate = (sum(1 for c in cons if c.get("type") in _SHACL_TYPES) / len(cons)) if cons else 0.0
+    subcls = sum(1 for e in ents if e.get("parent"))
+    exp = os.path.join(codes_dir, "export")
+    has_export = all(os.path.exists(os.path.join(exp, f))
+                     for f in ("ontology.ttl", "shapes.ttl", "ontology.jsonld"))
+
+    rate = round(100 * (0.35 * ent_core_rate + 0.25 * attr_rate + 0.15 * (1 if ns_ok else 0)
+                        + 0.10 * shacl_rate + 0.10 * (1 if subcls else 0)
+                        + 0.05 * (1 if has_export else 0)), 1)
+    issues = []
+    if ent_core_rate < 0.9:
+        issues.append(("major", f"实体核心描述项齐备率 {ent_core_rate*100:.0f}% < 90%(缺 Definition/类层次)"))
+    if ent_rate < 1.0:
+        issues.append(("info", f"实体扩展描述项(子类/等价类)齐备率 {ent_rate*100:.0f}%, 属可选对齐项"))
+    if attr_rate < 0.9:
+        issues.append(("major", f"属性描述项齐备率 {attr_rate*100:.0f}% < 90%(缺 Definition)"))
+    if not subcls:
+        issues.append(("major", "无类层次(subClassOf): 实体平铺, 国标 §5.3 要求派生层次"))
+    if not ns_ok:
+        issues.append(("minor", "无版本化命名空间/version_iri(国标 §9 扩展原则)"))
+    if cons and shacl_rate < 1.0:
+        issues.append(("minor", f"{len(cons) - int(shacl_rate * len(cons))} 条约束无法映射 SHACL"))
+    if not has_export:
+        issues.append(("minor", "未生成标准导出物(ontology.ttl/shapes.ttl/ontology.jsonld)"))
+    return {"issues": issues,
+            "state": {"standard_rate": rate, "ent_rate": round(ent_rate * 100, 1),
+                      "ent_core_rate": round(ent_core_rate * 100, 1),
+                      "attr_rate": round(attr_rate * 100, 1), "ns_ok": ns_ok,
+                      "subclass_count": subcls, "has_export": has_export}}
+
+
 def _score_category(weight, issues):
     """类别内 0-100 子分。按严重度扣分, 扣分封顶 _CAT_MAX_PENALTY。"""
     penalty = min(sum(_SEV_PENALTY[s] for s, _m in issues), _CAT_MAX_PENALTY)
@@ -453,9 +532,10 @@ def run_check(codes_dir=None, skip_build=False, threshold=None):
     nt = _check_nt(codes_dir, smoke_dangling, tracked)
     lexicon = _check_lexicon(codes_dir)
     consistency = _check_consistency(codes_dir, smoke_triples, smoke_tables)
+    standard = _check_standard(codes_dir, tracked)
 
     cats = {"chain": chain, "csv": csv, "nt": nt,
-            "lexicon": lexicon, "consistency": consistency}
+            "lexicon": lexicon, "consistency": consistency, "standard": standard}
 
     # 汇总计分
     subtotals = {}
