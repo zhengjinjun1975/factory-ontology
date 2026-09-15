@@ -180,7 +180,8 @@ class LexiconAgent(BaseAgent):
         for f, info in field_info.items():
             if info["is_numeric"]:
                 cn = self._infer_cn_from_name(f)
-                attr[f] = cn
+                if cn:  # 空串 = 推断不出中文名, 跳过(不写脏 key)
+                    attr[f] = cn
         return attr
 
     # 常见英文词 → 中文（工业领域扩充）
@@ -226,6 +227,11 @@ class LexiconAgent(BaseAgent):
         s = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', field)
         return [p for p in re.split(r'[_\-.\s]+', s) if p]
 
+    # 中文名有效性: 含拉丁字母 = 翻译失败(污染源: LLM 原样返回英文字段名)
+    @staticmethod
+    def _valid_cn(cn):
+        return bool(cn) and isinstance(cn, str) and not re.search(r"[A-Za-z]", cn)
+
     def _infer_cn_from_name(self, field):
         """从字段名拆词推断中文名，多词合成 + 单位后缀。"""
         parts = self._split_parts(field.lower())
@@ -240,22 +246,28 @@ class LexiconAgent(BaseAgent):
             if p in self.EN_CN:
                 cn_w = self.EN_CN[p]
             else:
-                # 未命中：作为原始词保留（避免丢信息）
+                # 未命中: 含拉丁字母的词无法构成中文名, 丢弃(宁可缺, 不可污染)
+                if re.search(r"[A-Za-z]", p):
+                    continue
                 cn_w = p
             if cn_w not in seen:  # 去重同义词合成(rotational+speed→转速, 防"转速转速")
                 seen.add(cn_w)
                 main.append(cn_w)
         if not main:
-            return field
+            # 推断不出中文名: 返回空串让调用方跳过; 返回 field 会把英文名当中文写入词典(污染源)
+            return "" if re.search(r"[A-Za-z]", field) else field
         return "".join(main)
 
     def _rule_enum_mapping(self, field_info):
-        """规则回退：枚举值若已是英文，用值本身；否则原样。"""
+        """规则回退：枚举值若已是中文，原样；英文值无中文名则不映射（防值=值）。"""
         mapping = {}
         for f, info in field_info.items():
             if not info["is_numeric"] and 2 <= info["num_values"] <= 50:
                 mapping[f] = {}
                 for v in info["values"]:
+                    # 英文枚举值无法产出中文名 -> 跳过(否则 dict 里出现 "X" => "X")
+                    if isinstance(v, str) and re.search(r"[A-Za-z]", v) and not re.search(r"[\u4e00-\u9fff]", v):
+                        continue
                     mapping[f][v] = v
         return mapping
 
@@ -313,6 +325,12 @@ class LexiconAgent(BaseAgent):
                 cn = attr_map[f]
             if not cn:
                 cn = self._infer_cn_from_name(f)  # 修正: 原 (f,{}) 传2参但函数只收1参(潜在bug)
+            # 中文名含拉丁字母 = LLM 回的是英文字段名, 逐级回落
+            if not self._valid_cn(cn):
+                cn2 = self._infer_cn_from_name(f)
+                if not self._valid_cn(cn2):
+                    continue  # 推断不出干净中文名 -> 跳过该字段(宁可缺, 不可污染)
+                cn = cn2
             attr_cn2en[cn] = f
             attr_en2cn[f] = cn
         return attr_cn2en, attr_en2cn
