@@ -21,6 +21,7 @@ import sys
 import asyncio
 import argparse
 import tempfile
+import subprocess
 import urllib.request
 import json
 
@@ -30,6 +31,8 @@ WHISPER_MODEL_DIR = os.path.join(os.path.expanduser("~"), "whisper-tiny")
 
 def ask_api(question, base_url="http://localhost:8000"):
     """调用食品知识库 REST API 问答。"""
+    if not base_url.startswith(("http://", "https://")):
+        return "[API 调用失败] 仅支持 http/https 后端地址", ""
     req = urllib.request.Request(
         f"{base_url}/api/ask",
         data=json.dumps({"question": question}).encode(),
@@ -52,8 +55,11 @@ def speak_tts(text, voice="zh-CN-XiaoxiaoNeural"):
             await tts.save(out)
         asyncio.run(_run())
         if os.path.exists(out):
-            # 播放（Windows 用 start / 或 mpg123；无则跳过）
-            os.system(f'start "" "{out}"' if os.name == "nt" else f'mpg123 "{out}" >/dev/null 2>&1 &')
+            # 播放：不经过 shell，无注入面
+            if os.name == "nt":
+                os.startfile(out)
+            else:
+                subprocess.Popen(["mpg123", out], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return True
     except Exception as e:
         print(f"[TTS 失败] {e}")
