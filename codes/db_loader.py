@@ -6,7 +6,7 @@
 
 1) DSN 连接串（推荐，便于 config 一键配置）:
    - SQLite:     sqlite:///C:/path/factory.db
-   - MySQL:      mysql+pymysql://user:pass@127.0.0.1:3306/erp
+   - MySQL:      mysql+pymysql://user:***@127.0.0.1:3306/erp
    - PostgreSQL: postgresql+psycopg2://user:pass@127.0.0.1:5432/erp
 
 2) dict 配置（兼容旧写法）:
@@ -21,25 +21,30 @@
 
 依赖(可选): mysql → pip install pymysql; postgres → pip install psycopg2-binary
 未装驱动时给出清晰提示；安全上所有表名/库名只允许合法标识符（防 SQL 注入）。
+
+方言差异（引号/占位符/默认端口/驱动名/SQL 组装）已收口到 db_dialect.py 单点；
+SQLite 默认库型，读默认以只读方式打开 + busy_timeout 忙等，避免误写与「database is locked」。
 """
 import os
-import re as _re
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
+import sys as _sys
+if ROOT not in _sys.path:
+    _sys.path.insert(0, ROOT)
 
-# 合法标识符（防 SQL 注入）：字母/数字/下划线，字母或下划线开头
-_IDENT = _re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# 单点方言层（纯标准库，不引任何驱动依赖）
+import db_dialect as _dd
 
 
 def _safe(name, what="表名"):
-    """校验标识符合法性，非法即抛错（防 SQL 注入）。"""
-    if not _IDENT.fullmatch(str(name)):
-        raise ValueError(f"[安全] 非法{what}: {name!r}（仅允许字母/数字/下划线，且非数字开头）")
+    """校验标识符合法性，非法即抛错（防 SQL 注入）。保留旧函数名供外部调用。"""
+    _dd.validate_ident(name, what)
     return name
 
 
 def parse_dsn(dsn):
     """解析 DSN 连接串 → (db_type, host, port, user, password, database)。"""
+    import re as _re
     dsn = str(dsn).strip()
     # SQLite: sqlite:///relative 或 sqlite:///C:/abs/path 或 sqlite:////C:/abs
     m = _re.match(r"^sqlite://(?P<db>/.+)$", dsn, _re.I)
@@ -56,64 +61,89 @@ def parse_dsn(dsn):
         r"/(?P<db>[^?]+)",
         dsn, _re.I)
     if not m:
-        raise ValueError(f"[安全] 无法解析 DSN: {dsn!r}（支持 sqlite:///path、mysql://u:p@h:p/db、postgresql://u:p@h:p/db）")
-    db_type = (m.group("db_type") or "mysql").lower()
-    if db_type in ("postgres", "postgresql", "pg"):
-        db_type = "postgres"
-    elif db_type not in ("mysql", "sqlite"):
-        raise ValueError(f"[安全] 不支持的数据库类型: {db_type}（支持 sqlite/mysql/postgres）")
+        raise ValueError(f"[安全] 无法解析 DSN: {dsn!r}（支持 sqlite:///path、mysql://u:***@h:p/db、postgresql://u:***@h:p/db）")
+    try:
+        db_type = _dd.normalize_type(m.group("db_type") or "mysql")
+    except ValueError as e:
+        raise ValueError(str(e))
     return (db_type, m.group("host"), int(m.group("port") or 0),
             m.group("user") or "", m.group("password") or "", m.group("db"))
 
 
-def _read_sqlite(db_path, table):
+def _read_sqlite(db_path, table, limit=None, read_only=True):
+    """读 SQLite 单表。默认只读打开 + busy_timeout 忙等（不影响返回值）。"""
     import sqlite3
     if not os.path.exists(db_path):
         raise FileNotFoundError(f"SQLite 库不存在: {db_path}")
-    conn = sqlite3.connect(db_path)
+    db_type = "sqlite"
+    sql = _dd.select_all(table, db_type, limit=limit)
+    timeout_s = _dd.busy_timeout_ms() / 1000.0
+    conn = None
+    if read_only:
+        # 只读 URI 打开：即便后续误执行写语句也会被拒；失败则回退 rw 保持兼容。
+        try:
+            conn = sqlite3.connect(_dd.sqlite_uri(db_path, read_only=True),
+                                   uri=True, timeout=timeout_s)
+        except Exception:
+            conn = None
+    if conn is None:
+        conn = sqlite3.connect(db_path, timeout=timeout_s)
     try:
-        cur = conn.execute(f'SELECT * FROM "{table}"')
+        conn.execute(f"PRAGMA busy_timeout={_dd.busy_timeout_ms()}")
+        cur = conn.execute(sql)
         headers = [d[0] for d in cur.description]
-        rows = [dict(zip(headers, [""
-                if x is None else str(x) for x in row])) for row in cur.fetchall()]
+        rows = [dict(zip(headers, ["" if x is None else str(x) for x in row]))
+                for row in cur.fetchall()]
     finally:
         conn.close()
     return table, headers, rows
 
 
-def _read_mysql(cfg):
-    try:
-        import pymysql
-    except ImportError:
-        return {"error": "MySQL 需安装驱动: pip install pymysql"}
+def _read_mysql(cfg, limit=None):
+    mod, hint = _dd.driver_for("mysql")
+    if not _dd.is_available("mysql"):
+        return {"error": f"MySQL 需安装驱动: {hint}"}
     # 配置缺字段时返回错误 dict(而非 KeyError), 让调用方按统一错误通道处理。
     _missing = [k for k in ("host", "user", "database") if not cfg.get(k)]
     if _missing:
         return {"error": f"MySQL 配置缺字段: {', '.join(_missing)}"}
-    conn = pymysql.connect(host=cfg["host"], port=cfg.get("port") or 3306,
-                           user=cfg["user"], password=cfg.get("password", ""),
-                           database=cfg["database"], charset="utf8mb4")
-    cur = conn.cursor()
-    cur.execute(f"SELECT * FROM `{cfg['table']}`")   # 表名已白名单校验
-    headers = [d[0] for d in cur.description]
-    rows = [dict(zip(headers, r)) for r in cur.fetchall()]
-    conn.close()
+    import pymysql
+    dialect = _dd.dialect_for("mysql")
+    port = cfg.get("port") or dialect.default_port
+    conn = pymysql.connect(host=cfg["host"], port=port, user=cfg["user"],
+                           password=cfg.get("password", ""), database=cfg["database"],
+                           charset="utf8mb4",  # MySQL 专用；其它库型无此参数
+                           connect_timeout=int(cfg.get("connect_timeout") or 10))
+    try:
+        cur = conn.cursor()
+        cur.execute(dialect.select_all(cfg["table"], limit=limit))  # 单点组装, 表名已白名单
+        headers = [d[0] for d in cur.description]
+        rows = [dict(zip(headers, r)) for r in cur.fetchall()]
+    finally:
+        conn.close()
     return (cfg["table"], headers, rows)
 
 
-def _read_postgres(cfg):
+def _read_postgres(cfg, limit=None):
+    mod, hint = _dd.driver_for("postgres")
+    if not _dd.is_available("postgres"):
+        return {"error": f"PostgreSQL 需安装驱动: {hint}"}
+    _missing = [k for k in ("host", "user", "database") if not cfg.get(k)]
+    if _missing:
+        return {"error": f"PostgreSQL 配置缺字段: {', '.join(_missing)}"}
+    import psycopg2
+    dialect = _dd.dialect_for("postgres")
+    port = cfg.get("port") or dialect.default_port
+    conn = psycopg2.connect(host=cfg["host"], port=port, user=cfg["user"],
+                            password=cfg.get("password", ""), dbname=cfg["database"],
+                            connect_timeout=int(cfg.get("connect_timeout") or 10))
     try:
-        import psycopg2
-    except ImportError:
-        return {"error": "PostgreSQL 需安装驱动: pip install psycopg2-binary"}
-    conn = psycopg2.connect(host=cfg["host"], port=cfg["port"] or 5432,
-                            user=cfg["user"], password=cfg["password"],
-                            dbname=cfg["database"])
-    cur = conn.cursor()
-    cur.execute(f'SELECT * FROM "{cfg["table"]}"')   # 表名已白名单校验
-    headers = [d[0] for d in cur.description]
-    rows = [dict(zip(headers, r)) for r in cur.fetchall()]
-    conn.close()
+        cur = conn.cursor()
+        cur.execute(dialect.select_all(cfg["table"], limit=limit))  # 单点组装
+        headers = [d[0] for d in cur.description]
+        rows = [dict(zip(headers, r)) for r in cur.fetchall()]
+    finally:
+        conn.close()
     return (cfg["table"], headers, rows)
 
 
@@ -121,6 +151,7 @@ def load_db(cfg):
     """从 SQLite/MySQL/PostgreSQL 读一张表。cfg 可为 DSN 串或 dict。
 
     返回 (表名, 列名列表, 行dict列表)；驱动缺失或类型不支持时返回 {"error": ...}。
+    可选 limit: 只取前 N 行（默认 None = 全表，保持历史行为）。
     """
     if isinstance(cfg, str):
         db_type, host, port, user, password, database = parse_dsn(cfg)
@@ -134,21 +165,33 @@ def load_db(cfg):
             cfg.setdefault("port", d[2]); cfg.setdefault("user", d[3])
             cfg.setdefault("password", d[4]); cfg.setdefault("database", d[5])
 
-    db_type = (cfg.get("db_type") or "mysql").lower()
-    if db_type in ("postgres", "postgresql", "pg"):
-        db_type = "postgres"
+    try:
+        # 兼容历史: dict 配置缺 db_type 时旧行为按 mysql 处理（保留, 不改成 sqlite, 免得静默换库型）
+        db_type = _dd.normalize_type(cfg.get("db_type") or "mysql")
+    except ValueError as e:
+        return {"error": str(e)}
     table = _safe(cfg["table"], "表名")
 
+    limit = cfg.get("limit")
+    if limit is not None:
+        try:
+            limit = int(limit)
+        except (TypeError, ValueError):
+            return {"error": f"limit 必须为整数: {cfg.get('limit')!r}"}
+
     if db_type == "sqlite":
-        return _read_sqlite(cfg.get("database") or "", table)
+        # 只读 + busy_timeout；read_only 可由配置覆盖（默认 True）
+        read_only = cfg.get("read_only", True)
+        return _read_sqlite(cfg.get("database") or "", table, limit=limit,
+                            read_only=bool(read_only))
 
     cfg["table"] = table
     if db_type == "mysql":
         cfg["database"] = _safe(cfg.get("database"), "库名")
-        return _read_mysql(cfg)
+        return _read_mysql(cfg, limit=limit)
     if db_type == "postgres":
         cfg["database"] = _safe(cfg.get("database"), "库名")
-        return _read_postgres(cfg)
+        return _read_postgres(cfg, limit=limit)
 
     return {"error": f"不支持的数据库类型: {db_type}（支持 sqlite/mysql/postgres）"}
 
@@ -162,10 +205,9 @@ def main():
     arg = sys.argv[1]
     cfg = json.loads(arg) if arg.strip().startswith("{") else arg
     if isinstance(cfg, dict) and not cfg.get("dsn"):
-        table = cfg.get("table") or "SELECT ?"
         if "table" not in cfg:
             # dict 用法缺 table 时报清晰错误
-            pass
+            print("❌ 配置缺 table 字段"); sys.exit(1)
     res = load_db(cfg)
     if isinstance(res, dict) and "error" in res:
         print("❌", res["error"]); sys.exit(1)

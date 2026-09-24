@@ -27,6 +27,30 @@ _MERGE_KEYS = ("type_cn2en", "status_cn2en", "synonym_map", "entity_cn2en",
 # 兜底键位：KB 完全没有时用公共层（attr/numeric 不做合并，防误伤工厂字段）
 _FALLBACK_KEYS = ("entity_cn2en",)
 
+# ── 词典分层标记（KB 注册表 + 词典分层 2026-09-24）─────────────────────────────
+# public  = 公共工业本体层（industrial_dict/*.json）：跨行业稳定骨架，只读，开源算法资产
+# factory = 工厂专属层（config/lexicon_<kb>.json）：企业私有词，可写，各 KB 隔离
+PUBLIC_LAYER = "public"
+FACTORY_LAYER = "factory"
+# 对外公开的合并键位别名（kb_registry / 自检脚本消费，避免依赖私有名）
+MERGE_KEYS = _MERGE_KEYS
+
+
+class DictLayerConflictError(ValueError):
+    """公共层与工厂层对同一中文词给出不同规范名。
+
+    分层纪律：冲突时**报错、不静默覆盖**（调用方需显式决定谁赢）。
+    """
+
+    def __init__(self, conflicts):
+        self.conflicts = list(conflicts or [])
+        sample = self.conflicts[:5]
+        msg = ("词典层冲突: 公共层与工厂层对 %d 个中文词给出不同规范名，拒绝静默覆盖。样例: %s"
+               % (len(self.conflicts), "; ".join(
+                   "%s/%s 公共=%r 工厂=%r" % (c.get("key"), c.get("cn"), c.get("public"), c.get("factory"))
+                   for c in sample)))
+        super().__init__(msg)
+
 # 行业 → 公共词典文件（与 absorb_public_dict.INDUSTRY_FILES 保持一致）
 INDUSTRY_FILES = {
     "基础": "00_basis.json",
@@ -102,7 +126,36 @@ def _load_public(files=None, industry=None):
     return merged
 
 
-def merge_industrial_dict(kb_dict, files=None, industry=None):
+def load_public_layer(files=None, industry=None):
+    """公开入口：加载公共工业本体层（只读）并返回合并后的扁平词典。
+
+    返回 {合并键: {中文: 规范名}}，只含 _MERGE_KEYS 收录的跨行业键位
+    （attr_cn2en/numeric_fields 等工厂字段不属公共层，永不返回）。
+    """
+    return _load_public(files, industry)
+
+
+def detect_layer_conflicts(kb_dict, files=None, industry=None):
+    """探测工厂层与公共层冲突：同一中文词 → 不同规范名。
+
+    返回 [{"key","cn","public","factory"}...]（空 = 无冲突）。
+    不修改任何入参。
+    """
+    pub = _load_public(files, industry)
+    kb_dict = kb_dict if isinstance(kb_dict, dict) else {}
+    conflicts = []
+    for key in _MERGE_KEYS:
+        pub_sub = pub.get(key) or {}
+        kb_sub = kb_dict.get(key) or {}
+        if not isinstance(pub_sub, dict) or not isinstance(kb_sub, dict):
+            continue
+        for cn, pen in pub_sub.items():
+            if cn in kb_sub and kb_sub[cn] != pen:
+                conflicts.append({"key": key, "cn": cn, "public": pen, "factory": kb_sub[cn]})
+    return conflicts
+
+
+def merge_industrial_dict(kb_dict, files=None, industry=None, on_conflict="kb_wins"):
     """把公共（基础层 + 行业层）词典合并进 KB 词典，返回合并结果（不修改入参）。
 
     合并规则：
@@ -111,7 +164,13 @@ def merge_industrial_dict(kb_dict, files=None, industry=None):
     files: 显式指定要合并的公共词典文件列表。
     industry: 指定行业（基础/泵阀/精细化工/地球物理）→ 合并 [00_basis, 行业词典]。
               为 None 时只合并基础层，与旧行为完全一致（向后兼容）。
+    on_conflict: "kb_wins"（默认，旧行为：工厂层覆盖公共层）；
+                 "error" → 存在公共/工厂冲突时抛 DictLayerConflictError，不静默覆盖。
     """
+    if on_conflict == "error":
+        conflicts = detect_layer_conflicts(kb_dict, files, industry)
+        if conflicts:
+            raise DictLayerConflictError(conflicts)
     pub = _load_public(files, industry)
     if not pub:
         return kb_dict
@@ -121,6 +180,7 @@ def merge_industrial_dict(kb_dict, files=None, industry=None):
         kb_sub = out.get(key) or {}
         if not isinstance(kb_sub, dict):
             continue
+        kb_sub = dict(kb_sub)   # 值层拷贝: 防兜底补入改动调用方嵌套 dict(兑现"不修改入参")
         # KB 覆盖公共：公共项仅当 KB 无此中文键时才补入
         for cn, en in pub_sub.items():
             if cn not in kb_sub:

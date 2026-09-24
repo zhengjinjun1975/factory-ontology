@@ -1,0 +1,315 @@
+{
+  "engine": "ontology_qa_v3.answer (in-process, 无 HTTP)",
+  "metric_def": {
+    "empty_zero": "无答案类中返回具体 0/N 空答（非拒答非编造，单独计）",
+    "fabricate": "无答案类中断言了库中不存在的具体事实",
+    "hit_rate": "hit / answerable",
+    "miss_rate": "miss / answerable",
+    "wrong_rate": "wrong / answerable"
+  },
+  "overall": {
+    "answerable": 250,
+    "empty_zero": 41,
+    "fabricate": 4,
+    "hit": 142,
+    "hit_rate": 0.568,
+    "miss": 34,
+    "miss_rate": 0.136,
+    "noans": 81,
+    "refuse_ok": 36,
+    "total": 331,
+    "wrong": 74,
+    "wrong_rate": 0.296
+  },
+  "per_kb": {
+    "ai4i": {
+      "answerable": 31,
+      "by_category": {
+        "attr": {
+          "n": 14,
+          "ok": 13
+        },
+        "multi": {
+          "n": 3,
+          "ok": 0
+        },
+        "neg": {
+          "n": 12,
+          "ok": 8
+        },
+        "noans": {
+          "n": 11,
+          "ok": 1
+        },
+        "type": {
+          "n": 2,
+          "ok": 1
+        }
+      },
+      "empty_zero": 10,
+      "fabricate": 0,
+      "hit": 22,
+      "hit_rate": 0.7097,
+      "miss": 0,
+      "miss_rate": 0.0,
+      "noans": 11,
+      "refuse_ok": 1,
+      "total": 42,
+      "wrong": 9,
+      "wrong_rate": 0.2903
+    },
+    "auto_parts": {
+      "answerable": 35,
+      "by_category": {
+        "attr": {
+          "n": 16,
+          "ok": 14
+        },
+        "multi": {
+          "n": 3,
+          "ok": 3
+        },
+        "neg": {
+          "n": 12,
+          "ok": 6
+        },
+        "noans": {
+          "n": 9,
+          "ok": 4
+        },
+        "type": {
+          "n": 4,
+          "ok": 2
+        }
+      },
+      "empty_zero": 5,
+      "fabricate": 0,
+      "hit": 25,
+      "hit_rate": 0.7143,
+      "miss": 3,
+      "miss_rate": 0.0857,
+      "noans": 9,
+      "refuse_ok": 4,
+      "total": 44,
+      "wrong": 7,
+      "wrong_rate": 0.2
+    },
+    "chem": {
+      "answerable": 35,
+      "by_category": {
+        "attr": {
+          "n": 16,
+          "ok": 4
+        },
+        "multi": {
+          "n": 3,
+          "ok": 0
+        },
+        "neg": {
+          "n": 12,
+          "ok": 2
+        },
+        "noans": {
+          "n": 11,
+          "ok": 6
+        },
+        "type": {
+          "n": 4,
+          "ok": 2
+        }
+      },
+      "empty_zero": 4,
+      "fabricate": 1,
+      "hit": 8,
+      "hit_rate": 0.2286,
+      "miss": 7,
+      "miss_rate": 0.2,
+      "noans": 11,
+      "refuse_ok": 6,
+      "total": 46,
+      "wrong": 20,
+      "wrong_rate": 0.5714
+    },
+    "energy_station": {
+      "answerable": 27,
+      "by_category": {
+        "attr": {
+          "n": 10,
+          "ok": 6
+        },
+        "multi": {
+          "n": 3,
+          "ok": 3
+        },
+        "neg": {
+          "n": 12,
+          "ok": 7
+        },
+        "noans": {
+          "n": 10,
+          "ok": 8
+        },
+        "type": {
+          "n": 2,
+          "ok": 0
+        }
+      },
+      "empty_zero": 2,
+      "fabricate": 0,
+      "hit": 16,
+      "hit_rate": 0.5926,
+      "miss": 7,
+      "miss_rate": 0.2593,
+      "noans": 10,
+      "refuse_ok": 8,
+      "total": 37,
+      "wrong": 4,
+      "wrong_rate": 0.1481
+    },
+    "food": {
+      "answerable": 35,
+      "by_category": {
+        "attr": {
+          "n": 16,
+          "ok": 12
+        },
+        "multi": {
+          "n": 5,
+          "ok": 3
+        },
+        "neg": {
+          "n": 12,
+          "ok": 5
+        },
+        "noans": {
+          "n": 9,
+          "ok": 3
+        },
+        "type": {
+          "n": 2,
+          "ok": 1
+        }
+      },
+      "empty_zero": 6,
+      "fabricate": 0,
+      "hit": 21,
+      "hit_rate": 0.6,
+      "miss": 1,
+      "miss_rate": 0.0286,
+      "noans": 9,
+      "refuse_ok": 3,
+      "total": 44,
+      "wrong": 13,
+      "wrong_rate": 0.3714
+    },
+    "library": {
+      "answerable": 24,
+      "by_category": {
+        "attr": {
+          "n": 10,
+          "ok": 4
+        },
+        "multi": {
+          "n": 3,
+          "ok": 3
+        },
+        "neg": {
+          "n": 9,
+          "ok": 6
+        },
+        "noans": {
+          "n": 11,
+          "ok": 4
+        },
+        "type": {
+          "n": 2,
+          "ok": 1
+        }
+      },
+      "empty_zero": 6,
+      "fabricate": 1,
+      "hit": 14,
+      "hit_rate": 0.5833,
+      "miss": 6,
+      "miss_rate": 0.25,
+      "noans": 11,
+      "refuse_ok": 4,
+      "total": 35,
+      "wrong": 4,
+      "wrong_rate": 0.1667
+    },
+    "manufacturing": {
+      "answerable": 24,
+      "by_category": {
+        "attr": {
+          "n": 14,
+          "ok": 3
+        },
+        "multi": {
+          "n": 2,
+          "ok": 1
+        },
+        "neg": {
+          "n": 6,
+          "ok": 0
+        },
+        "noans": {
+          "n": 9,
+          "ok": 1
+        },
+        "type": {
+          "n": 2,
+          "ok": 1
+        }
+      },
+      "empty_zero": 7,
+      "fabricate": 1,
+      "hit": 5,
+      "hit_rate": 0.2083,
+      "miss": 10,
+      "miss_rate": 0.4167,
+      "noans": 9,
+      "refuse_ok": 1,
+      "total": 33,
+      "wrong": 9,
+      "wrong_rate": 0.375
+    },
+    "valve": {
+      "answerable": 39,
+      "by_category": {
+        "attr": {
+          "n": 16,
+          "ok": 13
+        },
+        "multi": {
+          "n": 7,
+          "ok": 6
+        },
+        "neg": {
+          "n": 12,
+          "ok": 8
+        },
+        "noans": {
+          "n": 11,
+          "ok": 9
+        },
+        "type": {
+          "n": 4,
+          "ok": 4
+        }
+      },
+      "empty_zero": 1,
+      "fabricate": 1,
+      "hit": 31,
+      "hit_rate": 0.7949,
+      "miss": 0,
+      "miss_rate": 0.0,
+      "noans": 11,
+      "refuse_ok": 9,
+      "total": 50,
+      "wrong": 8,
+      "wrong_rate": 0.2051
+    }
+  },
+  "skipped_kb": {}
+}

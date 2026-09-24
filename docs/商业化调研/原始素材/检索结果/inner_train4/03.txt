@@ -1,0 +1,42 @@
+## Search Results (10 results, 1418ms)
+
+### 1. 技术方案白皮书：从战略价值到未来趋势的完整指南
+- **URL**: https://www.frostchina.com/content/ai/detail/6aa8c0a747914cc47a9dc20b
+- 白皮书需要提供证据支持,包括案例研究、基准测试或客户证言。案例研究应具体描述客户背景、挑战、实施过程和量化收益,以增强可信度。 借助营销自动化和人 ... date: Sep 15, 2026
+
+### 2. 2025-2027企业AI人才白皮书：挑战、战略与实践
+- **URL**: https://www.fxbaogao.com/detail/5189731
+- 本白皮书深入分析中国AI人才市场现状，提出涵盖“培养-引进-使用-涵养”全周期管理体系，构建分层分类的AI人才能力标准与评估方法，并结合行业前沿企业的 ... date: Dec 16, 2025
+
+### 3. AI在企业人力资源中的应用白皮书| PDF
+- **URL**: https://www.scribd.com/document/842913991/AI%E5%9C%A8%E4%BC%81%E4%B8%9A%E4%BA%BA%E5%8A%9B%E8%B5%84%E6%BA%90%E4%B8%AD%E7%9A%84%E5%BA%94%E7%94%A8%E7%99%BD%E7%9A%AE%E4%B9%A6
+- 本白皮书探讨了人工智能在企业人力资源管理中的应用，包括AI的定义、发展历程及其在招聘、薪酬管理、学习与发展等方面的具体案例。文中强调AI技术将带来人力资源管理的 ...
+
+### 4. 范式跃迁： 定义“更主动的AI”
+- **URL**: https://www.ceibs.edu/sites/portal.prod1.dpmgr.ceibs.edu/files/white_paper_2026.pdf
+- 因此，本白皮书提出，2026 年企业AI 战略的核心任务，已不再是继续堆. 叠更多工具，而是激活主动智能；已不再满足于“单点人效”的零散提升，而. Page 7. 10. 11. AI 时代的 ...
+
+### 5. Google Cloud 白皮书
+- **URL**: https://cloud.google.com/whitepapers?hl=zh-CN
+- 这些白皮书由Google 员工、独立分析师、客户和合作伙伴撰写，介绍我们的产品和服务所采用的基础技术，或者阐述安全性、架构和数据治理等主题。
+
+### 6. 企业数字化转型投入产出关系研究报告
+- **URL**: https://www-file.huawei.com/dam/asset/view/20260609084645085008222956897006.pdf
+- 人工智能等新技术是华为数字化转型成功的经验。 AI重构作业模式・ 数据驱动的物联网、人工智能、大数据、云计算等数字・ 效具有变革性影响。 百分比,故OEE相较AI质检
+
+### 7. eRoad重磅首发！《AI在企业人力资源中的应用白皮书2.0》
+- **URL**: https://www.ersoft.com/news-qOe60dhTV.html
+- 《白皮书》数据显示,目前已有超过70%的受访企业开始将AI技术应用于人力资源管理中,这其中,员工人数过万的超大体量企业应用AI的比例更高,达到85% date: Feb 24, 2025
+
+### 8. 《生成式AI 商业落地白皮书》
+- **URL**: https://mul-e.com/whitepaperforGAIlanding.html
+- 白皮书内容涵盖了从场景选择到落地方法论的方方面面,旨在全面分析AI 行业的现状与趋势,结合实际项目案例,探讨其对不同领域的影响 date: Dec 29, 2024
+
+### 9. 職場新轉型：為生成式AI時代培育成功人才
+- **URL**: https://www.carnegie.com.tw/business/whitepaper/whitepaper-future-talent-with-generative-ai
+- 這份白皮書深入探討人類與機器協作的交匯點，並明確指出企業培訓與員工訓練應聚焦的三個關鍵領域，以提升員工在AI時代的協作效能與競爭力。包含：建立信任與韌性應變、培養 ...
+
+### 10. 人工智能生成内容（AIGC） 白皮书
+- **URL**: http://www.caict.ac.cn/kxyj/qwfb/bps/202209/P020220902534520798735.pdf
+- 例如，研究者发现通过在神经网络的每一层引入隐式表达，能够. 极大地提升内容生成算法的可控性和生成效果[7]。另外，在三维数据. 的生成任务中，神经辐射场[8]在网络结构 ...
+

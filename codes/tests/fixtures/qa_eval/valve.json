@@ -1,0 +1,534 @@
+{
+  "kb": "valve",
+  "n": 50,
+  "questions": [
+    {
+      "id": "valve-001",
+      "category": "attr",
+      "question": "有多少个产品",
+      "expect": "8",
+      "check": "num",
+      "target": 8.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-002",
+      "category": "attr",
+      "question": "产品总数",
+      "expect": "8",
+      "check": "num",
+      "target": 8.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-003",
+      "category": "attr",
+      "question": "产品中价格最大是多少",
+      "expect": "2560",
+      "check": "num",
+      "target": 2560.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-004",
+      "category": "attr",
+      "question": "产品的价格平均是多少",
+      "expect": "1711.62",
+      "check": "num",
+      "target": 1711.62,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-005",
+      "category": "neg",
+      "question": "产品中价格最小是多少",
+      "expect": "1023",
+      "check": "num",
+      "target": 1023.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-006",
+      "category": "neg",
+      "question": "价格最小的产品",
+      "expect": "1023",
+      "check": "num",
+      "target": 1023.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-007",
+      "category": "neg",
+      "question": "产品中价格大于1711.62的产品有多少",
+      "expect": "4",
+      "check": "num_paren",
+      "target": 4.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-008",
+      "category": "attr",
+      "question": "产品中尺寸最大是多少",
+      "expect": "200",
+      "check": "num",
+      "target": 200.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-009",
+      "category": "attr",
+      "question": "产品的尺寸平均是多少",
+      "expect": "132.50",
+      "check": "num",
+      "target": 132.5,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-010",
+      "category": "neg",
+      "question": "产品中尺寸最小是多少",
+      "expect": "80",
+      "check": "num",
+      "target": 80.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-011",
+      "category": "neg",
+      "question": "尺寸最小的产品",
+      "expect": "80",
+      "check": "num",
+      "target": 80.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-012",
+      "category": "neg",
+      "question": "产品中尺寸大于132.5的产品有多少",
+      "expect": "4",
+      "check": "num_paren",
+      "target": 4.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-013",
+      "category": "type",
+      "question": "产品的类型有哪些",
+      "expect": "安全阀、截止阀、止回阀、球阀、蝶阀、闸阀",
+      "check": "contains",
+      "target": [
+        "安全阀",
+        "截止阀",
+        "止回阀",
+        "球阀",
+        "蝶阀",
+        "闸阀"
+      ],
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-014",
+      "category": "type",
+      "question": "产品的类型有多少种",
+      "expect": "6",
+      "check": "num",
+      "target": 6.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-015",
+      "category": "attr",
+      "question": "产品的压力等级有哪些",
+      "expect": "PN10、PN16、PN25、PN40",
+      "check": "contains",
+      "target": [
+        "PN10",
+        "PN16",
+        "PN25",
+        "PN40"
+      ],
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-016",
+      "category": "attr",
+      "question": "产品的压力等级有多少种",
+      "expect": "4",
+      "check": "num",
+      "target": 4.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-017",
+      "category": "attr",
+      "question": "产品的阀体材质有哪些",
+      "expect": "CF8(304)、CF8M(316)、WCB、灰铸铁、球墨铸铁",
+      "check": "contains",
+      "target": [
+        "CF8(304)",
+        "CF8M(316)",
+        "WCB",
+        "灰铸铁",
+        "球墨铸铁"
+      ],
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-018",
+      "category": "attr",
+      "question": "产品的阀体材质有多少种",
+      "expect": "5",
+      "check": "num",
+      "target": 5.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-019",
+      "category": "attr",
+      "question": "产品的连接方式有哪些",
+      "expect": "对夹、法兰",
+      "check": "contains",
+      "target": [
+        "对夹",
+        "法兰"
+      ],
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-020",
+      "category": "attr",
+      "question": "产品的连接方式有多少种",
+      "expect": "2",
+      "check": "num",
+      "target": 2.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-021",
+      "category": "attr",
+      "question": "有多少台设备",
+      "expect": "10",
+      "check": "num",
+      "target": 10.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-022",
+      "category": "attr",
+      "question": "设备总数",
+      "expect": "10",
+      "check": "num",
+      "target": 10.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-023",
+      "category": "attr",
+      "question": "设备中功率最大是多少",
+      "expect": "120",
+      "check": "num",
+      "target": 120.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-024",
+      "category": "attr",
+      "question": "设备的功率平均是多少",
+      "expect": "29.40",
+      "check": "num",
+      "target": 29.4,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-025",
+      "category": "neg",
+      "question": "设备中功率最小是多少",
+      "expect": "5.5",
+      "check": "num",
+      "target": 5.5,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-026",
+      "category": "neg",
+      "question": "功率最小的设备",
+      "expect": "5.5",
+      "check": "num",
+      "target": 5.5,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-027",
+      "category": "neg",
+      "question": "设备中功率大于29.4的设备有多少",
+      "expect": "3",
+      "check": "num_paren",
+      "target": 3.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-028",
+      "category": "neg",
+      "question": "设备中振动最小是多少",
+      "expect": "0.69",
+      "check": "num",
+      "target": 0.69,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-029",
+      "category": "neg",
+      "question": "振动最小的设备",
+      "expect": "0.69",
+      "check": "num",
+      "target": 0.69,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-030",
+      "category": "neg",
+      "question": "设备中振动大于1.75的设备有多少",
+      "expect": "5",
+      "check": "num_paren",
+      "target": 5.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-031",
+      "category": "type",
+      "question": "设备的设备类型有哪些",
+      "expect": "机加设备、焊接设备、表面处理设备、装配设备、试压设备、铸造设备",
+      "check": "contains",
+      "target": [
+        "机加设备",
+        "焊接设备",
+        "表面处理设备",
+        "装配设备",
+        "试压设备",
+        "铸造设备"
+      ],
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-032",
+      "category": "type",
+      "question": "设备的设备类型有多少种",
+      "expect": "6",
+      "check": "num",
+      "target": 6.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-033",
+      "category": "multi",
+      "question": "设备总数",
+      "expect": "10",
+      "check": "num",
+      "target": 10.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-034",
+      "category": "multi",
+      "question": "客户总数",
+      "expect": "8",
+      "check": "num",
+      "target": 8.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-035",
+      "category": "multi",
+      "question": "批次总数",
+      "expect": "15",
+      "check": "num",
+      "target": 15.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-036",
+      "category": "multi",
+      "question": "原料总数",
+      "expect": "10",
+      "check": "num",
+      "target": 10.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-037",
+      "category": "multi",
+      "question": "质检总数",
+      "expect": "24",
+      "check": "num",
+      "target": 24.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-038",
+      "category": "multi",
+      "question": "销售总数",
+      "expect": "30",
+      "check": "num",
+      "target": 30.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-039",
+      "category": "multi",
+      "question": "B001 批次用了多少种原料",
+      "expect": "2 种",
+      "check": "num",
+      "target": 2.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "valve-040",
+      "category": "noans",
+      "question": "有多少个洗衣机",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "valve-041",
+      "category": "noans",
+      "question": "洗衣机总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "valve-042",
+      "category": "noans",
+      "question": "有多少个机器人",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "valve-043",
+      "category": "noans",
+      "question": "机器人总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "valve-044",
+      "category": "noans",
+      "question": "有多少个员工",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "valve-045",
+      "category": "noans",
+      "question": "员工总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "valve-046",
+      "category": "noans",
+      "question": "有多少个催化剂",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "valve-047",
+      "category": "noans",
+      "question": "催化剂总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "valve-048",
+      "category": "noans",
+      "question": "有多少个卡车",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "valve-049",
+      "category": "noans",
+      "question": "卡车总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "valve-050",
+      "category": "noans",
+      "question": "产品中纯度最大是多少",
+      "expect": "拒答(库中无此属性)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    }
+  ]
+}

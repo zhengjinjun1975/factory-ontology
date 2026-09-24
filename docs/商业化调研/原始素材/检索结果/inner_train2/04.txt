@@ -1,0 +1,42 @@
+## Search Results (10 results, 1626ms)
+
+### 1. 报价和方案- UMU 学习平台
+- **URL**: https://www.umu.cn/plan/pricing
+- 4800 / year 4800 / year
+
+### 2. UMU Pricing & Plans
+- **URL**: https://www.umu.com/plan/pricing
+- Ideal for individual instructors or trainers $ 999 USD per instructor, per year. For small and medium sized teams $ 27 USD per seat, per month Starting at 10 ...
+
+### 3. 定价
+- **URL**: https://chatgpt.com/zh-Hans-CN/pricing/
+- 付费套餐（Plus、Pro、Business 和Enterprise）按每位用户每月收费。我们提供Plus、Pro 和Business 的月度套餐，以及Business 和Enterprise 的年度套餐。
+
+### 4. UMU - AI 驱动的效果学习平台
+- **URL**: https://m.umu.cn/
+- 通过AI 力系列课程、AI 原生工具和平台，UMU 赋能企业员工，助力企业实现人效提升、绩效改变、收入增长。 联系UMU · 免费试用. 有效果的AI 做课工具.
+
+### 5. ChatGPT 费率卡（Business、Enterprise/Edu 基于 ...
+- **URL**: https://help.openai.com/zh-hans-cn/articles/11481834-chatgpt-rate-card-business-enterpriseedu-credit-based-pricing
+- 基于额度的定价) GPT-5.6 Sol 的优惠定价至少持续至2026 年11 月21 日。该优惠适用于使用已购买额度支付费用的符合条件的用量。 ChatGPT 费率表(企业版Token 定价)
+
+### 6. Unity 方案与定价：Pro、个人版、企业版
+- **URL**: https://unity.com/cn/products
+- 探索Unity 的所有产品和服务,找到最适合您的工具组合。了解有关我们套餐和价格的更多信息。 融资额超过20万美元的企业
+
+### 7. ChatGPT 套餐怎么选：Free、Go、Plus、Pro
+- **URL**: https://www.ssdnodes.com/learn/lang/zh-hans/chatgpt-plans-which-one-do-you-need
+- 7 days ago · 2026 年9 月17 日核对的ChatGPT 全部套餐：Free、Go 8 美元、Plus 20 美元、Pro 100 和200 美元、Business（原Team）每人20 美元起。每档到底解锁什么， ...
+
+### 8. 企业版和基础版计费项价格-云原生数据仓库AnalyticDB-阿里云
+- **URL**: https://help.aliyun.com/zh/analyticdb/analyticdb-for-mysql/product-overview/pricing-of-enterprise-edition
+- 企业版和基础版产品定价 · 您可以使用价格计算器估算集群的预留资源价格，实际价格以产品购买页为准。 · 热数据存储空间按量付费价格为单副本单价。 · 按量 ...
+
+### 9. 企业学习平台：AI 赋能员工培训与业务增长一体化解决方案 - UMU学习平台
+- **URL**: https://www.umu.cn/product/enterprise
+- UMU 企业学习平台,以学习科学+ AI 技术为核心,提供员工培训、刻意练习、知识管理一体化解决方案!支持销售AI 智能训练、业务行为量化测评,部署简单安全
+
+### 10. 周期性培训与重复学习 - UMU学习平台
+- **URL**: https://m.umu.cn/product/recurring-course
+- 针对网络信息安全的合规类课程，企业每年度组织开展，要求全员学习并认证。使用企业证书搭配“重复学习模式”，即可每年定期为员工发布学习任务，实现周期性的合规认证需求。
+

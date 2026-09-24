@@ -34,6 +34,13 @@ INDUSTRY_FILES = {
     "地球物理": "03_geophysics.json",
 }
 
+# ── 词典分层标记（KB 注册表 + 词典分层 2026-09-24）─────────────────────────────
+# 本模块只写「公共工业本体层」（PUBLIC_DIR，只读语义，开源算法资产），
+# 工厂专属层见 dict_asset.py（DICT_LAYER="factory"，写 config/lexicon_<kb>.json）。
+DICT_LAYER = "public"
+PUBLIC_LAYER_DIR = PUBLIC_DIR          # 只读层目录，禁止工厂私有词写入（见 dict_asset.py 守卫）
+FACTORY_LAYER_DIR = CONFIG_DIR         # 工厂专属层目录（可写），仅作标注
+
 # 公共词典合并键位（只吸收这几类；attr/numeric 属工厂字段，不吸收入公共层）
 _MERGE_KEYS = ("type_cn2en", "status_cn2en", "synonym_map", "entity_cn2en",
                "fault_cn2en", "material_synonyms", "pump_cn2en", "part_cn2en",

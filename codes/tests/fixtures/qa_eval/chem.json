@@ -1,0 +1,481 @@
+{
+  "kb": "chem",
+  "n": 46,
+  "questions": [
+    {
+      "id": "chem-001",
+      "category": "attr",
+      "question": "有多少个产品",
+      "expect": "7",
+      "check": "num",
+      "target": 7.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-002",
+      "category": "attr",
+      "question": "产品总数",
+      "expect": "7",
+      "check": "num",
+      "target": 7.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-003",
+      "category": "attr",
+      "question": "产品中纯度最大是多少",
+      "expect": "41",
+      "check": "num",
+      "target": 41.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-004",
+      "category": "attr",
+      "question": "产品的纯度平均是多少",
+      "expect": "19.86",
+      "check": "num",
+      "target": 19.86,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-005",
+      "category": "neg",
+      "question": "产品中纯度最小是多少",
+      "expect": "5",
+      "check": "num",
+      "target": 5.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-006",
+      "category": "neg",
+      "question": "纯度最小的产品",
+      "expect": "5",
+      "check": "num",
+      "target": 5.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-007",
+      "category": "neg",
+      "question": "产品中纯度大于19.86的产品有多少",
+      "expect": "4",
+      "check": "num_paren",
+      "target": 4.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-008",
+      "category": "attr",
+      "question": "产品中价格最大是多少",
+      "expect": "18500",
+      "check": "num",
+      "target": 18500.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-009",
+      "category": "attr",
+      "question": "产品的价格平均是多少",
+      "expect": "9614.29",
+      "check": "num",
+      "target": 9614.29,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-010",
+      "category": "neg",
+      "question": "产品中价格最小是多少",
+      "expect": "2800",
+      "check": "num",
+      "target": 2800.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-011",
+      "category": "neg",
+      "question": "价格最小的产品",
+      "expect": "2800",
+      "check": "num",
+      "target": 2800.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-012",
+      "category": "neg",
+      "question": "产品中价格大于9614.29的产品有多少",
+      "expect": "4",
+      "check": "num_paren",
+      "target": 4.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-013",
+      "category": "attr",
+      "question": "产品的品类有哪些",
+      "expect": "化学农药、生物农药、除草剂",
+      "check": "contains",
+      "target": [
+        "化学农药",
+        "生物农药",
+        "除草剂"
+      ],
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-014",
+      "category": "attr",
+      "question": "产品的品类有多少种",
+      "expect": "3",
+      "check": "num",
+      "target": 3.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-015",
+      "category": "attr",
+      "question": "有多少台设备",
+      "expect": "7",
+      "check": "num",
+      "target": 7.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-016",
+      "category": "attr",
+      "question": "设备总数",
+      "expect": "7",
+      "check": "num",
+      "target": 7.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-017",
+      "category": "attr",
+      "question": "设备中容量最大是多少",
+      "expect": "10000",
+      "check": "num",
+      "target": 10000.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-018",
+      "category": "attr",
+      "question": "设备的容量平均是多少",
+      "expect": "3142.86",
+      "check": "num",
+      "target": 3142.86,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-019",
+      "category": "neg",
+      "question": "设备中容量最小是多少",
+      "expect": "0",
+      "check": "num",
+      "target": 0.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-020",
+      "category": "neg",
+      "question": "容量最小的设备",
+      "expect": "0",
+      "check": "num",
+      "target": 0.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-021",
+      "category": "neg",
+      "question": "设备中容量大于3142.86的设备有多少",
+      "expect": "2",
+      "check": "num_paren",
+      "target": 2.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-022",
+      "category": "attr",
+      "question": "设备中压力最大是多少",
+      "expect": "2.5",
+      "check": "num",
+      "target": 2.5,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-023",
+      "category": "attr",
+      "question": "设备的压力平均是多少",
+      "expect": "0.67",
+      "check": "num",
+      "target": 0.67,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-024",
+      "category": "neg",
+      "question": "设备中压力最小是多少",
+      "expect": "0.1",
+      "check": "num",
+      "target": 0.1,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-025",
+      "category": "neg",
+      "question": "压力最小的设备",
+      "expect": "0.1",
+      "check": "num",
+      "target": 0.1,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-026",
+      "category": "neg",
+      "question": "设备中压力大于0.67的设备有多少",
+      "expect": "2",
+      "check": "num_paren",
+      "target": 2.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-027",
+      "category": "attr",
+      "question": "设备中温度最大是多少",
+      "expect": "150",
+      "check": "num",
+      "target": 150.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-028",
+      "category": "attr",
+      "question": "设备的温度平均是多少",
+      "expect": "76.71",
+      "check": "num",
+      "target": 76.71,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-029",
+      "category": "type",
+      "question": "设备的设备类型有哪些",
+      "expect": "分离设备、反应设备、干燥设备、换热设备、生物反应设备",
+      "check": "contains",
+      "target": [
+        "分离设备",
+        "反应设备",
+        "干燥设备",
+        "换热设备",
+        "生物反应设备"
+      ],
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-030",
+      "category": "type",
+      "question": "设备的设备类型有多少种",
+      "expect": "5",
+      "check": "num",
+      "target": 5.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-031",
+      "category": "type",
+      "question": "原料的类型有哪些",
+      "expect": "助剂、原药、溶剂、菌种",
+      "check": "contains",
+      "target": [
+        "助剂",
+        "原药",
+        "溶剂",
+        "菌种"
+      ],
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-032",
+      "category": "type",
+      "question": "原料的类型有多少种",
+      "expect": "4",
+      "check": "num",
+      "target": 4.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-033",
+      "category": "multi",
+      "question": "设备总数",
+      "expect": "7",
+      "check": "num",
+      "target": 7.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-034",
+      "category": "multi",
+      "question": "批次总数",
+      "expect": "5",
+      "check": "num",
+      "target": 5.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-035",
+      "category": "multi",
+      "question": "原料总数",
+      "expect": "5",
+      "check": "num",
+      "target": 5.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "chem-036",
+      "category": "noans",
+      "question": "有多少个客户",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "chem-037",
+      "category": "noans",
+      "question": "客户总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "chem-038",
+      "category": "noans",
+      "question": "有多少个订单",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "chem-039",
+      "category": "noans",
+      "question": "订单总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "chem-040",
+      "category": "noans",
+      "question": "有多少个催化剂",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "chem-041",
+      "category": "noans",
+      "question": "催化剂总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "chem-042",
+      "category": "noans",
+      "question": "有多少个阀门",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "chem-043",
+      "category": "noans",
+      "question": "阀门总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "chem-044",
+      "category": "noans",
+      "question": "有多少个电池",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "chem-045",
+      "category": "noans",
+      "question": "电池总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "chem-046",
+      "category": "noans",
+      "question": "产品中收率等级最大是多少",
+      "expect": "拒答(库中无此属性)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    }
+  ]
+}

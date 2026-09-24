@@ -1,0 +1,426 @@
+{
+  "kb": "energy_station",
+  "n": 37,
+  "questions": [
+    {
+      "id": "energy_station-001",
+      "category": "attr",
+      "question": "有多少台设备",
+      "expect": "10",
+      "check": "num",
+      "target": 10.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-002",
+      "category": "attr",
+      "question": "设备总数",
+      "expect": "10",
+      "check": "num",
+      "target": 10.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-003",
+      "category": "attr",
+      "question": "设备中功率最大是多少",
+      "expect": "1500",
+      "check": "num",
+      "target": 1500.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-004",
+      "category": "attr",
+      "question": "设备的功率平均是多少",
+      "expect": "455.00",
+      "check": "num",
+      "target": 455.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-005",
+      "category": "neg",
+      "question": "设备中功率最小是多少",
+      "expect": "120",
+      "check": "num",
+      "target": 120.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-006",
+      "category": "neg",
+      "question": "功率最小的设备",
+      "expect": "120",
+      "check": "num",
+      "target": 120.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-007",
+      "category": "neg",
+      "question": "设备中功率大于455的设备有多少",
+      "expect": "3",
+      "check": "num_paren",
+      "target": 3.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-008",
+      "category": "attr",
+      "question": "设备中温度最大是多少",
+      "expect": "95",
+      "check": "num",
+      "target": 95.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-009",
+      "category": "attr",
+      "question": "设备的温度平均是多少",
+      "expect": "74.05",
+      "check": "num",
+      "target": 74.05,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-010",
+      "category": "neg",
+      "question": "设备中温度最小是多少",
+      "expect": "40",
+      "check": "num",
+      "target": 40.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-011",
+      "category": "neg",
+      "question": "温度最小的设备",
+      "expect": "40",
+      "check": "num",
+      "target": 40.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-012",
+      "category": "neg",
+      "question": "设备中温度大于74.05的设备有多少",
+      "expect": "6",
+      "check": "num_paren",
+      "target": 6.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-013",
+      "category": "attr",
+      "question": "设备中运行时长最大是多少",
+      "expect": "20000",
+      "check": "num",
+      "target": 20000.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-014",
+      "category": "attr",
+      "question": "设备的运行时长平均是多少",
+      "expect": "9030.00",
+      "check": "num",
+      "target": 9030.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-015",
+      "category": "neg",
+      "question": "设备中运行时长最小是多少",
+      "expect": "300",
+      "check": "num",
+      "target": 300.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-016",
+      "category": "neg",
+      "question": "运行时长最小的设备",
+      "expect": "300",
+      "check": "num",
+      "target": 300.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-017",
+      "category": "neg",
+      "question": "设备中运行时长大于9030的设备有多少",
+      "expect": "4",
+      "check": "num_paren",
+      "target": 4.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-018",
+      "category": "type",
+      "question": "设备的设备类型有哪些",
+      "expect": "储能电池、冷却机组、变压器、柴油发电、燃气轮机、逆变器、锅炉、风力发电",
+      "check": "contains",
+      "target": [
+        "储能电池",
+        "冷却机组",
+        "变压器",
+        "柴油发电",
+        "燃气轮机",
+        "逆变器",
+        "锅炉",
+        "风力发电"
+      ],
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-019",
+      "category": "type",
+      "question": "设备的设备类型有多少种",
+      "expect": "8",
+      "check": "num",
+      "target": 8.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-020",
+      "category": "attr",
+      "question": "设备的状态有哪些",
+      "expect": "alarm、idle、running、stopped",
+      "check": "contains",
+      "target": [
+        "alarm",
+        "idle",
+        "running",
+        "stopped"
+      ],
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-021",
+      "category": "attr",
+      "question": "设备的状态有多少种",
+      "expect": "4",
+      "check": "num",
+      "target": 4.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-022",
+      "category": "neg",
+      "question": "alarm的设备有哪些",
+      "expect": "燃气轮机-03",
+      "check": "contains_not",
+      "target": [
+        "燃气轮机-03"
+      ],
+      "absent": [
+        "燃气轮机-01",
+        "蒸汽锅炉-1",
+        "风力发电机-01",
+        "柴油发电机-备用",
+        "变压器-主",
+        "燃气轮机-02",
+        "光伏逆变器-1",
+        "水冷机组-01",
+        "储能电池-01"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "energy_station-023",
+      "category": "neg",
+      "question": "idle的设备有哪些",
+      "expect": "柴油发电机-备用",
+      "check": "contains_not",
+      "target": [
+        "柴油发电机-备用"
+      ],
+      "absent": [
+        "燃气轮机-01",
+        "蒸汽锅炉-1",
+        "风力发电机-01",
+        "变压器-主",
+        "燃气轮机-02",
+        "光伏逆变器-1",
+        "水冷机组-01",
+        "燃气轮机-03",
+        "储能电池-01"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "energy_station-024",
+      "category": "neg",
+      "question": "running的设备有哪些",
+      "expect": "燃气轮机-01、蒸汽锅炉-1、风力发电机-01、变压器-主、燃气轮机-02、光伏逆变器-1、储能电池-01",
+      "check": "contains_not",
+      "target": [
+        "燃气轮机-01",
+        "蒸汽锅炉-1",
+        "风力发电机-01",
+        "变压器-主",
+        "燃气轮机-02",
+        "光伏逆变器-1",
+        "储能电池-01"
+      ],
+      "absent": [
+        "柴油发电机-备用",
+        "水冷机组-01",
+        "燃气轮机-03"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "energy_station-025",
+      "category": "multi",
+      "question": "储能电池类设备有多少台",
+      "expect": "1",
+      "check": "num",
+      "target": 1.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-026",
+      "category": "multi",
+      "question": "冷却机组类设备有多少台",
+      "expect": "1",
+      "check": "num",
+      "target": 1.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-027",
+      "category": "multi",
+      "question": "变压器类设备有多少台",
+      "expect": "1",
+      "check": "num",
+      "target": 1.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "energy_station-028",
+      "category": "noans",
+      "question": "有多少个洗衣机",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "energy_station-029",
+      "category": "noans",
+      "question": "洗衣机总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "energy_station-030",
+      "category": "noans",
+      "question": "有多少个空调",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "energy_station-031",
+      "category": "noans",
+      "question": "空调总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "energy_station-032",
+      "category": "noans",
+      "question": "有多少个员工",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "energy_station-033",
+      "category": "noans",
+      "question": "员工总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "energy_station-034",
+      "category": "noans",
+      "question": "有多少个客户",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "energy_station-035",
+      "category": "noans",
+      "question": "客户总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "energy_station-036",
+      "category": "noans",
+      "question": "设备中转速最大是多少",
+      "expect": "拒答(库中无此属性)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "energy_station-037",
+      "category": "noans",
+      "question": "设备中纯度最大是多少",
+      "expect": "拒答(库中无此属性)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    }
+  ]
+}

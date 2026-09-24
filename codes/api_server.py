@@ -450,6 +450,43 @@ def _get_kb_ctx(kb=None):
 ADMIN_KEY = os.environ.get("FOOD_ADMIN_KEY", "").strip()
 READ_KEY = os.environ.get("FOOD_READ_KEY", "").strip()
 
+# ── 商用级加固(2026-09-24): 令牌过期 + 可签发短期令牌 + 结构化鉴权审计 ──
+# 纪律: 只加不松 —— 原有静态 key 行为逐字节不变; 未配置任何 key 时仍 fail-closed。
+#   1) 静态 key 可选配过期: FOOD_ADMIN_KEY_EXPIRES / FOOD_READ_KEY_EXPIRES
+#      (ISO8601 如 2026-12-31T00:00:00+08:00, 或 epoch 秒)。配置了且已过期 → 拒绝。
+#   2) 短期令牌: 配 FOOD_TOKEN_SECRET 后, POST /api/auth/token 可签发带 exp 的令牌
+#      (格式 fotk1.<role>.<exp>.<sig>, HMAC-SHA256 常量时间校验)。未配 secret 则不可签发。
+#   3) 审计: 鉴权事件记录 主体(subject)/时间(ts)/动作(action)/结果(result)。
+TOKEN_SECRET = os.environ.get("FOOD_TOKEN_SECRET", "").strip()
+TOKEN_PREFIX = "fotk1"
+_KEY_EXPIRES = {
+    "admin": os.environ.get("FOOD_ADMIN_KEY_EXPIRES", "").strip(),
+    "read": os.environ.get("FOOD_READ_KEY_EXPIRES", "").strip(),
+}
+
+
+def _parse_expires(v):
+    """过期时刻字符串 → epoch 秒(float); 空/无法解析 → None(视为永不过期)。"""
+    if not v:
+        return None
+    v = str(v).strip()
+    try:
+        return float(v)  # epoch 秒
+    except (TypeError, ValueError):
+        pass
+    try:
+        from datetime import datetime as _dt
+        return _dt.fromisoformat(v.replace("Z", "+00:00")).timestamp()
+    except Exception:
+        logger.warning("无法解析 key 过期时间(忽略, 视为不过期): %r", v)
+        return None
+
+
+def _key_expired(role):
+    """静态 key 是否已过期(仅当配置了 *_KEY_EXPIRES 且已过时)。"""
+    exp = _parse_expires(_KEY_EXPIRES.get(role))
+    return exp is not None and time.time() > exp
+
 
 def _valid(key, target):
     """key 是否匹配目标(或已配置的角色 key)。用常量时间比较防时序侧信道。"""
@@ -462,29 +499,140 @@ def _valid(key, target):
         return key == target
 
 
-def require_key(x_api_key: str = Header(default="")):
-    """只读端点鉴权(fail-closed): 需匹配 read 或 admin key; 未配置或未匹配一律 401。"""
-    if not _valid(x_api_key, ADMIN_KEY) and not _valid(x_api_key, READ_KEY):
-        _audit_event("login", role="deny", granted=False, reason="无效或缺失 API Key")
-        raise HTTPException(401, "无效或缺失 API Key (需 X-API-Key 头)")
-    role = "admin" if _valid(x_api_key, ADMIN_KEY) else "read"
-    _audit_event("login", role=role, granted=True, scope="read")
+def _sign_token(role, exp):
+    """fotk1.<role>.<exp>.<sig> 的 sig = HMAC-SHA256(secret, "fotk1.<role>.<exp>")[:32]。"""
+    import hmac
+    msg = f"{TOKEN_PREFIX}.{role}.{int(exp)}".encode("utf-8")
+    return hmac.new(TOKEN_SECRET.encode("utf-8"), msg, hashlib.sha256).hexdigest()[:32]
 
 
-def require_admin(x_api_key: str = Header(default="")):
-    """管理端点鉴权(fail-closed): 需匹配 admin key。"""
-    if not _valid(x_api_key, ADMIN_KEY):
-        _audit_event("login", role="deny", granted=False, reason="需要 admin 权限")
-        raise HTTPException(401, "需要管理权限 (admin API Key)")
-    _audit_event("login", role="admin", granted=True, scope="admin")
+def make_token(role, ttl_seconds=3600):
+    """签发带过期时间的令牌(需 TOKEN_SECRET)。返回 (token, exp_epoch)。"""
+    if not TOKEN_SECRET:
+        raise ValueError("未配置 FOOD_TOKEN_SECRET, 无法签发令牌")
+    role = (role or "read").strip().lower()
+    if role not in ("read", "admin"):
+        raise ValueError("role 仅支持 read/admin")
+    exp = int(time.time()) + int(ttl_seconds)
+    return f"{TOKEN_PREFIX}.{role}.{exp}.{_sign_token(role, exp)}", exp
+
+
+def _verify_token(tok):
+    """校验令牌签名与有效期。返回 {"role":..., "exp":...} 或 None。"""
+    if not TOKEN_SECRET or not isinstance(tok, str):
+        return None
+    parts = tok.split(".")
+    if len(parts) != 4 or parts[0] != TOKEN_PREFIX:
+        return None
+    _, role, exp_s, sig = parts
+    if role not in ("read", "admin"):
+        return None
+    try:
+        exp = int(exp_s)
+    except (TypeError, ValueError):
+        return None
+    expect = _sign_token(role, exp)
+    import hmac
+    if not hmac.compare_digest(sig, expect):  # 常量时间, 签名错/被篡改
+        return None
+    if time.time() > exp:                      # 已过期
+        return {"role": role, "exp": exp, "expired": True}
+    return {"role": role, "exp": exp, "expired": False}
+
+
+def _extract_key(x_api_key, authorization):
+    """取请求凭据: 优先 X-API-Key, 否则 Authorization: Bearer <token>。"""
+    k = (x_api_key or "").strip()
+    if k:
+        return k
+    a = (authorization or "").strip()
+    if a.lower().startswith("bearer "):
+        return a[7:].strip()
+    return ""
+
+
+def _principal(key):
+    """请求凭据 → 主体身份 dict, 或 None(拒绝)。
+
+    返回 {"subject","role","exp","auth"}; auth ∈ static|token。逐请求计算, 无全局态。
+    """
+    if not key:
+        return None
+    if _valid(key, ADMIN_KEY):
+        if _key_expired("admin"):
+            return {"denied_reason": "admin key 已过期"}
+        return {"subject": "static-admin", "role": "admin", "exp": None, "auth": "static"}
+    if _valid(key, READ_KEY):
+        if _key_expired("read"):
+            return {"denied_reason": "read key 已过期"}
+        return {"subject": "static-read", "role": "read", "exp": None, "auth": "static"}
+    tok = _verify_token(key)
+    if tok:
+        if tok.get("expired"):
+            return {"denied_reason": "令牌已过期"}
+        return {"subject": f"token-{tok['role']}", "role": tok["role"],
+                "exp": tok["exp"], "auth": "token"}
+    return None
+
+
+def _deny(reason, action="authenticate"):
+    """鉴权失败: 审计(主体/时间/动作/结果) + 401。"""
+    _audit_event("login", subject="anonymous", action=action, result="deny",
+                 role="deny", granted=False, reason=reason)
+    _audit_access_chain("anonymous", action, "deny", detail=reason)
+    raise HTTPException(401, reason)
+
+
+def require_key(x_api_key: str = Header(default=""),
+                authorization: str = Header(default="")):
+    """只读端点鉴权(fail-closed): read/admin key 或有效令牌; 未配置或未匹配一律 401。"""
+    key = _extract_key(x_api_key, authorization)
+    p = _principal(key)
+    if not p or p.get("denied_reason"):
+        _deny(p.get("denied_reason") if p else "无效或缺失 API Key")
+    _audit_event("login", subject=p["subject"], action="authenticate", result="grant",
+                 role=p["role"], granted=True, scope="read", auth=p["auth"])
+
+
+def require_admin(x_api_key: str = Header(default=""),
+                  authorization: str = Header(default="")):
+    """管理端点鉴权(fail-closed): 需 admin key 或 admin 令牌。"""
+    key = _extract_key(x_api_key, authorization)
+    p = _principal(key)
+    if not p or p.get("denied_reason"):
+        _deny(p.get("denied_reason") if p else "需要管理权限 (admin API Key)")
+    if p["role"] != "admin":
+        _deny("需要管理权限 (admin API Key)")
+    _audit_event("login", subject=p["subject"], action="authenticate", result="grant",
+                 role="admin", granted=True, scope="admin", auth=p["auth"])
 
 # ── 请求计数(M1.3 metrics) + 审计日志(T3.1) ──
 from collections import Counter as _Counter
 import threading as _threading
 REQ_COUNT = _Counter()
-AUDIT_FILE = os.path.join(ROOT, "output", "audit.log")
+# 审计文件路径可 env 覆盖(测试隔离用); 默认路径与行为不变。
+AUDIT_FILE = os.environ.get("FOOD_AUDIT_FILE") or os.path.join(ROOT, "output", "audit.log")
 _AUDIT_LOCK = _threading.Lock()
 _AUDIT_MAX_BYTES = 10 * 1024 * 1024  # 单文件上限 10MB, 超出轮转归档(防无限增长)
+# 商用级加固(2026-09-24): 归档留存 ≥6 个月(合规留档), 更老的归档才清理。
+_AUDIT_RETENTION_DAYS = int(os.environ.get("FOOD_AUDIT_RETENTION_DAYS", "200"))  # 200 天 > 6 个月
+
+
+def _prune_audit_archives():
+    """清理超过留存期(默认 200 天 ≈ 6.5 个月)的轮转归档; 主日志永不删。"""
+    try:
+        import glob
+        base = os.path.dirname(AUDIT_FILE)
+        name = os.path.basename(AUDIT_FILE)
+        cutoff = time.time() - _AUDIT_RETENTION_DAYS * 86400
+        for p in glob.glob(os.path.join(base, name + ".*")):
+            try:
+                if os.path.getmtime(p) < cutoff:
+                    os.remove(p)
+            except Exception:
+                pass
+    except Exception:
+        pass
 
 
 def _audit(record):
@@ -497,6 +645,7 @@ def _audit(record):
                     os.replace(AUDIT_FILE, AUDIT_FILE + "." + datetime.now().strftime("%Y%m%d_%H%M%S"))
                 except Exception:
                     pass
+                _prune_audit_archives()
             with open(AUDIT_FILE, "a", encoding="utf-8") as f:
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
     except Exception:
@@ -510,6 +659,21 @@ def _audit_event(kind, **fields):
     _audit(rec)
 
 
+def _audit_access_chain(subject, action, result, role="", detail=""):
+    """把鉴权事件额外写入哈希链审计账本(防事后删改)。失败静默, 不阻断请求。
+
+    只记安全相关事件(deny / issue_token / whoami), 不给每个成功请求都写链(避免热路径 IO)。
+    """
+    try:
+        ac = _audit_chain()
+        if not ac:
+            return
+        ac.record_access(subject=subject, action=action, result=result,
+                         role=role, detail=detail)
+    except Exception:
+        pass
+
+
 @app.middleware("http")
 async def audit_and_count(request: Request, call_next):
     REQ_COUNT[request.url.path] += 1
@@ -521,6 +685,49 @@ async def audit_and_count(request: Request, call_next):
                  client=request.client.host if request.client else "",
                  ms=int((time.time() - start) * 1000))
     return response
+
+
+# ── 鉴权自助端点(商用级加固 2026-09-24, 纯新增) ──────────────
+class TokenReq(BaseModel):
+    role: str = "read"
+    ttl_seconds: int = 3600
+
+
+@app.post("/api/auth/token", dependencies=[Depends(require_admin)])
+def auth_token(req: TokenReq):
+    """签发带过期时间的短期令牌(需 admin 凭据 + 已配 FOOD_TOKEN_SECRET)。
+
+    令牌格式 fotk1.<role>.<exp>.<sig>; 用法: X-API-Key: <token> 或 Authorization: Bearer <token>。
+    """
+    if not TOKEN_SECRET:
+        raise HTTPException(503, "未配置 FOOD_TOKEN_SECRET, 无法签发令牌")
+    role = (req.role or "read").strip().lower()
+    if role not in ("read", "admin"):
+        raise HTTPException(400, "role 仅支持 read/admin")
+    ttl = int(req.ttl_seconds)
+    if ttl <= 0 or ttl > 90 * 86400:  # 最长 90 天, 防长期令牌
+        raise HTTPException(400, "ttl_seconds 需在 1..7776000(90 天)之间")
+    tok, exp = make_token(role, ttl)
+    _audit_event("login", subject=f"token-{role}", action="issue_token", result="grant",
+                 role=role, ttl_seconds=ttl, exp=exp)
+    _audit_access_chain(f"token-{role}", "issue_token", "grant", role=role,
+                        detail=f"ttl={ttl}s exp={exp}")
+    return {"ok": True, "token": tok, "role": role, "exp": exp,
+            "expires_at": datetime.fromtimestamp(exp).isoformat()}
+
+
+@app.get("/api/auth/whoami")
+def auth_whoami(request: Request):
+    """返回当前请求凭据的主体信息(逐请求校验, 不读任何全局登录态)。"""
+    key = _extract_key(request.headers.get("x-api-key", ""), request.headers.get("authorization", ""))
+    p = _principal(key)
+    if not p or p.get("denied_reason"):
+        _deny(p.get("denied_reason") if p else "无效或缺失 API Key", action="whoami")
+    _audit_event("login", subject=p["subject"], action="whoami", result="grant",
+                 role=p["role"], auth=p["auth"])
+    return {"ok": True, "subject": p["subject"], "role": p["role"],
+            "exp": p["exp"], "auth": p["auth"],
+            "expires_at": datetime.fromtimestamp(p["exp"]).isoformat() if p["exp"] else None}
 
 
 @app.get("/api/export/reverse", dependencies=[Depends(require_key)])

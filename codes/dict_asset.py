@@ -22,6 +22,23 @@ from datetime import datetime
 ROOT = os.path.dirname(os.path.abspath(__file__))
 CONFIG_DIR = os.path.join(ROOT, "config")
 OUTPUT_DIR = os.path.join(ROOT, "output")
+# ── 词典分层标记（KB 注册表 + 词典分层 2026-09-24）─────────────────────────────
+# 本模块只进出口「工厂专属层」（config/lexicon_<kb>.json，可写）。
+# 公共工业本体层（industrial_dict/）是只读层，禁止工厂字典写入 —— 见下方守卫。
+DICT_LAYER = "factory"
+PUBLIC_LAYER_DIR = os.path.join(ROOT, "industrial_dict")
+
+
+def _assert_not_public_layer(path):
+    """守卫：拒绝把工厂专属词典写进只读的公共工业本体层。"""
+    p = os.path.abspath(path)
+    pub = os.path.abspath(PUBLIC_LAYER_DIR)
+    if p == pub or p.startswith(pub + os.sep):
+        raise PermissionError(
+            "词典分层纪律：禁止向公共工业本体层(只读)写入工厂词典: %s" % path)
+    return p
+
+
 MERGE_KEYS = ("type_cn2en", "status_cn2en", "synonym_map", "entity_cn2en", "fault_cn2en",
               "material_synonyms", "pump_cn2en", "part_cn2en", "process_cn2en",
               "product_type_cn2en", "safety_cn2en", "method_cn2en")
@@ -113,8 +130,9 @@ def export_lexicon(kb, out_dir=None):
         return {"ok": False, "error": "源词典不存在: %s" % src}
     data = _load_json(src, {})
     out_dir = out_dir or _default_out_dir()
-    os.makedirs(out_dir, exist_ok=True)
     dst = os.path.join(out_dir, "lexicon_%s.json" % kb)
+    _assert_not_public_layer(dst)          # 分层守卫: 工厂层导出不得落进只读公共层
+    os.makedirs(out_dir, exist_ok=True)
     shutil.copy2(src, dst)
     stats = {}
     for key in MERGE_KEYS:
@@ -167,6 +185,7 @@ def import_lexicon(kb, src_path, mode="merge", dry_run=False):
 
     backup = None
     if not dry_run:
+        _assert_not_public_layer(target)   # 分层守卫: 工厂层不得写入只读的公共层
         os.makedirs(CONFIG_DIR, exist_ok=True)
         if os.path.exists(target):
             stamp = datetime.now().strftime("%Y%m%d_%H%M%S")

@@ -1,0 +1,42 @@
+## Search Results (10 results, 1356ms)
+
+### 1. Docebo: AI-First LMS for Enterprise Learning & Skills
+- **URL**: https://www.docebo.com/
+- Docebo's AI-powered LMS helps world-class organizations train employees, partners, and customers on a unified platform. Create learning, grow skills, ...
+
+### 2. AI产业化破局，大模型私有化部署驱动智能转型新范式
+- **URL**: http://www.news.cn/digital/20250411/f122e7640d9c485181b3725bf9489c0c/c.html
+- 神州鲲泰所推出的该一体机，以鲲鹏+昇腾算力为底座，以神州问学AI平台能力构建整体框架，以一站式部署、一体化调优两大核心能力为企业提供一站式模型私有 ... date: Apr 11, 2025
+
+### 3. 让每个企业都拥有专属大模型-华为企业业务
+- **URL**: https://e.huawei.com/cn/blogs/huawei-cloud/let-every-enterprise-have-model
+- 企业需要在保证数据安全的基础上，让私有数据参与大模型的训练。我们认为，本地化部署的企业专属大模型可以很好地平衡“安全”与“懂行”之间的矛盾，将成为 ... date: Dec 27, 2023
+
+### 4. Docebo Launches AI-Powered Virtual Coach and ...
+- **URL**: https://www.docebo.inc/news/news-details/2019/Docebo-Launches-AI-Powered-Virtual-Coach-and-Docebo-Discover/default.aspx
+- Docebo 7.8 has personalization at its core, with the goal of producing a more impactful learning experience for every learner, while empowering ... date: Nov 20, 2019
+
+### 5. 企业级AI - Cloudera
+- **URL**: https://www.clouderacn.cn/products/enterprise-ai.html
+- 增强AI 模型，实现无与伦比的定制化和相关性。 · 利用特定上下文洞察力，获得卓越的AI 解决方案准确性。 · 不要与第三方供应商共享您的数据，以保护您的竞争优势。
+
+### 6. Docebo | The AI-first learning platform for enterprise
+- **URL**: https://www.youtube.com/watch?v=uO1heY3ZUts
+- Docebo makes learning easy, engaging, and measurable. Bring employees, customers, and partners together in one enterprise-ready ecosystem to ... date: 8 months ago
+
+### 7. Overview of artificial intelligence functionality and models ...
+- **URL**: https://help.docebo.com/hc/en-us/articles/22706749501842-Overview-of-artificial-intelligence-functionality-and-models-in-Docebo
+- This article provides an in-depth look at Docebo's AI-driven tools, which utilize models from leading AI providers and are built with robust ... date: Sep 2, 2026
+
+### 8. 企業級私有化大模型訓練解決方案 - 貝塔創新科技
+- **URL**: https://www.betainno.com/solution/solution_01
+- Q1. 相比公有雲大模型服務，私有化訓練平台的主要優勢是什麼？ ... 主要優勢包括：1) 數據安全- 核心數據不出企業網絡；2) 成本可控- 長期使用成本更低；3) 自主可控- 不受第 ...
+
+### 9. 从0到1训练私有大模型，打造属于自己的大模型
+- **URL**: https://zhuanlan.zhihu.com/p/1967968214282671030
+- 更快、更有效地完成企业级私有大模型的落地，其核心在于一套理性、系统的工程化思维：. 价值驱动：从明确的业务场景出发，优先考虑微调，审慎决策从头 ... date: Nov 1, 2025
+
+### 10. 企业大模型选型指南：100位CIO总结的16条采购建议
+- **URL**: https://ppio.com/blogs/post/qi-ye-da-mo-xing-xuan-xing-zhi-nan-100wei-ciozong-jie-de-16tiao-cai-gou-jian-yi
+- 生成式AI 的落地分为两大场景，消费级与企业级。对于消费级AI，我们可以通过similarweb 等第三方网站获取其流量与用户使用情况；而对于企业级AI，则 ... date: Sep 26, 2025
+

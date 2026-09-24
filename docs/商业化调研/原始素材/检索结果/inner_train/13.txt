@@ -1,0 +1,42 @@
+## Search Results (10 results, 1473ms)
+
+### 1. EduSoho企培服务报价—企业培训系统
+- **URL**: https://www.edusoho.com/solutions/saas-ct
+- 教培系统 企培系统 教育云. 企业搭建员工或代理商培训平台. 多个SaaS版本，满足不同类型阶段企培客户的需求. 入门版. 适合初创期. ¥ 9800 /年. 1年使用权，按年付费. 性能 ...
+
+### 2. 软件定价：SaaS 企业策略 - Stripe
+- **URL**: https://stripe.com/zh-sg/resources/more/software-pricing-models-and-strategies-for-saas-businesses
+- 尾数9 的魔力： 产品定价99 美元会让人感觉比100 美元便宜，尽管只差一美元。 捆绑销售和折扣： 公司可以提供按年支付而非按月支付的折扣。这会让客户觉得 ... date: Mar 30, 2025
+
+### 3. CRM系统多少钱合理？主流CRM报价及选型建议全解读 - FineReport
+- **URL**: https://www.finereport.com/blog/article/68cbfe1ed2527e0eb73a1be7
+- 创业型企业（10人以内）：倾向选用标准SaaS，年费用约¥6,000-¥15,000; 成长型企业（50-200人）：需要定制接口与行业功能，年费用¥50,000-¥200,000; 大型 ... date: Sep 18, 2025
+
+### 4. 企业培训系统_员工学习平台 - 魔学院
+- **URL**: https://www.moxueyuan.com/newsites/saas.html
+- 企业培训用魔学院. 魔学院企业培训云平台· SaaS版. 企业专属的培训学习平台 适合各个行业使用，支持千万人同时在线 功能全面，开通即用. 完善的企培系统，数千项培训功能.
+
+### 5. 2023年国内外企业培训管理软件排行榜
+- **URL**: https://zhuanlan.zhihu.com/p/639916033
+- 企业培训系统软件可以分为两类：一类是自建平台，即企业自己开发或者购买软件搭建的专属平台，可以根据自身需求定制化开发，但是成本较高，维护更新也 ... date: Jun 27, 2023
+
+### 6. 私有云SAAS,新员工培训平台,企业在线学习平台,在线考试系统,数字化 ...
+- **URL**: https://www.huisikeji.net/?page_id=13905
+- 汇思科技-数字化学习,企业培训系统,在线考试系统,elearning · 汇思科技; 平台解决方案. 学习平台解决方案; SAAS服务 ... 培训运营服务. 项目驻场运维 · 内部知识萃取 · 学习 ...
+
+### 7. 学习培训系统-企学宝
+- **URL**: https://www.lmschina.net/product/elearning/
+- 通用SaaS版 ; 标准版. 2680元/年起 · 存储空间200G ; 尊享版. 4500元/年起 · 门户装修 ; 国际版. 11000元/年起 · 门户装修 ...
+
+### 8. 如何从零开始构建SaaS分层定价 - PayPro Global
+- **URL**: https://payproglobal.com/zh/%E6%93%8D%E4%BD%9C%E6%8C%87%E5%8D%97/saas%E5%B1%82%E7%BA%A7%E5%AE%9A%E4%BB%B7%E7%9A%84%E6%9E%84%E5%BB%BA/
+- 量化价值： 如果您的SaaS 为中端市场客户每月节省1000 美元的劳动力成本，那么它的价值至少为1000 美元/月。如果它帮助企业每月额外创造10000 美元的销售 ... date: Apr 15, 2026
+
+### 9. 套餐价格- YesDev果创项目管理_研发协同工具|AI敏捷开发
+- **URL**: https://www.yesdev.cn/price.html
+- 价格与套餐 ; 试用版. 开箱即用个人及初创团队限时免费. 限时免费 ; 专业版/年度会员 · 个账号超高性价比用一年. ￥888 ; AI旗舰版 · ￥699 ; AI企业版. 中大型企业一站式软件 ...
+
+### 10. 我搜集了20个SAAS产品，总结出6种定价策略
+- **URL**: https://www.woshipm.com/data-analysis/1006480.html
+- 大部分的SAAS产品都会按照功能的多少进行分类，多为“普通版/基础版”、“专业版”、“高级版”。和版本相对应的，则是差异化的收费方案。 以著名的CRM客户管理系统sales force为 ...
+

@@ -1,0 +1,42 @@
+## Search Results (10 results, 1400ms)
+
+### 1. SAP SuccessFactors Learning 丨企业培训管理系统
+- **URL**: https://www.sap.cn/products/hcm/corporate-lms.html
+- SAP SuccessFactors Learning 解决方案提供富有创新性的功能，帮助企业优化技能管理，促进员工学习和发展，充分做好迎接未来的准备。
+
+### 2. 企業學習管理系統(LMS) | SAP SuccessFactors
+- **URL**: https://www.sap.com/taiwan/products/hcm/corporate-lms.html
+- SAP SuccessFactors Learning 是一套雲端企業LMS，可協助您管理合規培訓、建立技能並培養人才。它可以作為獨立解決方案運作，或作為SAP SuccessFactors HCM 套件的 ...
+
+### 3. 深入了解SAP SuccessFactors Learning
+- **URL**: https://learning.sap.com/courses/sap-successfactors-learning-administration-zh/%E6%B7%B1%E5%85%A5%E4%BA%86%E8%A7%A3-sap-successfactors-learning_ce88b7a6-3a74-4f3a-82df-7d87b53c738a_zh-CN
+- 根据角色或职位档案将特定学习活动分配给个人或组。 · 创建和管理训练计划。 · 跟踪用户注册状态。 · 定义能力并将其与学习活动相关联。 · 管理培训资源。 · 提供在线学习内容。
+
+### 4. 添加Learning 培训设备
+- **URL**: https://help.sap.com/docs/successfactors-learning/managing-sap-successfactors-learning-for-administrators/adding-learning-training-equipment?locale=zh-CN
+- 目录 · 控制学习项目中在线内容的设置 · 向学习项目添加内容包 · 将在线内容对象添加到学习项目 · 向学习项目添加评估 · 组织学习项目的在线学习内容 · 创建自适应在线课程.
+
+### 5. 介绍SAP SuccessFactors Learning
+- **URL**: https://learning.sap.com/courses/explore-sap-successfactors-solutions-zh/%E4%BB%8B%E7%BB%8D-sap-successfactors-learning_f1845233-56de-46cf-bf9b-9b5f9b7a1416_zh-CN
+- SAP SuccessFactors Learning 能够管理和提供员工培训，满足员工发展和合规需求。 · 学员可以访问个性化的培训计划、跟踪进度并轻松完成分配的课程。 · 该解决方案为经理和 ...
+
+### 6. 打造富有意義且個人化的學習體驗
+- **URL**: https://www.sap.com/taiwan/assetdetail/2024/12/00d1d592-e77e-0010-bca6-c68f7e60039b.html
+- 探索如何讓學員獲得個人化且有意義的體驗。您可以了解如何確保員工遵循法規並投入心力，並使學習資訊更具相關性。
+
+### 7. 了解学习需求管理模型
+- **URL**: https://learning.sap.com/courses/sap-successfactors-learning-project-team-orientation-zh/%E4%BA%86%E8%A7%A3%E5%AD%A6%E4%B9%A0%E9%9C%80%E6%B1%82%E7%AE%A1%E7%90%86%E6%A8%A1%E5%9E%8B_b3b8990b-0995-457c-9c59-21b50b569635_zh-CN
+- 学习需求管理模型说明了SAP SuccessFactors Learning 中跟踪的培训流程，该流程管理整个学习生命周期，包括用户可用的功能和可访问性，如下图所示。 学习需求管理模型 ...
+
+### 8. SAP SuccessFactors Learning [學習管理]：技能導向的學習與發展
+- **URL**: https://www.sap.com/taiwan/assetdetail/2024/12/0671d592-e77e-0010-bca6-c68f7e60039b.html
+- 探索如何根據企業需求推動員工技能成長。透過AI 驅動的建議、自主學習及整體人才流程，協助員工探索成長機會，並幫助學員持續專注於自身發展。
+
+### 9. 创建培训师角色
+- **URL**: https://learning.sap.com/courses/sap-successfactors-learning-academy-zh/%E5%88%9B%E5%BB%BA%E5%9F%B9%E8%AE%AD%E5%B8%88%E8%A7%92%E8%89%B2_e47f9422-cd8c-44d0-9584-570f6a5f8491_zh-CN
+- SAP SuccessFactors Learning 中的讲师是负责提供培训的任何用户。可以将培训师创建为系统中的资源，以便他们监督排定课程的一个或多个时间段。
+
+### 10. 导航用户界面​
+- **URL**: https://learning.sap.com/courses/sap-successfactors-learning-academy-zh/%E5%AF%BC%E8%88%AA%E7%94%A8%E6%88%B7%E7%95%8C%E9%9D%A2_b98b2c3c-8c36-4261-924a-84ffe1b7d063_zh-CN
+- 使用学习模块时，需要注意部分提供培训分配的清晰视图。用户可以选择查看全部按钮显示和过滤其学习任务。他们可以查看特定于自己的分配，经理还可以跟踪分配给其团队成员的 ...
+

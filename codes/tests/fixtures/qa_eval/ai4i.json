@@ -1,0 +1,433 @@
+{
+  "kb": "ai4i",
+  "n": 42,
+  "questions": [
+    {
+      "id": "ai4i-001",
+      "category": "attr",
+      "question": "有多少台机器",
+      "expect": "10000",
+      "check": "num",
+      "target": 10000.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-002",
+      "category": "attr",
+      "question": "机器总数",
+      "expect": "10000",
+      "check": "num",
+      "target": 10000.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-003",
+      "category": "attr",
+      "question": "机器中空气温度最大是多少",
+      "expect": "304.5",
+      "check": "num",
+      "target": 304.5,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-004",
+      "category": "attr",
+      "question": "机器的空气温度平均是多少",
+      "expect": "300.00",
+      "check": "num",
+      "target": 300.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-005",
+      "category": "neg",
+      "question": "机器中空气温度最小是多少",
+      "expect": "295.3",
+      "check": "num",
+      "target": 295.3,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-006",
+      "category": "neg",
+      "question": "空气温度最小的机器",
+      "expect": "295.3",
+      "check": "num",
+      "target": 295.3,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-007",
+      "category": "neg",
+      "question": "机器中空气温度大于300的机器有多少",
+      "expect": "5047",
+      "check": "num_paren",
+      "target": 5047.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-008",
+      "category": "attr",
+      "question": "机器中工艺温度最大是多少",
+      "expect": "313.8",
+      "check": "num",
+      "target": 313.8,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-009",
+      "category": "attr",
+      "question": "机器的工艺温度平均是多少",
+      "expect": "310.01",
+      "check": "num",
+      "target": 310.01,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-010",
+      "category": "neg",
+      "question": "机器中工艺温度最小是多少",
+      "expect": "305.7",
+      "check": "num",
+      "target": 305.7,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-011",
+      "category": "neg",
+      "question": "工艺温度最小的机器",
+      "expect": "305.7",
+      "check": "num",
+      "target": 305.7,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-012",
+      "category": "neg",
+      "question": "机器中工艺温度大于310.01的机器有多少",
+      "expect": "5037",
+      "check": "num_paren",
+      "target": 5037.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-013",
+      "category": "attr",
+      "question": "机器中转速最大是多少",
+      "expect": "2886",
+      "check": "num",
+      "target": 2886.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-014",
+      "category": "attr",
+      "question": "机器的转速平均是多少",
+      "expect": "1538.78",
+      "check": "num",
+      "target": 1538.78,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-015",
+      "category": "neg",
+      "question": "机器中转速最小是多少",
+      "expect": "1168",
+      "check": "num",
+      "target": 1168.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-016",
+      "category": "neg",
+      "question": "转速最小的机器",
+      "expect": "1168",
+      "check": "num",
+      "target": 1168.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-017",
+      "category": "neg",
+      "question": "机器中转速大于1538.78的机器有多少",
+      "expect": "4063",
+      "check": "num_paren",
+      "target": 4063.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-018",
+      "category": "attr",
+      "question": "机器中扭矩最大是多少",
+      "expect": "76.6",
+      "check": "num",
+      "target": 76.6,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-019",
+      "category": "attr",
+      "question": "机器的扭矩平均是多少",
+      "expect": "39.99",
+      "check": "num",
+      "target": 39.99,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-020",
+      "category": "neg",
+      "question": "机器中扭矩最小是多少",
+      "expect": "3.8",
+      "check": "num",
+      "target": 3.8,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-021",
+      "category": "neg",
+      "question": "扭矩最小的机器",
+      "expect": "3.8",
+      "check": "num",
+      "target": 3.8,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-022",
+      "category": "neg",
+      "question": "机器中扭矩大于39.99的机器有多少",
+      "expect": "5060",
+      "check": "num_paren",
+      "target": 5060.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-023",
+      "category": "attr",
+      "question": "机器中刀具磨损最大是多少",
+      "expect": "253",
+      "check": "num",
+      "target": 253.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-024",
+      "category": "attr",
+      "question": "机器的刀具磨损平均是多少",
+      "expect": "107.95",
+      "check": "num",
+      "target": 107.95,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-025",
+      "category": "type",
+      "question": "机器的类型有哪些",
+      "expect": "H、L、M",
+      "check": "contains",
+      "target": [
+        "H",
+        "L",
+        "M"
+      ],
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-026",
+      "category": "type",
+      "question": "机器的类型有多少种",
+      "expect": "3",
+      "check": "num",
+      "target": 3.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-027",
+      "category": "attr",
+      "question": "机器的机器故障有哪些",
+      "expect": "0、1",
+      "check": "contains",
+      "target": [
+        "0",
+        "1"
+      ],
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-028",
+      "category": "attr",
+      "question": "机器的机器故障有多少种",
+      "expect": "2",
+      "check": "num",
+      "target": 2.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-029",
+      "category": "multi",
+      "question": "H类机器有多少台",
+      "expect": "1003",
+      "check": "num",
+      "target": 1003.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-030",
+      "category": "multi",
+      "question": "L类机器有多少台",
+      "expect": "6000",
+      "check": "num",
+      "target": 6000.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-031",
+      "category": "multi",
+      "question": "M类机器有多少台",
+      "expect": "2997",
+      "check": "num",
+      "target": 2997.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "ai4i-032",
+      "category": "noans",
+      "question": "有多少个客户",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "ai4i-033",
+      "category": "noans",
+      "question": "客户总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "ai4i-034",
+      "category": "noans",
+      "question": "有多少个订单",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "ai4i-035",
+      "category": "noans",
+      "question": "订单总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "ai4i-036",
+      "category": "noans",
+      "question": "有多少个产品",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "ai4i-037",
+      "category": "noans",
+      "question": "产品总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "ai4i-038",
+      "category": "noans",
+      "question": "有多少个供应商",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "ai4i-039",
+      "category": "noans",
+      "question": "供应商总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "ai4i-040",
+      "category": "noans",
+      "question": "有多少个批次",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "ai4i-041",
+      "category": "noans",
+      "question": "批次总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "ai4i-042",
+      "category": "noans",
+      "question": "机器中刀具寿命最大是多少",
+      "expect": "拒答(库中无此属性)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    }
+  ]
+}

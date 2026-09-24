@@ -12,6 +12,31 @@ import sys, os, json
 from collections import defaultdict
 
 
+# ── 词典/schema 分层标记（KB 注册表 + 词典分层 2026-09-24）─────────────────────
+# schema 属「公共（共享）层」：建模由 kbs.json 的 schema 字段驱动的域无关同一套算法，
+# 新增行业只改注册表、不改本引擎。详见 codes/kb_registry.py。
+SCHEMA_LAYER = "shared"
+_KBS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "kbs.json")
+
+
+def schema_path_for_kb(kb, _kbs_file=None):
+    """按 KB 解析其 schema 文件绝对路径（读 kbs.json 的 schema 字段，不改引擎）。
+
+    返回 (schema_abs_or_None, nt_abs_or_None)：kb 未注册或未声明 schema 时前者为 None。
+    """
+    root = os.path.dirname(os.path.abspath(__file__))
+    try:
+        with open(_kbs_file or _KBS_FILE, encoding="utf-8") as f:
+            kbc = (json.load(f).get("kbs") or {}).get(str(kb).strip()) or {}
+    except Exception:
+        return None, None
+    sch = kbc.get("schema")
+    nt = kbc.get("nt")
+    schema_abs = os.path.join(root, sch) if sch else None
+    nt_abs = os.path.join(root, nt) if nt else None
+    return schema_abs, nt_abs
+
+
 def parse_nt(nt_file):
     """解析 N-Triples → [(s,p,o)]。"""
     from ontology_qa_v3 import parse_nt as _p

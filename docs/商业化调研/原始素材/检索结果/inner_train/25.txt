@@ -1,0 +1,42 @@
+## Search Results (10 results, 1600ms)
+
+### 1. 重塑企业培训的智能化未来研究集萃
+- **URL**: https://www.zhixueyun.com/about/yyjc/2025/0113/456.html
+- 知学云AI提供实时反馈和评估功能，帮助员工及时了解自己的学习情况和效果。AI还能根据学习数据，智能调整培训计划，以达到最佳培训效果。此外，通过数据 ... date: Jan 13, 2025
+
+### 2. AI 赋能效果学习
+- **URL**: https://m.umu.cn/home/ai-technology
+- 针对销售正式演讲、对话交谈等企业真实工作场景，UMU 个性化的AI 训练模型，助力员工自主训练，AI 实时评分、反馈、互动，突破效率瓶颈，规模化提升团队整体实战能力。
+
+### 3. 驅動員工善用企業數位學習平台的秘訣！3招經營撇步與 ...
+- **URL**: https://www.timingasia.com/digital-learning-platform-operation/
+- 首先，詳細調查和研究用戶畫像，精準規劃學習內容；其次，根據使用者需求，確定內部開發和外部採買的內容分類，並具體執行；再次，透過分析策略、組織及員工的學習需要， ...
+
+### 4. Q3案例｜AI大模型技术企业培训课程集合
+- **URL**: https://zhuanlan.zhihu.com/p/6124026742
+- 通过深入的技术探讨、案例分析和实战操作，学员将学习到最新的LLM技术和提示词工程技巧，并掌握如何在复杂的业务环境中设计、优化和部署大模型解决方案，以提高软件系统的 ...
+
+### 5. AI learning - 酷学院-企业培训学习与人才发展平台
+- **URL**: https://www.coolcollege.com/ai-learning.html
+- 练得真：还原真实业务场景，快速提升销售实战技能 · 批量录入已有题目，快速构建题库 · AI自动批阅，评分高效准确，释放人工成本.
+
+### 6. AI 培训| 免费实践式AI 学习
+- **URL**: https://experienceleague.adobe.com/zh-hans/ai-training
+- 学习– 社区专家分享真实案例和实用指导,帮助提升您的AI 技能。 以将AI 融入您的营销实践并快速看到成效。
+
+### 7. 企业培训系统的AI定制化解决方案
+- **URL**: https://www.nxb100.com/ygblogs/article/20250327/441730169250598912.html
+- 在培训过程中，AI系统实时监控员工的学习进度和效果，并根据反馈及时调整学习路径。此外，系统还通过数据分析，为企业提供了员工培训效果的全面评估报告， ... date: Mar 27, 2025
+
+### 8. AI重塑企業內訓！如何用智慧工具顛覆傳統辦訓流程與LMS ...
+- **URL**: https://training.104.com.tw/landingPage/blog/ai-learning-and-development
+- AI飛速發展，HR辦訓流程正面臨顛覆性變革！本文摘錄104講座精華，帶你解密如何從「先規劃再找課」轉變為「AI先生成計畫」的反向高效操作。 date: Sep 9, 2025
+
+### 9. NVIDIA 深度学习培训中心(DLI) | 讲师指导的培训班
+- **URL**: https://www.nvidia.cn/training/instructor-led-workshops/
+- 如果您的组织机构希望快速发展或提升在AI、加速计算或加速数据科学方面的技能和开发经验，可以随需报名面向个人的AI 培训班、申请企业专属培训班，或定制企业解决方案。
+
+### 10. AI 技能提升策略
+- **URL**: https://www.ibm.com/cn-zh/think/insights/ai-upskilling
+- 使用生成式AI 聊天机器人和个性化功能，可以为每位员工创造更多定制化的学习机会。它可以创建培训计划，将任何员工所需的基础AI 教育与针对学习者工作的具体指导相结合。
+

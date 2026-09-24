@@ -1,0 +1,42 @@
+## Search Results (10 results, 1380ms)
+
+### 1. AI私有化部署如何完成？ - 极光推送
+- **URL**: https://www.jiguang.cn/tips/1447
+- 明确业务需求：在开始部署之前，首先需要明确企业的具体需求和目标，包括确定所需的模型功能、数据规模、计算资源要求以及设定的性能指标等。 评估现有 ... date: Mar 21, 2025
+
+### 2. 通义千问AI大模型私有化部署 - Udemy
+- **URL**: https://www.udemy.com/course/ai-ykwkc/?srsltid=AU7gw4VemWYuszGn8VVaBzBvplhX1lEGVs0X8rMbOtCRfAwF4zskZzZ6
+- 学员通过本课程将全面掌握通义千问大模型的私有化部署技术，包括模型训练、调优、部署等核心技术，从而提升自己的技术能力，成为大模型私有化部署领域的专家。
+
+### 3. AI智能体私有化部署培训课程| DeepSeek+Dify企业级方案 - 艾威培训
+- **URL**: https://www.avtechcn.com/ap/dk/26595.html
+- 课程定位：本课程深入讲解如何在企业本地部署AI智能体，基于DeepSeek+Dify技术栈，涵盖RAG智能体开发、智能工作流设计和私有视觉感知模块，帮助企业 ... date: Jul 9, 2026
+
+### 4. 神州鲲泰陶然：AI产业化破局，大模型私有化部署驱动智能转型新范式
+- **URL**: http://www.news.cn/digital/20250411/f122e7640d9c485181b3725bf9489c0c/c.html
+- 客户对我们的期待是以'天'为单位，来衡量你提供的AI大模型一体机的交付和部署能力。而开源大模型与国产全栈私有化部署解决方案的结合，正在重塑行业生态， ... date: Apr 11, 2025
+
+### 5. 让每个企业都拥有专属大模型-华为企业业务
+- **URL**: https://e.huawei.com/cn/blogs/huawei-cloud/let-every-enterprise-have-model
+- 企业需要在保证数据安全的基础上，让私有数据参与大模型的训练。我们认为，本地化部署的企业专属大模型可以很好地平衡“安全”与“懂行”之间的矛盾，将成为 ... date: Dec 27, 2023
+
+### 6. 大模型私有化部署浪潮下的AB面： 警惕“信息孤岛”顽疾在AI时代复现
+- **URL**: https://stcn.com/article/detail/1582536.html
+- 思瀚产业研究院数据显示，近60%企业选择在本地数据中心或私有云和边缘位置部署AI推理模型，显示出对私有部署的偏好。为什么私有化部署更受企业与机构的 ... date: Mar 14, 2025
+
+### 7. AI 模型从部署到上线：击破这5 大挑战，效率将翻倍！ - SmartX
+- **URL**: https://www.smartx.com/blog/2025/12/ai-deployment-5-challenges/
+- 随着生成式AI 的不断成熟，企业AI 团队经常会收到来自业务侧的AI 大模型使用需求，在私有化环境中完成AI 大模型的部署并将API 交付给业务团队。 date: Dec 25, 2025
+
+### 8. 企业级AI - Cloudera
+- **URL**: https://www.clouderacn.cn/products/enterprise-ai.html
+- 生产环境：Cloudera AI Inference 有助于部署、提供和监控AI 模型，并可完全控制私有模型端点。 注册表：Cloudera AI Registry 是模型元数据、血缘、工件、版本 ...
+
+### 9. AI 赋能私有化大模型，HTZL.AI 实现NVIDIA DGX Spark 全栈标准化 ...
+- **URL**: https://blogs.nvidia.cn/blog/ai-powered-private-llms-htzl-ai-delivers-a-standardized-full-stack-deployment-on-nvidia-dgx-spark/
+- 随着大模型在企业场景快速渗透，落地场景正由“公有云SaaS”扩展至“客户办公室/机房内的私有化部署”。不同于公有云场景，私有化部署对系统提出了全新挑战： ... date: Jul 9, 2026
+
+### 10. 你的AI大模型可能正在“裸奔” 这三重风险必须警惕 - 中国科技网
+- **URL**: https://www.stdaily.com/web/gdxw/2025-03/27/content_315349.html
+- 单位、企业在部署大模型前，需要进行全面的风险评估和安全规划，通过制定安全政策、开展安全培训等方式，提高全员安全意识。广大民众要增强大模型使用 ... date: Mar 27, 2025
+

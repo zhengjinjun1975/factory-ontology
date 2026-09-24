@@ -1,0 +1,42 @@
+## Search Results (10 results, 2285ms)
+
+### 1. AI智课- AI智能课件生成平台| 一键生成教材、PPT、视频、试卷
+- **URL**: https://aizhike.com.cn/
+- AI智课是AI驱动的智能课件生成平台，输入课程主题即可一键生成教材、PPT课件、教学视频、考试试卷、知识图谱等全套教学资源，助力教师备课效率提升10倍。
+
+### 2. 优质学徒制培训与终身学习项目二期
+- **URL**: https://www.ilo.org/sites/default/files/2026-03/20251230_AI%E5%BA%94%E7%94%A8%E8%83%BD%E5%8A%9B%E6%8F%90%E5%8D%87%E6%95%99%E5%B8%88%E6%8C%87%E5%8D%97-%E6%B5%8F%E8%A7%88cover%20pro.pdf
+- 为了更高效地构建教学辅助AI 提示词，系统提供了“模型提示词生成”模块（如图17. 所示）。该模块支持教师通过预设结构，快速生成结构清晰、逻辑严谨的教学辅助提示词，.
+
+### 3. AI 培训课程生成器免费在线
+- **URL**: https://leadde.ai/zh/tools/ai-training-course-generator
+- 轻松上传培训PDF、PowerPoint演示文稿或文本提示。我们的AI培训视频生成器能自动将内容拆解成适合成人学习方法的短小视频模块，无需手动搭建场景。
+
+### 4. 干货｜AI赋能教学开发-利用AI生成教案、课件和讲义
+- **URL**: https://zhuanlan.zhihu.com/p/899411744
+- 本内容为为高校教师授课分享的内容，分两部分，一是实操演示如何通过AI工具来设计课程方案和课件；二是分享一些比较新的AI工具、智能体、提示词等。 date: Oct 10, 2024
+
+### 5. NVIDIA 深度学习培训中心(DLI) | 讲师指导的培训班
+- **URL**: https://www.nvidia.cn/training/instructor-led-workshops/
+- NVIDIA 提供培训和AI 专业认证，助力专业人士提升在生成式AI 与大语言模型、深度学习、加速计算、数据科学、图形与仿真等领域的技能和知识。 咨询NVIDIA 培训和认证，请将 ...
+
+### 6. 2025企业培训AI工具推荐提升你的培训效率，强烈建议收藏
+- **URL**: https://mtz.china.com/touzi/2025/1211/207261.html
+- 现在AI技术可以在几小时内生成完整的课程大纲、课件内容、案例库和测试题目，较大降低了课程开发成本，缩短开发周期，且内容质量更加稳定。 3，Sanofi. date: Dec 11, 2025
+
+### 7. AI Course Creator - Generator - Google Play 上的应用
+- **URL**: https://play.google.com/store/apps/details?id=com.app.ai.course&hl=zh
+- **人工智能课程生成**：轻松创建任何主题的课程。 AI 课程创建器- 生成器利用最新的AI 技术来生成引人入胜且信息丰富的课程内容，为您节省时间和精力。 date: Mar 6, 2025 rating: 4.3 rating_count: 586
+
+### 8. 2025年在线课程创建十大AI工具
+- **URL**: https://kwiga.com/zh/blog/2025-nian-zui-jia-ke-cheng-chuang-jian-ai-gong-ju
+- AI工具能够完美适应任何规模的学习群体，从10人到10,000人都不成问题。通过使用人工智能，您可以轻松复制培训模式、更新内容，并以更快的速度在平台上完成相同的任务。
+
+### 9. 智启未来：AI全栈赋能教师核心能力提升实战工作坊(线上)
+- **URL**: https://www.ncda.org.cn/news/2026/0902/761.html
+- 课程内容既包含教学动画、数字人微课、课件美化等教学核心技能，也涵盖论文自动化排版、流程图生成、文献分析等科研辅助能力，更纳入文档智能归类、数据 ... date: Sep 2, 2026
+
+### 10. 智能学习培训考试平台-泛微·青蓝阁
+- **URL**: https://www.qinglange.com/product/
+- 智能课件编写. 系统提供在线课件编辑生成的能力，借助AI大模型帮助培训管理人员快速生成多种类型的课件内容，通过自然语言需求描述或关联一个文档，实现不同模态模型 ...
+

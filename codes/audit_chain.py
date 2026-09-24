@@ -55,7 +55,16 @@ class AuditChainError(Exception):
 
 
 class AuditChain:
-    """哈希链溯源账本。线程安全: 每次操作短连接 + 即时提交。"""
+    """哈希链溯源账本。线程安全: 每次操作短连接 + 即时提交。
+
+    并发写(2026-09-24 加固): _append 用**单个连接 + BEGIN IMMEDIATE 事务**把
+    「读上一条 checksum」与「插入本行」原子化, 并显式设 busy_timeout。
+    修复前两者分属两个连接, 8 线程并发写会读到同一 prev_checksum → 链断裂
+    (verify_chain 报 chain_break, 实测 200 条里 2 处)。
+    """
+
+    # 忙等超时(毫秒): 并发写时等锁而非立刻 "database is locked"
+    _BUSY_TIMEOUT_MS = 5000
 
     def __init__(self, db_path=None):
         # 默认放 temp(不污染仓库); 显式传路径则持久化到指定文件
@@ -68,7 +77,22 @@ class AuditChain:
 
     # ── 基础设施 ──────────────────────────────
     def _conn(self):
-        c = sqlite3.connect(self.db_path)
+        """短连接 + 显式 busy_timeout(默认 5s 忙等, 避免并发下立刻报锁)。"""
+        c = sqlite3.connect(self.db_path, timeout=self._BUSY_TIMEOUT_MS / 1000.0)
+        try:
+            c.execute(f"PRAGMA busy_timeout={self._BUSY_TIMEOUT_MS}")
+        except Exception:
+            pass
+        return c
+
+    def _write_conn(self):
+        """写专用连接: 自动提交模式(便于自行 BEGIN IMMEDIATE 控制事务边界)。"""
+        c = sqlite3.connect(self.db_path, timeout=self._BUSY_TIMEOUT_MS / 1000.0,
+                            isolation_level=None)
+        try:
+            c.execute(f"PRAGMA busy_timeout={self._BUSY_TIMEOUT_MS}")
+        except Exception:
+            pass
         return c
 
     def _init_schema(self):
@@ -95,17 +119,30 @@ class AuditChain:
     def _append(self, kind: str, payload: dict) -> int:
         data = json.dumps(payload, ensure_ascii=False, sort_keys=True)
         cs = self._checksum(data)
-        prev = self._last_row()
-        prev_cs = prev[1] if prev else None
-        with self._conn() as c:
-            ts = datetime.now().astimezone().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + \
-                 datetime.now().astimezone().strftime("%z")  # 毫秒+时区(避开 strftime %z/%f 平台坑)
+        ts = datetime.now().astimezone().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + \
+             datetime.now().astimezone().strftime("%z")  # 毫秒+时区(避开 strftime %z/%f 平台坑)
+        # 单连接 + BEGIN IMMEDIATE: 读 prev 与插入原子完成, 并发写不会读到同一 prev(防断链)
+        c = self._write_conn()
+        try:
+            c.execute("BEGIN IMMEDIATE")
+            cur = c.execute("SELECT checksum FROM ledger ORDER BY id DESC LIMIT 1")
+            row = cur.fetchone()
+            prev_cs = row[0] if row else None
             cur = c.execute(
                 "INSERT INTO ledger (ts, kind, payload, checksum, prev_checksum) VALUES (?,?,?,?,?)",
                 (ts, kind, data, cs, prev_cs),
             )
             rid = cur.lastrowid
-        return rid
+            c.execute("COMMIT")
+            return rid
+        except Exception:
+            try:
+                c.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        finally:
+            c.close()
 
     def record_trace(self, *, source: str, target: str, relation: str = "uses",
                      detail: str = "") -> int:
@@ -148,6 +185,39 @@ class AuditChain:
     def record_note(self, note: str) -> int:
         """记录一条自由备注(审计留痕)。"""
         return self._append("note", {"op": "note", "note": note[:2000]})
+
+    def record_access(self, *, subject: str, action: str, result: str,
+                      role: str = "", detail: str = "", metadata=None) -> int:
+        """记录一次鉴权/访问事件(商用级加固 2026-09-24)。
+
+        主体(subject) + 动作(action, 如 authenticate/issue_token/whoami) +
+        结果(result ∈ grant|deny) + 角色(role)。时间由 _append 统一盖 ts,
+        并进入哈希链(防事后删改鉴权记录)。返回 ledger id。
+        """
+        payload = {
+            "op": "access",
+            "subject": str(subject or "anonymous")[:200],
+            "action": str(action or "access")[:100],
+            "result": str(result or "unknown")[:20],
+            "role": str(role or "")[:40],
+            "detail": str(detail or "")[:500],
+        }
+        if metadata:
+            payload["metadata"] = metadata
+        return self._append("access", payload)
+
+    # ── 留存 ─────────────────────────────────────
+    def retention(self) -> dict:
+        """留存概况(合规留档用): 最早/最新 ts, 总条数。
+
+        注: 哈希链不可删行(删行会留序号缝隙并被 verify_chain 抓),
+        故链式审计以「全量保留 + 定期 export_audit 归档」为留存策略;
+        体量过大的普通访问日志(JSONL)按 ≥6 个月留存期轮转清理(见 api_server)。
+        """
+        with self._conn() as c:
+            cur = c.execute("SELECT COUNT(*), MIN(ts), MAX(ts) FROM ledger")
+            n, first, last = cur.fetchone()
+        return {"total": n or 0, "first_ts": first, "last_ts": last}
 
     # ── 读取 ──────────────────────────────────
     def get(self, rid: int) -> dict:

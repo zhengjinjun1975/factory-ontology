@@ -1,0 +1,488 @@
+{
+  "kb": "food",
+  "n": 44,
+  "questions": [
+    {
+      "id": "food-001",
+      "category": "attr",
+      "question": "有多少个产品",
+      "expect": "8",
+      "check": "num",
+      "target": 8.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-002",
+      "category": "attr",
+      "question": "产品总数",
+      "expect": "8",
+      "check": "num",
+      "target": 8.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-003",
+      "category": "attr",
+      "question": "产品中保质期最大是多少",
+      "expect": "180",
+      "check": "num",
+      "target": 180.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-004",
+      "category": "attr",
+      "question": "产品的保质期平均是多少",
+      "expect": "63.88",
+      "check": "num",
+      "target": 63.88,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-005",
+      "category": "neg",
+      "question": "产品中保质期最小是多少",
+      "expect": "5",
+      "check": "num",
+      "target": 5.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-006",
+      "category": "neg",
+      "question": "保质期最小的产品",
+      "expect": "5",
+      "check": "num",
+      "target": 5.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-007",
+      "category": "neg",
+      "question": "产品中保质期大于63.88的产品有多少",
+      "expect": "3",
+      "check": "num_paren",
+      "target": 3.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-008",
+      "category": "attr",
+      "question": "产品中价格最大是多少",
+      "expect": "18",
+      "check": "num",
+      "target": 18.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-009",
+      "category": "attr",
+      "question": "产品的价格平均是多少",
+      "expect": "10.06",
+      "check": "num",
+      "target": 10.06,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-010",
+      "category": "neg",
+      "question": "产品中价格最小是多少",
+      "expect": "3.5",
+      "check": "num",
+      "target": 3.5,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-011",
+      "category": "neg",
+      "question": "价格最小的产品",
+      "expect": "3.5",
+      "check": "num",
+      "target": 3.5,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-012",
+      "category": "neg",
+      "question": "产品中价格大于10.06的产品有多少",
+      "expect": "3",
+      "check": "num_paren",
+      "target": 3.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-013",
+      "category": "attr",
+      "question": "产品的品类有哪些",
+      "expect": "乳制品、果汁饮品、烘焙食品、速冻食品",
+      "check": "contains",
+      "target": [
+        "乳制品",
+        "果汁饮品",
+        "烘焙食品",
+        "速冻食品"
+      ],
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-014",
+      "category": "attr",
+      "question": "产品的品类有多少种",
+      "expect": "4",
+      "check": "num",
+      "target": 4.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-015",
+      "category": "attr",
+      "question": "产品的储存方式有哪些",
+      "expect": "-18℃冷冻、2-6℃冷藏、常温避光、常温阴凉",
+      "check": "contains",
+      "target": [
+        "-18℃冷冻",
+        "2-6℃冷藏",
+        "常温避光",
+        "常温阴凉"
+      ],
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-016",
+      "category": "attr",
+      "question": "产品的储存方式有多少种",
+      "expect": "4",
+      "check": "num",
+      "target": 4.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-017",
+      "category": "attr",
+      "question": "有多少台设备",
+      "expect": "7",
+      "check": "num",
+      "target": 7.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-018",
+      "category": "attr",
+      "question": "设备总数",
+      "expect": "7",
+      "check": "num",
+      "target": 7.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-019",
+      "category": "attr",
+      "question": "设备中功率最大是多少",
+      "expect": "200",
+      "check": "num",
+      "target": 200.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-020",
+      "category": "attr",
+      "question": "设备的功率平均是多少",
+      "expect": "75.00",
+      "check": "num",
+      "target": 75.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-021",
+      "category": "neg",
+      "question": "设备中功率最小是多少",
+      "expect": "15",
+      "check": "num",
+      "target": 15.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-022",
+      "category": "neg",
+      "question": "功率最小的设备",
+      "expect": "15",
+      "check": "num",
+      "target": 15.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-023",
+      "category": "neg",
+      "question": "设备中功率大于75的设备有多少",
+      "expect": "3",
+      "check": "num_paren",
+      "target": 3.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-024",
+      "category": "type",
+      "question": "设备的设备类型有哪些",
+      "expect": "制冷设备、包装设备、搅拌设备、杀菌设备、灌装设备、烘烤设备、速冻设备",
+      "check": "contains",
+      "target": [
+        "制冷设备",
+        "包装设备",
+        "搅拌设备",
+        "杀菌设备",
+        "灌装设备",
+        "烘烤设备",
+        "速冻设备"
+      ],
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-025",
+      "category": "type",
+      "question": "设备的设备类型有多少种",
+      "expect": "7",
+      "check": "num",
+      "target": 7.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-026",
+      "category": "attr",
+      "question": "设备的车间有哪些",
+      "expect": "乳品车间、冷冻车间、冷藏库、包装车间、烘焙车间",
+      "check": "contains",
+      "target": [
+        "乳品车间",
+        "冷冻车间",
+        "冷藏库",
+        "包装车间",
+        "烘焙车间"
+      ],
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-027",
+      "category": "attr",
+      "question": "设备的车间有多少种",
+      "expect": "5",
+      "check": "num",
+      "target": 5.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-028",
+      "category": "neg",
+      "question": "running的设备有哪些",
+      "expect": "灌装机-01、烘焙炉-1、冷库机组-01、搅拌罐-1、杀菌机-01、速冻隧道-1",
+      "check": "contains_not",
+      "target": [
+        "灌装机-01",
+        "烘焙炉-1",
+        "冷库机组-01",
+        "搅拌罐-1",
+        "杀菌机-01",
+        "速冻隧道-1"
+      ],
+      "absent": [
+        "封口机-01"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "food-029",
+      "category": "neg",
+      "question": "stopped的设备有哪些",
+      "expect": "封口机-01",
+      "check": "contains_not",
+      "target": [
+        "封口机-01"
+      ],
+      "absent": [
+        "灌装机-01",
+        "烘焙炉-1",
+        "冷库机组-01",
+        "搅拌罐-1",
+        "杀菌机-01",
+        "速冻隧道-1"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "food-030",
+      "category": "neg",
+      "question": "批次中数量最小是多少",
+      "expect": "800",
+      "check": "num",
+      "target": 800.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-031",
+      "category": "multi",
+      "question": "设备总数",
+      "expect": "7",
+      "check": "num",
+      "target": 7.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-032",
+      "category": "multi",
+      "question": "批次总数",
+      "expect": "9",
+      "check": "num",
+      "target": 9.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-033",
+      "category": "multi",
+      "question": "原料总数",
+      "expect": "10",
+      "check": "num",
+      "target": 10.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-034",
+      "category": "multi",
+      "question": "质检总数",
+      "expect": "10",
+      "check": "num",
+      "target": 10.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-035",
+      "category": "multi",
+      "question": "B001 批次用了多少种原料",
+      "expect": "2 种",
+      "check": "num",
+      "target": 2.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "food-036",
+      "category": "noans",
+      "question": "有多少个客户",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "food-037",
+      "category": "noans",
+      "question": "客户总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "food-038",
+      "category": "noans",
+      "question": "有多少个订单",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "food-039",
+      "category": "noans",
+      "question": "订单总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "food-040",
+      "category": "noans",
+      "question": "有多少个供应商",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "food-041",
+      "category": "noans",
+      "question": "供应商总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "food-042",
+      "category": "noans",
+      "question": "有多少个阀门",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "food-043",
+      "category": "noans",
+      "question": "阀门总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "food-044",
+      "category": "noans",
+      "question": "产品中纯度最大是多少",
+      "expect": "拒答(库中无此属性)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    }
+  ]
+}

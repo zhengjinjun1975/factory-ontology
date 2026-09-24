@@ -1,0 +1,42 @@
+## Search Results (10 results, 1510ms)
+
+### 1. 自适应学习如何改变教育格局
+- **URL**: https://aicoursecreator.eskilled.io/zh-hans/blog/%E8%87%AA%E9%80%82%E5%BA%94%E5%AD%A6%E4%B9%A0%E5%A6%82%E4%BD%95%E6%94%B9%E5%8F%98%E6%95%99%E8%82%B2%E6%A0%BC%E5%B1%80/
+- 自适应电子学习由人工智能、数据分析和智能内容设计相结合提供支持。随着学习者学习材料，系统会从测验结果、参与度指标、完成时间等中收集实时数据。然后，它使用收集 ...
+
+### 2. 大模型时代的智适应学习研究：进展、实例与展望
+- **URL**: https://www.ictdedu.cn/sknews/jyxxhs/neirong/n20240606_84613.shtml
+- 自适应教育是一种利用技术来促进学习者个性化学习体验的样态，其核心在于个性化学习路径规划、数据驱动决策、及时反馈支持以及学习内容个性化。具体来看： ... date: Jun 6, 2024
+
+### 3. AI驱动企业内训：智能内容生产与个性化学习路径
+- **URL**: https://bbs.csdn.net/weixin_29038303/article/details/100232117
+- 本文介绍如何利用人工智能技术构建智能企业培训系统，重点涵盖自适应学习路径生成与个性化内容推荐。通过机器学习与自然语言处理算法，结合决策树和LSTM ... date: Jul 27, 2026
+
+### 4. 松鼠Ai发布教育大模型：自适应学习应用加速落地
+- **URL**: https://www.21jingji.com/article/20240108/herald/5f33be0e1b60f39755ed9db8c360ddbb.html
+- 松鼠Ai的智适应学习技术，多年来通过校外培训、中小学校进校等场景落地，最新的落地场景是学习机。 松鼠Ai在发布会上表示，2023年，松鼠Ai已经完成 ... date: Jan 8, 2024
+
+### 5. AI 赋能效果学习
+- **URL**: https://m.umu.cn/home/ai-technology
+- 针对销售正式演讲、对话交谈等企业真实工作场景，UMU 个性化的AI 训练模型，助力员工自主训练，AI 实时评分、反馈、互动，突破效率瓶颈，规模化提升团队整体实战能力。
+
+### 6. 自适应教育：原理、落地流程与迭代
+- **URL**: https://m.36kr.com/p/1723404107777
+- 自适应学习是基于AI相关算法技术实现的，在呈现自适应学习基本原理之前，先了解AI在教育中的全版图落地，会有助于相对全面地判断自适应学习实现的意义：它 ... date: Apr 1, 2019
+
+### 7. AI技术如何赋能企业教育培训行业？
+- **URL**: https://www.sinostrong.com/article/2732.html
+- AI在企业教育培训中的应用正在深刻改变传统的学习模式。 以提供个性化的学习资源和路径,从而提高学习效果和学习满意度。 date: Mar 12, 2025
+
+### 8. 了解自适应学习设计及其应用
+- **URL**: https://www.coursebox.ai/zh/blog/zi-gua-ying-xue-xi-she-ji
+- 取而代之的是，使用企业培训的自适应学习设计、教育或在线学习可以增强技能，增加知识并缩短学习周期。 将人工智能集成平台与自适应学习设计相结合 ... date: Oct 2, 2024
+
+### 9. 智存高远，适应未来— 中国智适应教育行业白皮书
+- **URL**: https://www.ey.com/zh_cn/insights/education/intelligent-beyond-imagination-adaptive-to-the-future-china-ai-adaptive-learning-industry-whitepaper
+- 在AI技术与OMO教学模式的“双轮驱动”下，智适应教育正推动着“因材施教”教学理念逐步落地，行业玩家或将迎来千亿级市场发展机遇。
+
+### 10. 2018年中国人工智能自适应教育行业研究报告
+- **URL**: https://m.jiemian.com/article/1960945.html
+- 人工智能自适应则能够把人工智能技术渗透到教学的核心环节中，既有助于从根本上改进学习的理念和方式，也有助于产品打通商业模式，直接面向C端用户销售 ... date: Feb 27, 2018
+

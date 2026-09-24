@@ -1,0 +1,374 @@
+{
+  "kb": "manufacturing",
+  "n": 33,
+  "questions": [
+    {
+      "id": "manufacturing-001",
+      "category": "attr",
+      "question": "有多少台设备",
+      "expect": "5",
+      "check": "num",
+      "target": 5.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-002",
+      "category": "attr",
+      "question": "设备总数",
+      "expect": "5",
+      "check": "num",
+      "target": 5.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-003",
+      "category": "attr",
+      "question": "设备中功率最大是多少",
+      "expect": "22.5",
+      "check": "num",
+      "target": 22.5,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-004",
+      "category": "attr",
+      "question": "设备的功率平均是多少",
+      "expect": "14.30",
+      "check": "num",
+      "target": 14.3,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-005",
+      "category": "neg",
+      "question": "设备中功率最小是多少",
+      "expect": "3.5",
+      "check": "num",
+      "target": 3.5,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-006",
+      "category": "neg",
+      "question": "功率最小的设备",
+      "expect": "3.5",
+      "check": "num",
+      "target": 3.5,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-007",
+      "category": "neg",
+      "question": "设备中功率大于14.3的设备有多少",
+      "expect": "3",
+      "check": "num_paren",
+      "target": 3.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-008",
+      "category": "type",
+      "question": "设备的设备类型有哪些",
+      "expect": "加工中心、机器人、检测设备、焊接设备",
+      "check": "contains",
+      "target": [
+        "加工中心",
+        "机器人",
+        "检测设备",
+        "焊接设备"
+      ],
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-009",
+      "category": "type",
+      "question": "设备的设备类型有多少种",
+      "expect": "4",
+      "check": "num",
+      "target": 4.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-010",
+      "category": "attr",
+      "question": "设备的状态有哪些",
+      "expect": "idle、running、stopped",
+      "check": "contains",
+      "target": [
+        "idle",
+        "running",
+        "stopped"
+      ],
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-011",
+      "category": "attr",
+      "question": "设备的状态有多少种",
+      "expect": "3",
+      "check": "num",
+      "target": 3.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-012",
+      "category": "neg",
+      "question": "idle的设备有哪些",
+      "expect": "质检仪-01",
+      "check": "contains_not",
+      "target": [
+        "质检仪-01"
+      ],
+      "absent": [
+        "CNC铣床-1",
+        "焊机-1",
+        "CNC铣床-2",
+        "装配机器人-1"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-013",
+      "category": "neg",
+      "question": "running的设备有哪些",
+      "expect": "CNC铣床-1、CNC铣床-2、装配机器人-1",
+      "check": "contains_not",
+      "target": [
+        "CNC铣床-1",
+        "CNC铣床-2",
+        "装配机器人-1"
+      ],
+      "absent": [
+        "焊机-1",
+        "质检仪-01"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-014",
+      "category": "neg",
+      "question": "stopped的设备有哪些",
+      "expect": "焊机-1",
+      "check": "contains_not",
+      "target": [
+        "焊机-1"
+      ],
+      "absent": [
+        "CNC铣床-1",
+        "CNC铣床-2",
+        "装配机器人-1",
+        "质检仪-01"
+      ],
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-015",
+      "category": "attr",
+      "question": "有多少条产线",
+      "expect": "3",
+      "check": "num",
+      "target": 3.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-016",
+      "category": "attr",
+      "question": "产线总数",
+      "expect": "3",
+      "check": "num",
+      "target": 3.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-017",
+      "category": "attr",
+      "question": "产线的区域有哪些",
+      "expect": "机加车间、装配车间、质检车间",
+      "check": "contains",
+      "target": [
+        "机加车间",
+        "装配车间",
+        "质检车间"
+      ],
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-018",
+      "category": "attr",
+      "question": "产线的区域有多少种",
+      "expect": "3",
+      "check": "num",
+      "target": 3.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-019",
+      "category": "attr",
+      "question": "有多少家供应商",
+      "expect": "3",
+      "check": "num",
+      "target": 3.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-020",
+      "category": "attr",
+      "question": "供应商总数",
+      "expect": "3",
+      "check": "num",
+      "target": 3.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-021",
+      "category": "attr",
+      "question": "供应商的所在地有哪些",
+      "expect": "上海、德国、日本",
+      "check": "contains",
+      "target": [
+        "上海",
+        "德国",
+        "日本"
+      ],
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-022",
+      "category": "attr",
+      "question": "供应商的所在地有多少种",
+      "expect": "3",
+      "check": "num",
+      "target": 3.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-023",
+      "category": "multi",
+      "question": "产线总数",
+      "expect": "3",
+      "check": "num",
+      "target": 3.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-024",
+      "category": "multi",
+      "question": "供应商总数",
+      "expect": "3",
+      "check": "num",
+      "target": 3.0,
+      "absent": null,
+      "answerable": true
+    },
+    {
+      "id": "manufacturing-025",
+      "category": "noans",
+      "question": "有多少个客户",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "manufacturing-026",
+      "category": "noans",
+      "question": "客户总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "manufacturing-027",
+      "category": "noans",
+      "question": "有多少个订单",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "manufacturing-028",
+      "category": "noans",
+      "question": "订单总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "manufacturing-029",
+      "category": "noans",
+      "question": "有多少个产品",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "manufacturing-030",
+      "category": "noans",
+      "question": "产品总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "manufacturing-031",
+      "category": "noans",
+      "question": "有多少个锅炉",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "manufacturing-032",
+      "category": "noans",
+      "question": "锅炉总数",
+      "expect": "拒答(库中无此实体)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    },
+    {
+      "id": "manufacturing-033",
+      "category": "noans",
+      "question": "设备中纯度最大是多少",
+      "expect": "拒答(库中无此属性)",
+      "check": "refuse",
+      "target": null,
+      "absent": null,
+      "answerable": false
+    }
+  ]
+}
