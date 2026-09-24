@@ -19,9 +19,9 @@
 
 用法
 ----
-  C:/Python312/python.exe scripts/verify_qa_envelope.py
-  C:/Python312/python.exe scripts/verify_qa_envelope.py --kb valve
-  C:/Python312/python.exe scripts/verify_qa_envelope.py --baseline scripts/eval_qa_baseline.json
+  <python> scripts/verify_qa_envelope.py
+  <python> scripts/verify_qa_envelope.py --kb valve
+  <python> scripts/verify_qa_envelope.py --baseline scripts/eval_qa_baseline.json
 退出码：全部通过 0；有断言失败 1（并逐条打印失败原因，不静默）。
 """
 import argparse

@@ -45,7 +45,7 @@
 ## 复核命令
 
 ```bash
-cd D:/factory-ontology/codes
+cd <repo>/codes
 python - <<'PY'
 import json, os
 STATUS = set("运行中 运行 正常 工作中 停止 停机 空闲 待机 故障 报警 异常 维护 保养 维修 离线 "

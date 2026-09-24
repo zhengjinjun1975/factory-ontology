@@ -168,10 +168,10 @@
       "lexicon": "lexicon_library.json",
       "nt": "output/library.nt"
     },
-    "huaneng": {
-      "data_dir": "data_huaneng",
-      "lexicon": "lexicon_huaneng.json",
-      "nt": "output/huaneng.nt",
+    "demo_power": {
+      "data_dir": "data_demo_power",
+      "lexicon": "lexicon_demo_power.json",
+      "nt": "output/demo_power.nt",
       "examples": [
         "有多少台发电机组",
         "运行中的机组有哪些",

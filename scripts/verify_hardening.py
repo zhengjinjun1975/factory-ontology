@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """verify_hardening.py — 商用级加固自检（真实执行，非纸面断言）。
 
-跑: C:/Python312/python.exe scripts/verify_hardening.py
+跑: <python> scripts/verify_hardening.py
 （或: cd codes && python ../scripts/verify_hardening.py）
 
 三块，全部真实跑：

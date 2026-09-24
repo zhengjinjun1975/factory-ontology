@@ -27,9 +27,9 @@
 
 用法
 ----
-  C:/Python312/python.exe scripts/verify_advisory.py
-  C:/Python312/python.exe scripts/verify_advisory.py --kb valve      # 只跑某 KB
-  C:/Python312/python.exe scripts/verify_advisory.py --snapshot e197585   # 换基准提交
+  <python> scripts/verify_advisory.py
+  <python> scripts/verify_advisory.py --kb valve      # 只跑某 KB
+  <python> scripts/verify_advisory.py --snapshot e197585   # 换基准提交
 退出码：全通过 0；有断言失败 1（逐条打印失败原因，不静默）。
 """
 import argparse

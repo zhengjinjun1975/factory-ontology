@@ -1,4 +1,4 @@
-# D:/factory-ontology/codes/evidence_norm.py
+# codes/evidence_norm.py
 """工厂本体问答 - 证据标准化层。纯标准库。"""
 
 _SOURCES = {'rule', 'logical', 'graph', 'bm25', 'vector', 'doc', 'hybrid'}

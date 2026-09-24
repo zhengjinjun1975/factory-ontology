@@ -10,7 +10,7 @@ import os
 import re
 import sys
 
-sys.path.insert(0, r"D:\factory-ontology\codes")
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "codes"))
 from agents.lexicon_agent import LexiconAgent
 
 a = LexiconAgent()

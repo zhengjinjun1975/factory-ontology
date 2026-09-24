@@ -9,7 +9,7 @@
   ④ 预设与流程定义一一对应
 外加：no_input 不判整条失败；失败停在该步且原因真实；audit_chain 可回放。
 
-运行： C:/Python312/python.exe scripts/verify_flows.py
+运行： <python> scripts/verify_flows.py
 纪律： 纯标准库；临时文件全部落 %TEMP%；自起临时端口，收尾关掉；不动真实数据。
 """
 import json

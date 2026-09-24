@@ -10,7 +10,7 @@
   T5 词典层冲突报错（公共层 vs 工厂层同词不同名 → 抛错，不静默覆盖）
 
 纪律：全程用 %TEMP% 临时副本，**不碰真实 config/kbs.json、不删任何真实数据**。
-运行： C:/Python312/python.exe scripts/verify_kb_registry.py
+运行： <python> scripts/verify_kb_registry.py
 退出码 0 = 全过；非 0 = 有失败用例。
 """
 import os
@@ -20,7 +20,7 @@ import shutil
 import subprocess
 import tempfile
 
-REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # D:/factory-ontology
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # <repo>
 CODES = os.path.join(REPO, "codes")
 REAL_KBS = os.path.join(CODES, "config", "kbs.json")
 
@@ -124,12 +124,12 @@ def main():
     p_real = KR.probe_kb("valve")
     check("真实 KB 'valve' 探测为 ready（对照真库）",
           p_real["status"] == "ready", "data_dir=%s files=%d" % (p_real["data_dir"], p_real["data_file_count"]))
-    p_huaneng = KR.probe_kb("huaneng")
-    check("真实 KB 'huaneng' 数据在→data_ready=True、本体缺→servable=False（真实原因列出）",
-          p_huaneng["data_ready"] is True and p_huaneng["servable"] is False
-          and any("本体文件缺失" in m for m in p_huaneng["missing"]),
+    p_demo_power = KR.probe_kb("demo_power")
+    check("真实 KB 'demo_power' 数据在→data_ready=True、本体缺→servable=False（真实原因列出）",
+          p_demo_power["data_ready"] is True and p_demo_power["servable"] is False
+          and any("本体文件缺失" in m for m in p_demo_power["missing"]),
           "files=%d nt_exists=%s missing=%s"
-          % (p_huaneng["data_file_count"], p_huaneng["nt_exists"], p_huaneng["missing"]))
+          % (p_demo_power["data_file_count"], p_demo_power["nt_exists"], p_demo_power["missing"]))
 
     # ── T3 切库零重启 ───────────────────────────────────────────────────────
     print("\n[T3] 切库零重启（同进程连切）")

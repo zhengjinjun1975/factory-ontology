@@ -1,4 +1,4 @@
-# D:/factory-ontology/codes/fusion.py
+# codes/fusion.py
 """工厂本体问答 - 融合决策层。纯标准库。"""
 
 _RULE_SOURCES = {'rule', 'logical'}

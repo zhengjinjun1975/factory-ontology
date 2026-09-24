@@ -3,14 +3,14 @@
 import os
 import sys
 
-sys.path.insert(0, "D:/factory-ontology/codes")
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "codes"))
 
 import ontology_qa_v3
 import evidence_norm
 import fusion
 import query_understand
 
-ROOT = "D:/factory-ontology"
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def load(nt_name, lex_name):

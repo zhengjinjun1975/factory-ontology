@@ -24,7 +24,7 @@ import shutil
 # 多源查找(按序优先): ① ontology-core(共享内核收敛点, 单一事实来源)
 #                    ② 本仓库 codes/(完整内核闭包: csv_to_owl/data_loader/model_llm/export)
 # 支持环境变量 ONTOLOGY_CORE_DIR 覆盖第一源。
-_CORE = os.environ.get("ONTOLOGY_CORE_DIR") or r"D:\ontology-core"
+_CORE = os.environ.get("ONTOLOGY_CORE_DIR") or r"<ontology-core>"
 SRC_DIRS = [_CORE, os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "codes"))]
 
@@ -50,10 +50,10 @@ KERNEL_FILES = [
 # 注意: 本仓库 codes/ 也是镜像目标 —— 母体(ontology-core)是唯一事实来源,
 # 若只同步到外部消费者而漏掉本仓库, 母体的修正就不会落到 factory 自己的内核副本(会漂移)。
 CONSUMERS = [
-    (r"D:\factory-ontology", "codes"),                    # 本仓库内核副本(从母体回写)
-    (r"D:\opa-monitor", "vendor"),                        # 本体驱动舆情监控
-    (r"D:\sme-decision-ontology", "vendor"),              # 本体决策域
-    (r"D:\sme-decision-ontology\codes\opa_mod", "vendor"),  # 本体决策域·舆情子模块(vendor-first 自包含镜像)
+    (r"<repo>", "codes"),                                  # 本仓库内核副本(从母体回写)
+    (r"<consumer-repo-1>", "vendor"),                      # 本体驱动舆情监控
+    (r"<consumer-repo-2>", "vendor"),                      # 本体决策域
+    (r"<consumer-repo-2>\codes\opa_mod", "vendor"),      # 本体决策域·舆情子模块(vendor-first 自包含镜像)
 ]
 
 
@@ -87,6 +87,9 @@ def main():
     print(f"同步模式: {'仅校验(不写入)' if verify_only else '拷贝同步'}")
     changed = 0
     for c, sub in CONSUMERS:
+        if not c or c.startswith("<"):
+            print(f"\n── 跳过未配置的消费者占位: {c}")
+            continue
         vendor = os.path.join(c, sub)
         print(f"\n── 消费者: {os.path.basename(c)}/{sub}  →  {vendor}")
         if not os.path.isdir(vendor):
