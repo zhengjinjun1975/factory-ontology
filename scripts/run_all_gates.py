@@ -1,8 +1,8 @@
 """一把跑全部自检门 —— 收口用（也可给 CI 调用）。
 
 用法：
-    C:/Python312/python.exe scripts/run_all_gates.py            # 全部
-    C:/Python312/python.exe scripts/run_all_gates.py --fast     # 跳过最慢的评测基线
+    python scripts/run_all_gates.py            # 全部
+    python scripts/run_all_gates.py --fast     # 跳过最慢的评测基线
 
 退出码：0 = 全绿；1 = 有门不过（并打印是哪一个）。
 纯标准库；不启常驻服务（各门自己起临时端口并收尾）。
