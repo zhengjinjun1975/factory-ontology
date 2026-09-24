@@ -62,3 +62,42 @@ jobs:
         run: |
           python -c "import json;d=json.load(open('ontology_check_report.json'));print('score=%s ok=%s critical=%s n_issues=%s'%(d['score'],d['ok'],d['critical'],d['n_issues']))"
 
+  self-check:
+    # 新增: 边界/断链静态自检 + 既有自检工具(能跑就跑)。
+    # 全部从仓库根以相对路径运行, 不写死本机路径/解释器(用 setup-python 的 python)。
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+      - name: 预建本体(部分自检依赖 api_server 的 output/food.nt)
+        run: |
+          mkdir -p codes/output
+          cd codes && python -c "import food_demo; food_demo._build_kb()"
+      - name: 边界与断链静态自检(纯标准库; 记录结果, 不阻断)
+        # check_boundary 会命中已知的“开源卫生项”(真实企业名/本机路径), 当前为红;
+        # check_chainbreak 会命中无前端入口的后端路由。这里只做“记录+可见”,
+        # 待相应净化批处理后再考虑改为阻断门(见 docs/实验/检查工具与CI-20260924.md)。
+        continue-on-error: true
+        run: |
+          echo "==== scripts/check_boundary.py ===="
+          python scripts/check_boundary.py || true
+          echo "==== scripts/check_chainbreak.py ===="
+          python scripts/check_chainbreak.py || true
+      - name: 既有自检工具(能跑就跑, 单脚本失败不阻断)
+        # verify_* 与 eval_qa 依赖本机环境/建好的本体; CI 上未必都能跑通,
+        # 故逐个跑并打印退出码, 任一失败不阻断整条流水线(跑得到就跑)。
+        continue-on-error: true
+        run: |
+          for s in scripts/verify_kb_registry.py scripts/verify_hardening.py \
+                   scripts/verify_flows.py scripts/verify_qa_envelope.py; do
+            echo "==== ${s} ===="
+            python "${s}" || echo "[skip/fail] ${s} 返回非零(环境或本机依赖)"
+          done
+          echo "==== scripts/eval_qa.py (dry) ===="
+          python scripts/eval_qa.py --dry || echo "[skip/fail] eval_qa.py --dry 返回非零"

@@ -328,4 +328,17 @@ def envelope_from_result(result, kb_name="知识库"):
             out["reason"] = "未命中：无可靠依据"
     out.setdefault("advisory", None)
     out["evidence_trace"] = normalize_envelope_evidence(out.get("evidence") or [])
+    # ── 批 3 模型建议层接线（最小改动，2026-09-24）──────────────────────────────
+    # 只"新增一个调用点"，**不改本函数既有行为与字段**：
+    #   - 未配置模型（无 env / 无 codes/config/model_advisory.json）时
+    #     model_advisory 处于未启用态，attach_if_enabled 原样返回同一个 dict，
+    #     因此本行是一次 no-op，输出与批 2 逐字段一致（由 scripts/verify_advisory.py 回归证明）。
+    #   - 启用时也**只新增 `advisory` 一个键**（{candidates, basis, model}），
+    #     绝不触碰 answer / hit / evidence 等任何字段（model_advisory 内部有红线闸）。
+    try:
+        from model_advisory import attach_if_enabled as _attach_advisory
+        out = _attach_advisory(out, kb_name=kb_name)
+    except Exception as _adv_err:
+        # 接线失败不静默：如实写进返回值，免得界面看着像没事。
+        out["advisory_error"] = "%s: %s" % (type(_adv_err).__name__, _adv_err)
     return out

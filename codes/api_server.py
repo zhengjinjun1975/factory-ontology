@@ -1270,6 +1270,10 @@ def ask(req: AskReq):
     # 把原因写进返回值，免得界面看着像没事。
     try:
         from ask_service import envelope_from_result
+        # 批 3 建议层需要题面（此前 result 里没有 question，适配器只能退回空串）。
+        # 只新增一个字段，老字段不动。
+        if result is not None and "question" not in result:
+            result["question"] = req.question
         result = envelope_from_result(result, KBS.get(req.kb or KB_NAME, {}).get("name", "知识库"))
     except Exception as _env_err:
         try:
