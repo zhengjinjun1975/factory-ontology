@@ -195,7 +195,7 @@ def admin_page():
         return HTMLResponse(open(ADMIN_HTML, encoding="utf-8").read())
 
 
-@app.get("/api/ontology/structure")
+@app.get("/api/ontology/structure", dependencies=[Depends(require_key)])
 def ontology_structure(kb: str = Query("", description="知识库名")):
     """本体建模视图数据：类 + Is-A 类别层级(subClassOf) + 对象属性关系 + 实例数。
     按 kb 隔离（不串台）；优先读深化本体(含 subClassOf), 回退该 kb 本体。"""
@@ -231,7 +231,7 @@ def ontology_structure(kb: str = Query("", description="知识库名")):
             "nt_file": os.path.basename(nt_file)}
 
 
-@app.get("/api/ontology/graph-svg", include_in_schema=False)
+@app.get("/api/ontology/graph-svg", include_in_schema=False, dependencies=[Depends(require_key)])
 def ontology_graph_svg():
     """返回企业本体大图 SVG(企业与客户关系 + 本体层次 Is-A)。"""
     svg = os.path.join(ROOT, "..", "docs", "diagrams", "ontology-大图.svg")
@@ -240,7 +240,7 @@ def ontology_graph_svg():
     return HTMLResponse("<div>大图未生成</div>")
 
 
-@app.get("/api/ontology/graph")
+@app.get("/api/ontology/graph", dependencies=[Depends(require_key)])
 def ontology_graph(kb: str = Query("")):
     """本体完整图(节点+边)，供前端 ECharts 动态大图渲染(仿 sme-decision-ontology /graph/full)。
 
