@@ -31,6 +31,12 @@ from ontology_qa_v3 import (
     _is_min,
     _EXTREME,
     _EXTREME_MIN,
+    _entity_subset,
+    _type_matches,
+    _status_matches,
+    _attr_val,
+    _extract_nums,
+    _value_filter_count,
 )
 
 
@@ -147,3 +153,118 @@ def extract_evidence(question, data, D, answer):
 
     # ---- 兜底: 找不到明确规则, 返回空证据 ----
     return {"rule": "unknown", "entities": []}
+
+
+# ------------------------------------------------------------------ 可回溯统一证据(批 2)
+# 证据条数上限：避免 1 万行级 KB 把信封撑爆（计数类问题回该类实例，超出截断）。
+TRACE_MAX = 50
+
+def _mk_trace(d, name, prop, value, kind="entity", source="rule"):
+    """构造一条统一证据 {kind, id, label, source}。kind ∈ entity|relation|dict|doc。"""
+    return {"kind": kind, "id": name, "label": "%s=%s" % (prop, value), "source": source}
+
+
+def build_trace(question, data, D, answer=None):
+    """把问答命中整理成**可回溯**的统一证据列表 [{kind, id, label, source}]（批 2）。
+
+    与 extract_evidence 的区别：extract_evidence 面向 api 老字段({name,prop,value})，
+    本函数产出批 2 信封契约要求的 {kind,id,label,source}，并补齐词表(dict)证据与
+    "值过滤计数"类兜底答案的命中记录（老规则表未覆盖，导致信封里 hit=true 却没有 evidence）。
+
+    规则：先复用 extract_evidence 的规则证据；为空时按规则族重扫"参与得出答案的记录"；
+    仍为空则返回 []（表示该答案无法回溯，由调用方决定是否据此降级）。
+    """
+    aliases = D.get("field_aliases", {})
+    cn2cn = D.get("attr_en2cn", {})
+
+    # 1) 词表证据：问句用到的 类型/状态/区域 词 → 值 的映射(可回溯到词典)
+    dict_ev = []
+    for which in ("type", "status", "zone"):
+        en, cn = _find_enum(D, question, which)
+        if cn:
+            dict_ev.append({"kind": "dict", "id": str(en),
+                            "label": "%s 词表：%s→%s" % (which, cn, en), "source": "lexicon"})
+
+    # 2) 规则证据(复用既有 extract_evidence)
+    raw = extract_evidence(question, data, D, answer or "")
+    out = []
+    for e in raw.get("entities", []) or []:
+        out.append(_mk_trace(None, e.get("name"), e.get("prop"), e.get("value")))
+    if out:
+        return (out + dict_ev)[:TRACE_MAX]
+
+    # 3) 规则表未覆盖 → 按规则族重扫参与记录
+    ents = _trace_generic(question, data, D, aliases, cn2cn)
+    return ents + dict_ev
+
+
+def _trace_generic(question, data, D, aliases, cn2cn):
+    """按规则族重扫"参与得出答案的记录"，产出记录级证据。无命中返回 []。"""
+    sub = _entity_subset(question, D, data)
+
+    def ent(name, d, prop, value):
+        return _mk_trace(d, _display_name(d, aliases, default=name) or name, prop, value)
+
+    attr_en, attr_cn = _find_attr(D, question)
+    if attr_en:
+        cname = attr_cn or cn2cn.get(attr_en, attr_en)
+        pairs = [(n, d, _num(_field(d, attr_en, aliases))) for n, d in sub.items()]
+        vals = [(n, d, v) for n, d, v in pairs if v is not None]
+        # 极值：只回并列极值者
+        if vals and _EXTREME.search(question):
+            bestv = (max if _is_max(question) else min)(v for _, _, v in vals)
+            return [ent(n, d, cname, bestv) for n, d, v in vals if v == bestv]
+        # 平均/总和：回全部参与记录
+        if vals and ("平均" in question or "均值" in question
+                     or any(k in question for k in ("总", "合计", "总和"))):
+            return [ent(n, d, cname, v) for n, d, v in vals]
+        # 范围：回命中的记录
+        nums = _extract_nums(question)
+        if vals and nums:
+            if any(k in question for k in ("大于", "高于", "超过", "以上")):
+                hit = [(n, d, v) for n, d, v in vals if v > nums[0]]
+                if hit:
+                    return [ent(n, d, cname, v) for n, d, v in hit]
+            if any(k in question for k in ("小于", "低于", "少于", "以下")):
+                hit = [(n, d, v) for n, d, v in vals if v < nums[0]]
+                if hit:
+                    return [ent(n, d, cname, v) for n, d, v in hit]
+            if ("到" in question or "之间" in question) and len(nums) >= 2:
+                lo, hi = nums[0], nums[1]
+                hit = [(n, d, v) for n, d, v in vals if lo <= v <= hi]
+                if hit:
+                    return [ent(n, d, cname, v) for n, d, v in hit]
+
+    # 类型/状态 过滤（计数/列举）
+    ty_en, ty_cn = _find_enum(D, question, "type")
+    st_en, st_cn = _find_enum(D, question, "status")
+    if ty_en and ("多少" in question or "数量" in question or "列出" in question
+                  or "哪些" in question or "共" in question):
+        matched = [(n, d) for n, d in data.items() if _type_matches(d, ty_en, aliases)]
+        if matched:
+            return [ent(n, d, "type", ty_en) for n, d in matched]
+    if st_en and ("多少" in question or "数量" in question or "列出" in question
+                  or "哪些" in question):
+        matched = [(n, d) for n, d in data.items() if _status_matches(d, st_en, aliases, D)]
+        if matched:
+            return [ent(n, d, "status", st_en) for n, d in matched]
+
+    # 值过滤计数兜底（"法兰的数量" 之类）——复用引擎同一算法，取命中实体名
+    vf = _value_filter_count(question, data, with_names=True)
+    if vf:
+        names = vf[2] if len(vf) > 2 else []
+        return [_mk_trace(data.get(n) if isinstance(data, dict) else None, n,
+                          "匹配取值", vf[1]) for n in names][:TRACE_MAX]
+
+    # 实体计数/总数 / 实体实例列举（有多少个产品 / 产品总数 / 产品有哪些）：
+    # 回该类实例记录作为证据；类名取不到时回全库记录（引擎的计数口径即如此）。
+    from ontology_qa_v3 import get_entity_cn2uri
+    emap = dict(get_entity_cn2uri())
+    emap.update(D.get("entity_cn2en") or {})
+    for cn in sorted(emap, key=len, reverse=True):
+        if cn and cn in question:
+            uri = str(emap[cn]).lower()
+            matched = [(n, d) for n, d in data.items() if uri in n.lower()]
+            picked = matched or list(data.items())
+            return [ent(n, d, "计数", 1) for n, d in picked][:TRACE_MAX]
+    return []

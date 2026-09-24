@@ -1265,6 +1265,17 @@ def ask(req: AskReq):
                      ms=int((time.time() - start) * 1000))
     except Exception:
         pass
+    # 批 2 信封接线（主控 2026-09-24）：统一出口补 hit / reason / evidence_trace / advisory，
+    # 只新增字段，老字段一个不动（envelope_from_result 内部保证）。接线失败**不静默**——
+    # 把原因写进返回值，免得界面看着像没事。
+    try:
+        from ask_service import envelope_from_result
+        result = envelope_from_result(result, KBS.get(req.kb or KB_NAME, {}).get("name", "知识库"))
+    except Exception as _env_err:
+        try:
+            result["envelope_error"] = f"{type(_env_err).__name__}: {_env_err}"
+        except Exception:
+            pass
     return result
 
 
@@ -2518,6 +2529,84 @@ async def kb_lexicon_import(kb: str, req: Request):
                 os.remove(tmp)
             except Exception:
                 pass
+
+
+# ── 流程编排 API（批 4b：只读 + 一键触发；通用流程引擎，不含行业口径）──
+# 说明：只新增只读/触发路由，不改动任何现有路由与鉴权逻辑。
+_FLOW_ENGINE = None
+_FLOW_REG = None
+
+
+def _flow_engine():
+    """惰性装配流程引擎（复用 plugin_framework 注册表 + event_bus + audit_chain）。"""
+    global _FLOW_ENGINE, _FLOW_REG
+    if _FLOW_ENGINE is None:
+        import flow_engine as fe
+        eng, reg, pm = fe.build_engine(audit=_audit_chain())
+        _FLOW_ENGINE, _FLOW_REG = eng, reg
+    return _FLOW_ENGINE
+
+
+def _flow_registry():
+    """取流程注册表；每次调用重扫目录，使新增/损坏的流程定义即时可见（含真实原因）。"""
+    eng = _flow_engine()
+    fr = eng.flow_registry
+    try:
+        fr.scan()
+    except Exception as e:
+        logger.warning("流程目录重扫失败: %s", e)
+    return fr
+
+
+class FlowRunReq(BaseModel):
+    params: dict = {}
+
+
+@app.get("/api/flows")
+def flows_list():
+    """只读：列出可用流程、预设卡与**流程加载失败的真实原因**。"""
+    try:
+        fr = _flow_registry()
+        return {"ok": True, **fr.status()}
+    except Exception as e:
+        return {"ok": False, "error": f"流程注册表不可用: {type(e).__name__}: {e}"}
+
+
+@app.get("/api/flows/presets")
+def flows_presets():
+    """只读：预设卡列表（放配置不放代码，与流程定义一一对应）。"""
+    try:
+        fr = _flow_registry()
+        return {"ok": True, "presets": fr.presets(),
+                "preset_config": fr.presets_file, "preset_error": fr._preset_error}
+    except Exception as e:
+        return {"ok": False, "error": f"读取预设失败: {type(e).__name__}: {e}"}
+
+
+@app.post("/api/flows/{flow_id}/run", dependencies=[Depends(require_key)])
+def flows_run(flow_id: str, req: FlowRunReq = None):
+    """触发：按 flow_id 一键运行某流程，返回每步状态与事件/审计结果。"""
+    import flow_engine as fe
+    try:
+        eng = _flow_engine()
+        fr = _flow_registry()
+        params = dict(req.params) if (req and req.params) else {}
+    except Exception as e:
+        return {"ok": False, "error": f"流程引擎不可用: {type(e).__name__}: {e}"}
+    try:
+        flow = fr.get(flow_id)
+    except fe.FlowError as e:
+        # 流程不存在/加载失败 → 如实输出真实原因
+        return {"ok": False, "flow_id": flow_id, "error": str(e),
+                "load_errors": list(fr.errors)}
+    try:
+        return {"ok": True, **eng.run(flow, params)}
+    except fe.FlowError as e:
+        return {"ok": False, "flow_id": flow_id, "error": f"流程执行失败: {e}"}
+    except Exception as e:
+        logger.exception("流程执行异常: %s", flow_id)
+        return {"ok": False, "flow_id": flow_id,
+                "error": f"流程执行异常: {type(e).__name__}: {e}"}
 
 
 if __name__ == "__main__":

@@ -222,6 +222,15 @@ def _extreme_field(dict_data, q):
         return None, None
     cand = dict(dict_data.get("numeric_fields", {}) or {})
     cand.update({cn: en for cn, en in dict_data.get("attr_cn2en", {}).items()})
+    # 反向守卫(批 2 修编造): "页数最大"/"借阅量最大" 这类问句点名的属性词并不在词典里,
+    # 泛化极值推断会把"最大"硬猜成某个含"大/高"类关键词的数值字段(如 库存),
+    # 产出编造答案("最大库存")。仅当"最"前的中文词尾部能对上已知属性/数值字段名时
+    # 才允许推断, 否则不猜(交上层如实拒答)。
+    _pre = re.search(r"([\u4e00-\u9fff]{1,6})最", q)
+    if _pre:
+        _word = _pre.group(1)
+        if not any(_word[-L:] in cand for L in range(1, min(5, len(_word)) + 1)):
+            return None, None
     for kw in sorted(kws, key=len, reverse=True):
         for cn in sorted(cand, key=len, reverse=True):
             if kw in cn:
@@ -431,13 +440,14 @@ def _fmt_names(names, limit=20):
     return out
 
 
-def _value_filter_count(q, data):
+def _value_filter_count(q, data, with_names=False):
     """属性值过滤计数（泛化）：形如"XX的数量/多少"——问题含某属性的取值(或其公共子串)时统计符合行。
     - 提取问题核心片段(去掉 数量/多少/共/总 等量词)，取其 2~3 字公共子串作为过滤指纹；
     - 对每个记录的各文本取值，若与指纹有>=2字公共子串则视为该字段命中；
     - 跨多个字段命中(如材质+名称：不锈钢波纹管)按 AND 取交集返回；单字段命中按该字段计数。
     data profiling 未覆盖的复合过滤（材质/名称/类型取值）走此兜底，命中即返回，避免"暂不支持"。
-    返回 (count, 描述) 或 None(无命中)。"""
+    返回 (count, 描述) 或 None(无命中)；with_names=True 时返回 (count, 描述, [命中实体名])，
+    供 evidence.build_trace 产出可回溯证据(批 2)。"""
     core = re.sub(r'(的数量|有多少个|有多少|多少个|共有多少|共多少|数量|多少|总数|共|总)', '', q)
     core = core.strip().replace(" ", "")
     if len(core) < 2 or not re.search(r'(数量|多少)', q):
@@ -462,9 +472,11 @@ def _value_filter_count(q, data):
     strong = [(n, f) for n, f in records if len(f) >= 2]
     weak = [(n, f) for n, f in records if len(f) == 1]
     if strong:
-        return len(strong), "多字段(材质+名称等)"
+        return (len(strong), "多字段(材质+名称等)", [n for n, _ in strong]) if with_names \
+            else (len(strong), "多字段(材质+名称等)")
     if weak:
-        return len(weak), "单字段取值"
+        return (len(weak), "单字段取值", [n for n, _ in weak]) if with_names \
+            else (len(weak), "单字段取值")
     return None
 
 
@@ -818,6 +830,14 @@ def answer(q, data, D):
             # _find_enum 匹配不到 → 守卫失效 → 误返回实体总数。
             # 反之若不做排除，"设备"既作实体类名又被 _find_enum 当成类型值 → 守卫恒真
             # → "有多少台设备"被误跳过实体总数, 落到类型计数返回"有 0 设备"。
+            # 数值比较/区间问法(大于/小于/超过/以上/以下/到/之间)不是"实体总数"问句,
+            # 必须落到下方 range 分支按属性阈值过滤计数。否则问句里的"X有多少"会被
+            # 误当实体总数 —— 如"机器中工艺温度大于310.01的机器有多少"答成"有 10000 个机器"
+            # (批 2 已知缺陷, 评测误答)。
+            if (any(k in q for k in ("大于", "小于", "高于", "低于", "超过", "少于",
+                                     "以上", "以下"))
+                    or "之间" in q or re.search(r"\d\s*到\s*\d", q)):
+                continue
             _t_en, _t_cn = _find_enum(D, q, "type")
             _s_en, _s_cn = _find_enum(D, q, "status")
             _z_en, _z_cn = _find_enum(D, q, "zone")
@@ -1175,9 +1195,18 @@ def answer(q, data, D):
     # ---- 属性值过滤计数 (泛化): "不锈钢波纹管的数量" / "船坞的数量" ----
     # data profiling 未覆盖的复合/取值过滤计数兜底（位于所有具名模板之后）。
     # 去掉调试后缀("单字段取值"), 给用户可读的计数回答。
-    _vc = _value_filter_count(q, data)
-    if _vc:
-        return "符合条件共 %d 条" % _vc[0]
+    # 批 2 收紧(修编造): ① 极值问句(含"最X")不落到此兜底 —— 否则"设备中纯度最大是多少"
+    # 会被答成"符合条件共 2 条"(与问题无关的计数, 评测记为编造); ② "裸实体计数"形式的
+    # 跨域问句(如"有多少个催化剂"/"催化剂总数")不落到此兜底 —— 否则会命中数据里偶然同名的
+    # 取值答成"符合条件共 1 条"。两种情况都该如实拒答。
+    # 注意: 只拦"裸实体计数"这一形态, 不拦"X的数量"这类取值过滤(如"法兰的数量"),
+    # 否则会误伤问句含取值词的正常过滤计数。
+    _bare_entity_count = bool(re.search(r"(有多少个?|多少个|共多少|有多少)[\u4e00-\u9fff]{1,8}$", q)) \
+        or bool(re.search(r"^[\u4e00-\u9fff]{1,8}总数\s*$", q))
+    if not _EXTREME.search(q) and not (is_cross_domain_data_query(q, D) and _bare_entity_count):
+        _vc = _value_filter_count(q, data)
+        if _vc:
+            return "符合条件共 %d 条" % _vc[0]
 
     # ---- 总数: 一共有多少条记录 ----
     if ("一共" in q or "总共有" in q or "总共" in q) and ("记录" in q or "多少" in q):
@@ -1190,6 +1219,71 @@ def answer(q, data, D):
         return "一共有 %d 条记录" % len(data)
 
     return "暂不支持该问题"
+
+
+# ------------------------------------------------------------------ 统一问答信封(批 2)
+# 未命中/无据话术标记（与批 1 评测口径一致：未命中 = 引擎拒答/无据，≠ 误答/编造）。
+_MISS_MARKERS = ("暂不支持", "无相关数据", "未找到", "没有找到", "不含所问", "无法回答",
+                 "未收录", "无该", "不存在")
+# "裸实体计数/总数"问句形态（有多少个X / X总数）——此类问句若跨域或计数为 0，
+# 说明库中并无该实体，应如实说未命中，而非回填"0"。
+_BARE_COUNT_RE = re.compile(r"(有多少个?|多少个|共多少|有多少|总数)[\u4e00-\u9fff]{0,8}$")
+
+
+def _miss_reason(q, text, data, D):
+    """判定引擎输出是否为"未命中"(无据/拒答)。命中(有据)返回 None，未命中返回原因串。"""
+    t = (text or "").strip()
+    if not t:
+        return "未命中：引擎无输出"
+    for m in _MISS_MARKERS:
+        if m in t:
+            return "未命中：%s" % m
+    # 空列举形态("无发电机"/"没有运行中")——仅在短答案时判，避免长答案里偶然带"无"
+    if len(t) <= 40 and re.match(r"^(无|没有)[\u4e00-\u9fff]", t):
+        return "未命中：库中无匹配记录"
+    # 裸实体计数/总数且计数为 0 → 库中无此实体，视为未命中(不回填"0")
+    if _BARE_COUNT_RE.search(q) and re.search(r"(?:总数|有)\s*0(?:\s*[台个条家批种艘本])?", t):
+        return "未命中：库中无此实体记录(计数为 0)"
+    # 裸实体计数/总数且跨域(问句不含本 KB 任何领域词) → 该知识库不含所问实体
+    if _BARE_COUNT_RE.search(q) and is_cross_domain_data_query(q, D):
+        return "未命中：该知识库不含所问的实体或概念"
+    return None
+
+
+def answer_envelope(q, data, D):
+    """统一问答信封（批 2）：返回 {answer, hit, reason, evidence[], advisory?}。
+
+    设计约束：
+    - **所有分支都带 hit**（含引擎异常分支）。
+    - `hit=false` 时 `answer` 明示"未命中"并给 `reason`，**绝不回填任何推测内容**。
+    - 每条 evidence 可回溯：{kind: entity|relation|dict|doc, id, label, source}。
+    - **向后兼容**：本函数是新增层，`answer()` 的字符串返回与老字段一律不改；
+      老调用方(api_server / eval_qa)读取行为不变。
+    - 异常**不静默吞**：引擎异常写入 reason/answer 原文。
+    """
+    try:
+        text = answer(q, data, D)
+    except Exception as e:  # 引擎异常按未命中处理，但原因如实露出，不掩盖
+        return {"answer": "未命中：问答引擎内部异常，无法给出可靠结果。（%s）" % e,
+                "hit": False, "reason": "引擎异常：%s" % e,
+                "evidence": [], "advisory": None, "raw_answer": "", "source": "error"}
+    reason = _miss_reason(q, text, data, D)
+    if reason:
+        return {"answer": "未命中：%s。可以换个问法，或确认该信息是否已录入本知识库。"
+                          % reason.split("：", 1)[-1],
+                "hit": False, "reason": reason, "evidence": [], "advisory": None,
+                "raw_answer": text, "source": "refuse"}
+    # 命中：产出可回溯证据（证据缺失不改变 hit —— 引擎已给出有据答案）
+    try:
+        from evidence import build_trace
+        ev = build_trace(q, data, D, text)
+    except Exception as e:  # 证据提取异常不静默吞：写进 reason 供排查，answer 仍返回
+        ev = []
+        reason = "命中：规则检索有据（证据提取异常：%s）" % e
+    else:
+        reason = "命中：规则检索有据"
+    return {"answer": text, "hit": True, "reason": reason,
+            "evidence": ev, "advisory": None, "raw_answer": text, "source": "rule"}
 
 
 # ------------------------------------------------------------------ main

@@ -264,3 +264,68 @@ def _doc_rag_fallback(question, kb):
     except Exception:
         pass
     return None
+
+
+# ── 统一问答信封(批 2)：把既有返回扩成 {answer, hit, reason, evidence[], advisory?} ──
+# 未命中/无据话术标记（与 ontology_qa_v3 口径一致）
+_ENV_MISS_MARKERS = ("暂不支持", "无相关数据", "未找到", "没有找到", "不含所问", "无法回答",
+                     "未收录", "无该", "不存在", "未找到与这个问题直接对应的数据")
+_ENV_KINDS = ("entity", "relation", "dict", "doc")
+
+
+def normalize_envelope_evidence(ev_list):
+    """把既有证据(api 老格式 {entity,attr,value,source,score} 或批 2 统一格式)归一化为
+    信封契约要求的列表: [{kind: entity|relation|dict|doc, id, label, source}]。
+
+    - doc 来源的切块证据 → kind=doc；其余默认 kind=entity。
+    - 已经是统一格式(kind+id+label+source 齐全)的条目原样保留。
+    """
+    out = []
+    for e in (ev_list or []):
+        if not isinstance(e, dict):
+            continue
+        kind = e.get("kind")
+        if kind in _ENV_KINDS and "id" in e and "label" in e:
+            out.append({"kind": kind, "id": e.get("id"), "label": e.get("label"),
+                        "source": e.get("source") or "unknown"})
+            continue
+        src = e.get("source")
+        if not src:
+            # 无 source 时按形状判定：带 chunk/doc_id 的是文档切块证据 → doc
+            src = "doc" if (e.get("chunk") is not None or e.get("doc_id")) else "rule"
+        kind = "doc" if src == "doc" else "entity"
+        ident = e.get("entity") or e.get("id") or e.get("doc_id") or ""
+        attr = e.get("attr") or ""
+        val = e.get("value")
+        label = "%s=%s" % (attr, val) if attr else str(val)
+        out.append({"kind": kind, "id": ident, "label": label, "source": src})
+    return out
+
+
+def envelope_from_result(result, kb_name="知识库"):
+    """把 /api/ask 的既有返回包成统一信封，但**只新增字段、绝不删改老字段**（向后兼容）。
+
+    新增字段：
+      hit            bool  —— 所有分支都带（老字段 no_basis 取反，并与答案是否拒答对齐）
+      reason         str   —— hit=false 时给未命中原因
+      advisory       None  —— 批 3 模型建议层占位（本批恒为 None）
+      evidence_trace list  —— 统一证据 [{kind,id,label,source}]（老 evidence 数组原样保留）
+
+    前端现有读取（answer / evidence / no_basis / engines / mode / structured / kb ...）一个不动。
+    接线只需在主链路出口加一行 `result = ask_service.envelope_from_result(result, 知识库名)`
+    （批 2 因文件隔离未改 api_server.py，由主控/批 3 统一接线）。
+    """
+    out = dict(result or {})
+    ans = str(out.get("answer") or "")
+    refuse = (not ans.strip()) or any(m in ans for m in _ENV_MISS_MARKERS)
+    hit = bool(ans.strip()) and not refuse and not bool(out.get("no_basis", False))
+    if hit:
+        out["hit"] = True
+        out.setdefault("reason", "命中：检索有据")
+    else:
+        out["hit"] = False
+        if not out.get("reason"):
+            out["reason"] = "未命中：无可靠依据"
+    out.setdefault("advisory", None)
+    out["evidence_trace"] = normalize_envelope_evidence(out.get("evidence") or [])
+    return out

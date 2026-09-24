@@ -1,0 +1,57 @@
+{
+  "flow_id": "demo_branch_loop",
+  "name": "分支 + 循环演示",
+  "version": "1.0.0",
+  "preset": true,
+  "description": "通用流程引擎演示：取数→条件分支（大/小）→循环（带出口条件）。不含任何行业口径。",
+  "entry": "b0",
+  "steps": [
+    {
+      "id": "b0",
+      "name": "取数",
+      "kind": "data_source",
+      "ref": "records",
+      "params": {"n": 2}
+    },
+    {
+      "id": "br1",
+      "name": "条件分支",
+      "control": "branch",
+      "cases": [
+        {"when": "steps.b0.count >= 5", "goto": "big"},
+        {"when": "steps.b0.count >= 1", "goto": "small"}
+      ],
+      "default": "small"
+    },
+    {
+      "id": "big",
+      "name": "大分支",
+      "kind": "template",
+      "ref": "render",
+      "params": {"template": "走大分支", "vars": {}}
+    },
+    {
+      "id": "small",
+      "name": "小分支",
+      "kind": "template",
+      "ref": "render",
+      "params": {"template": "走小分支", "vars": {}}
+    },
+    {
+      "id": "l1",
+      "name": "循环汇总",
+      "control": "loop",
+      "body": [
+        {"id": "acc", "name": "累计", "kind": "decision", "ref": "aggregate",
+         "params": {}}
+      ],
+      "until": "iter >= 2",
+      "max_iterations": 4
+    }
+  ],
+  "edges": [
+    {"from": "b0", "to": "br1"},
+    {"from": "big", "to": "l1"},
+    {"from": "small", "to": "l1"}
+  ]
+}

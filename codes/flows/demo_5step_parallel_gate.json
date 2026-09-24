@@ -1,0 +1,69 @@
+{
+  "flow_id": "demo_5step_parallel_gate",
+  "name": "五步流程演示（并行 + 门控打回）",
+  "version": "1.0.0",
+  "preset": true,
+  "description": "通用流程引擎演示：取数→复核→并行处理→门控→收尾。复核步首轮不通过，门控打回上游 s2 重跑，次轮通过放行。不含任何行业口径。",
+  "entry": "s1",
+  "steps": [
+    {
+      "id": "s1",
+      "name": "取数",
+      "kind": "data_source",
+      "ref": "records",
+      "params": {"n": 4}
+    },
+    {
+      "id": "s2",
+      "name": "复核",
+      "kind": "decision",
+      "ref": "review",
+      "params": {"pass_from_attempt": 2},
+      "requires": ["s1"]
+    },
+    {
+      "id": "p1",
+      "name": "并行处理",
+      "control": "parallel",
+      "members": [
+        {
+          "id": "c1",
+          "name": "渲染",
+          "kind": "template",
+          "ref": "render",
+          "params": {"template": "并行渲染完成", "vars": {}}
+        },
+        {
+          "id": "c2",
+          "name": "阈值判定",
+          "kind": "decision",
+          "ref": "threshold",
+          "params": {"value": 3, "threshold": 5, "op": "<"}
+        }
+      ]
+    },
+    {
+      "id": "g1",
+      "name": "门控",
+      "control": "gate",
+      "evidence_from": ["s2"],
+      "pass_when": "steps.s2.passed == true",
+      "on_pass": "s3",
+      "on_reject": "s2",
+      "max_reject": 3,
+      "reject_reason": "复核未通过：打回上游复核步 s2"
+    },
+    {
+      "id": "s3",
+      "name": "收尾",
+      "kind": "push",
+      "ref": "collect",
+      "params": {"items": ["s1", "s2", "p1", "g1"]}
+    }
+  ],
+  "edges": [
+    {"from": "s1", "to": "s2"},
+    {"from": "s2", "to": "p1"},
+    {"from": "p1", "to": "g1"}
+  ]
+}

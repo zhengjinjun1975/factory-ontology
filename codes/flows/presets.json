@@ -1,0 +1,15 @@
+{
+  "_comment": "预设卡配置（放配置不放代码）：label/description 人读信息在此。每个 flow_id 必须对应 codes/flows/ 下 preset:true 的流程定义，一一对应。",
+  "presets": [
+    {
+      "flow_id": "demo_5step_parallel_gate",
+      "label": "五步流程（并行+门控）",
+      "description": "取数→复核→并行→门控→收尾；门控打回上游复核步重跑"
+    },
+    {
+      "flow_id": "demo_branch_loop",
+      "label": "分支+循环",
+      "description": "按条件走分支，再带出口条件循环"
+    }
+  ]
+}
