@@ -68,3 +68,12 @@ _codeagent_tasks/
 _v3_logs/
 codes/_backup/
 codes/_test_residue_*/
+# 令牌吊销/限速运行时状态(第3轮, 默认 FOOD_AUTH_STATE_DIR=<repo>/var/auth_state)
+var/
+# SSO/OIDC 接入配置(第4轮, 含共享密钥/真实域名, 不入库; 样例见 codes/config/sso.example.json)
+codes/config/sso.json
+
+# 激活态真相源(A1: 建库/切库时运行写入; 运行态, 不入库; 缺省回落 KB_NAME)
+codes/config/active_ontology.json
+# 后端鉴权 key 配置文件(C4: 含真实 key, 不入库; 可只用环境变量)
+codes/config/api_keys.json
