@@ -411,16 +411,26 @@ _CAT_MAX_PENALTY = 45  # 单类别最多扣 45 分 -> 子分下限 55
 
 
 # ── F 标准合规（GB/T 48000.3 描述项）─────────────────
-def _check_standard(codes_dir, tracked=None):
+def _check_standard(codes_dir, tracked=None, schema_path=None):
     """F 标准合规：实体 8 描述项 / 属性 7 描述项齐备率 + 命名空间 + SHACL 覆盖 + 类层次 + 导出物。
 
     依据 GB/T 48000.3-2026 表1(实体)/表2(属性)/§5.3.3(类层次)/§5.1(e)(OWL/SHACL)/§9(命名空间扩展)。
-    衡量的是"本体的形式化完备度", 与 B/C/D/E 的数据质量口径互补(不重复)。
+    衡量的是「本体的形式化完备度」, 与 B/C/D/E 的数据质量口径互补(不重复)。
+
+    schema_path(2026-09-25, 可选)：显式指定要评估的本体 schema。
+      · 不传 → 沿用旧行为, 读 <codes_dir>/config/ontology_schema.json（既有调用方逐字节不变）。
+      · 传入 → 只评估该文件; 文件不存在则**明确报错**, 不回落到全局那份
+        （A2/A3 要求: 找当前激活库的本体, 找不到不许静默冒充）。
     """
-    schema_path = os.path.join(codes_dir, "config", "ontology_schema.json")
-    if not os.path.exists(schema_path):
-        return {"issues": [("minor", "未找到 config/ontology_schema.json, 标准合规未评估")],
-                "state": {"standard_rate": None}}
+    if schema_path:
+        if not os.path.exists(schema_path):
+            return {"issues": [("major", "指定的本体 schema 不存在: %s, 标准合规未评估" % schema_path)],
+                    "state": {"standard_rate": None}}
+    else:
+        schema_path = os.path.join(codes_dir, "config", "ontology_schema.json")
+        if not os.path.exists(schema_path):
+            return {"issues": [("minor", "未找到 config/ontology_schema.json, 标准合规未评估")],
+                    "state": {"standard_rate": None}}
     try:
         import schema_ontology as so
         schema = so.load_schema(schema_path)

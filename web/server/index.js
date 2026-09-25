@@ -4,7 +4,7 @@ import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, graphOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, listIndustries, buildIndustry, evalBenchmark, evalIsolate, knowledgeList, assetsList, assetsSnapshot, assetsRollback, suggestOntologySchema, confirmOntologySchema, knowledgeIngest, knowledgeDelete, knowledgeQuery, getEnterprise, saveEnterprise, resetKb, standardCompliance, standardExport, standardDownload, standardRoundtrip, standardImportAlign, standardQuality, lexiconExportRaw, lexiconImport, industryList, industryCandidates, industryAbsorb } from './ontology.js';
+import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, graphOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, listIndustries, buildIndustry, evalBenchmark, evalIsolate, knowledgeList, assetsList, assetsSnapshot, assetsRollback, suggestOntologySchema, confirmOntologySchema, knowledgeIngest, knowledgeDelete, knowledgeQuery, getEnterprise, saveEnterprise, resetKb, standardCompliance, standardExport, standardDownload, standardRoundtrip, standardImportAlign, standardQuality, lexiconExportRaw, lexiconImport, industryList, industryCandidates, industryAbsorb, listDrives, listDirs, selfmodelCandidates, validateDataDir, selfOnboard, backendConfig } from './ontology.js';
 import { login as authLogin, logout as authLogout, me as authMe, createUser, updateUser, seedUsersIfEmpty, restoreSessions } from './auth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -74,7 +74,8 @@ const server = createServer(async (req, res) => {
     const user = authMe(getToken());
     if (!user.ok) {
       res.writeHead(401, { 'Content-Type': 'application/json;charset=utf-8' });
-      res.end(JSON.stringify({ ok: false, error: user.error, unauthenticated: true }));
+      // C2(2026-09-25): 鉴权失败如实提示 —— 此前把 401 显示成"后端建模失败"是假文案。
+      res.end(JSON.stringify({ ok: false, error: '未登录或会话已过期，请重新登录', unauthenticated: true }));
       return null;
     }
     return user.user;
@@ -127,13 +128,62 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // ═══ 自助建模 · 目录浏览（只读；仅本机可访问）═══════════════════════════
+  // 安全硬门：只接受来自 127.0.0.1 / ::1 的连接，其余一律 403（BFF 监听 0.0.0.0，
+  // 局域网可达，故必须在连接层收口）；只返回目录名与基本元信息（是否存在/是否含
+  // csv/csv 个数/被哪个 kb 注册），绝不返回任何文件内容。
+  function isLocalRequest() {
+    const ra = String((req.socket && req.socket.remoteAddress) || '');
+    return ra === '127.0.0.1' || ra === '::1' || ra === '::ffff:127.0.0.1';
+  }
+  if (req.method === 'GET' && (url === '/api/fs/drives' || url === '/api/fs/dirs')) {
+    if (!isLocalRequest()) { writeErr(403, { ok: false, error: '仅允许本机（127.0.0.1）访问目录浏览接口' }); return; }
+    if (url === '/api/fs/drives') {
+      res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(listDrives()));
+      return;
+    }
+    const p = new URL(req.url, 'http://x').searchParams.get('path') || '';
+    const result = listDirs(p);
+    res.writeHead(result.ok ? 200 : 400, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+    res.end(JSON.stringify(result));
+    return;
+  }
+
   // ═══ 鉴权门禁：以下全部业务端点需登录 ═══
   const isAuthPath = url.startsWith('/api/auth/');
-  if (!isAuthPath && (url.startsWith('/api/ontology/') || url.startsWith('/api/enterprise/') || url === '/api/enterprise' || url.startsWith('/api/eval/'))) {
+  if (!isAuthPath && (url.startsWith('/api/ontology/') || url.startsWith('/api/enterprise/') || url === '/api/enterprise' || url.startsWith('/api/eval/') || url.startsWith('/api/standard/'))) {
     const user = requireAuth(); if (!user) return;
     // 单企业收敛：把当前登录用户的 kb 设为会话默认激活（各功能跟随该企业本体）
     if (user.kb) { try { setCurrentKb(user.kb); } catch (e) { /* 忽略 */ } }
     req.user = user;
+  }
+
+  // ── API: 标准合规/导出前缀代理（C1）—— /api/standard/* 原样转发到后端同路径 ──
+  // 复用现有代理写法（同 ontology.js 的 API_URL/X-API-Key 口径）；此前该前缀未被代理，
+  // 客户端拿到的是首页 HTML（表现为合规面板空）。
+  if (url.startsWith('/api/standard/')) {
+    try {
+      const cfg = backendConfig();
+      const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+      const headers = { 'Content-Type': req.headers['content-type'] || 'application/json' };
+      if (cfg.key) headers['X-API-Key'] = cfg.key;
+      const opts = { method: req.method, headers };
+      if (req.method !== 'GET' && req.method !== 'HEAD') {
+        const body = await readBody(req);
+        if (body) opts.body = body;
+      }
+      const resp = await fetch(cfg.url + url + qs, opts);
+      const text = await resp.text();
+      res.writeHead(resp.status, {
+        'Content-Type': resp.headers.get('content-type') || 'application/json;charset=utf-8',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+      });
+      res.end(text);
+    } catch (err) {
+      writeErr(502, { ok: false, error: `代理 /api/standard/ 失败：${String(err.message || err)}` });
+    }
+    return;
   }
 
   // ── API: 企业设置（读/存）—— 改为按当前登录企业用户返回（单企业唯一性）──
@@ -217,8 +267,11 @@ const server = createServer(async (req, res) => {
 
   // ── health ──
   if (url === '/health') {
+    // C4 自检: 暴露"后端 API Key 是否已配置"，便于排障（不暴露 key 本身）。
+    const _cfg = backendConfig();
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', uptime: process.uptime() }));
+    res.end(JSON.stringify({ status: 'ok', uptime: process.uptime(),
+                             apiKeyConfigured: _cfg.hasKey, backend: _cfg.url }));
     return;
   }
 
@@ -567,7 +620,7 @@ const server = createServer(async (req, res) => {
 
   // ── API: 代码版本（读 codes/run.py 的 __version__，单一事实源）──
   if (url === '/api/ontology/version') {
-    let version = '0.3.1';
+    let version = '0.4.0';
     try {
       const runSrc = readFileSync(join(__dirname, '..', '..', 'codes', 'run.py'), 'utf-8');
       const m = runSrc.match(/__version__\s*=\s*["']([^"']+)["']/);
@@ -903,13 +956,76 @@ const server = createServer(async (req, res) => {
   if (req.method === 'POST' && url === '/api/ontology/confirm') {
     try {
       const body = JSON.parse((await readBody(req, 8 * 1024 * 1024)) || '{}');
-      const { kb, schema, data_dir } = body;
+      const { kb, schema, data_dir, hierarchy_confirmed, extensions_confirmed } = body;
       if (!kb || typeof kb !== 'string') {
         res.writeHead(400, { 'Content-Type': 'application/json;charset=utf-8' });
         res.end(JSON.stringify({ ok: false, error: 'kb 必填' }));
         return;
       }
-      const result = await confirmOntologySchema(kb.trim(), schema, data_dir);
+      const result = await confirmOntologySchema(kb.trim(), schema, data_dir, hierarchy_confirmed === true, extensions_confirmed === true);
+      // A1(2026-09-25): 人拍板确认生效 = 该企业切到新库。把登录用户的绑定 kb 一并更新到新库，
+      // 并把激活态落到持久态（setCurrentKb 写 active_ontology.json），否则门禁每请求
+      // 会按旧的 user.kb 把激活态回退，"建哪个激活哪个"被抵消。
+      if (result && result.ok && req.user && req.user.username) {
+        try { updateUser(req.user.username, { kb: kb.trim(), onboarded: true }); } catch (e) { /* 忽略 */ }
+        try { setCurrentKb(kb.trim()); } catch (e) { /* 忽略 */ }
+      }
+      res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 自助建模 · 候选数据目录（从真实数据枚举，不写死）──
+  // 来源 = ① kbs.json 里所有已注册 kb 的 data_dir ② 套件 codes/ 下真实存在的 data* 目录。
+  // 每项附证据：是否存在 / csv 个数 / 被哪些 kb 注册 / 建议 kb / 是否外部目录。
+  if (req.method === 'GET' && url === '/api/ontology/selfmodel/candidates') {
+    try {
+      const result = selfmodelCandidates();
+      res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 自助建模 · 选中目录校验（存在/可读/含csv/占用冲突/危险路径/外部目录）──
+  if (req.method === 'POST' && url === '/api/ontology/selfmodel/validate') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const result = validateDataDir(body.kb, body.dir);
+      res.writeHead(result.ok ? 200 : 400, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+    }
+    return;
+  }
+
+  // ── API: 自助建模 · 甲方自助接入（multipart 原样透传后端 /api/ontology/self-onboard）──
+  // 上传数据文件 → 后端落盘 codes/data_<kb>/ → 自动建模+词典 → 返回可用 kb。
+  if (req.method === 'POST' && url === '/api/ontology/self-onboard') {
+    try {
+      const contentType = String(req.headers['content-type'] || '');
+      if (!contentType.toLowerCase().includes('multipart/form-data')) {
+        res.writeHead(400, { 'Content-Type': 'application/json;charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: 'Content-Type 必须为 multipart/form-data' }));
+        return;
+      }
+      const raw = await readRawBody(req, 60 * 1024 * 1024);
+      const result = await selfOnboard(contentType, raw);
+      // A1(2026-09-25): 自助接入成功 = 该企业切到新库（同上，避免门禁回退激活态）。
+      const _newKb = (result && result.data && result.data.kb) || '';
+      if (result && result.ok && _newKb && req.user && req.user.username) {
+        try { updateUser(req.user.username, { kb: _newKb, onboarded: true }); } catch (e) { /* 忽略 */ }
+        try { setCurrentKb(_newKb); } catch (e) { /* 忽略 */ }
+      }
       res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
       res.end(JSON.stringify(result));
     } catch (err) {

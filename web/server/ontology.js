@@ -3,7 +3,7 @@
 import { execFile } from 'child_process';
 import os from 'os';
 import { writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync, statSync, rmSync, renameSync } from 'fs';
-import { join, dirname, basename, extname, sep, relative } from 'path';
+import { join, dirname, basename, extname, sep, relative, isAbsolute } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -105,6 +105,16 @@ const API_URL = (process.env.API_URL || 'http://127.0.0.1:8000').replace(/\/+$/,
 const API_KEY = String(process.env.API_KEY || readApiKeyConfig() || '').trim();
 // 知识库注册表(kbs.json), 后端多租户共享: 每行业一个隔离数据/本体/词典
 const KBS_FILE = join(KIT, 'config', 'kbs.json');
+// A1(2026-09-25): 激活态单一真相源 = 后端持久化的 codes/config/active_ontology.json。
+// BFF 不再只写自己的 web_state.json（进程内/重启会与后端分裂），改为读/写这份共享文件。
+const ACTIVE_FILE = join(KIT, 'config', 'active_ontology.json');
+
+// C4 自检: 未取到后端 API Key 时给清晰提示，而不是让每个请求静默 401。
+if (!API_KEY) {
+  console.warn('[自检] 未配置后端 API Key：环境变量 API_KEY 与 ' +
+    join(__dirname, 'apiserver.config.json') + ' 的 apiKey 均缺失；' +
+    '调后端将全部 401。请配置后重启 BFF。');
+}
 
 /** 从 server 侧配置文件读 API Key(可选; 优先级低于环境变量 API_KEY) */
 function readApiKeyConfig() {
@@ -154,6 +164,20 @@ async function apiFetch(path, { method = 'GET', body, timeout = 15000 } = {}) {
     let data = null;
     try { data = JSON.parse(text); } catch (e) { /* 非 JSON 视为异常 */ }
     if (!data) return { ok: false, offline: false, error: `后端返回非 JSON (HTTP ${resp.status})` };
+    // C2(2026-09-25): 后端**框架级**错误（响应里没有布尔 ok 字段，如 FastAPI 的 {"detail":...}）
+    // 绝不能落到上层通用兜底文案"后端建模失败"——那是假文案。这里如实透出真实原因：
+    //   401 → 未登录/会话过期；其余(403/429/5xx) → 后端的 detail。
+    if (resp.status >= 400 && typeof data.ok !== 'boolean') {
+      const raw = data.detail != null ? data.detail : data.error;
+      const detail = String(typeof raw === 'string' ? raw : (raw ? JSON.stringify(raw) : '')).trim();
+      const auth = resp.status === 401 || resp.status === 403;
+      return {
+        ok: false, status: resp.status, auth_error: auth,
+        error: resp.status === 401
+          ? '未登录或会话已过期，请重新登录（后端返回 401）'
+          : (detail || `后端返回 HTTP ${resp.status}`),
+      };
+    }
     return data;
   } catch (e) {
     // 网络不可达/超时: 置 offline 标志供调用方降级
@@ -193,28 +217,50 @@ export function registerKb(kb, ntRel, lexRel) {
   }
 }
 
-/**
- * 取当前激活 kb：一企业一行业一数据。
- * 只认当前登录企业绑定的 kb（index.js 每次请求已按 user.kb 调 setCurrentKb 写入 web_state）。
- * 绝不兜底到注册表第一个或历史遗留 'food'——那会把 A 企业的本体错当成 B 企业。
- * web.kb 失效/为空 → 返回空串，调用方据此引导重新配置，而非错用别的企业数据。
- * @returns {string}
- */
-export function getCurrentKb() {
-  const web = loadWebState();
-  // 以登录用户绑定的 kb 为唯一权威(web.kb 由 index.js 按 user.kb 写入), 不要求 kbs.json 注册
-  // (否则新/未注册 kb 返回空 → 刷新漂移/待导入误判)
-  if (web && web.kb) return web.kb;
+// A1(2026-09-25): 激活态读/写 —— 单一真相源是后端持久化的 codes/config/active_ontology.json。
+/** 读持久化激活 kb（active_ontology.json）→ 字符串，缺失/损坏返回空串。 */
+export function loadActiveKb() {
+  try {
+    if (existsSync(ACTIVE_FILE)) {
+      return String(JSON.parse(readFileSync(ACTIVE_FILE, 'utf-8')).kb || '').trim();
+    }
+  } catch (e) { /* 忽略 */ }
   return '';
 }
 
-/** 设置当前激活 kb, 持久化到前端自身状态 */
+/**
+ * 取当前激活 kb：一企业一行业一数据。
+ * A1(2026-09-25): 以持久化激活态 active_ontology.json 为**唯一真相源**（后端建库/切库即写、
+ * 服务重启即在），web_state.kb 仅作旧数据兼容兜底。绝不兜底到注册表第一个或历史遗留 'food'——
+ * 那会把 A 企业的本体错当成 B 企业。
+ * @returns {string}
+ */
+export function getCurrentKb() {
+  const a = loadActiveKb();
+  if (a) return a;
+  const web = loadWebState();
+  if (web && web.kb) return web.kb;   // 兼容旧 web_state（未迁移的部署）
+  return '';
+}
+
+/** 设置当前激活 kb：写持久化真相源 active_ontology.json（+ 兼容 web_state），服务重启不丢。 */
 export function setCurrentKb(kb) {
   const safe = String(kb || '').trim();
   if (!safe) return;
+  let st = {};
+  try { if (existsSync(ACTIVE_FILE)) st = JSON.parse(readFileSync(ACTIVE_FILE, 'utf-8')) || {}; } catch (e) { st = {}; }
+  st.kb = safe;
+  st.updated = new Date().toISOString();
+  st.source = 'bff';
+  try { writeFileSync(ACTIVE_FILE, JSON.stringify(st, null, 2), 'utf-8'); } catch (e) { /* 写失败忽略 */ }
   const web = loadWebState() || {};
   web.kb = safe;
   saveWebState(web);
+}
+
+/** C1/C4: 暴露后端连接配置给 index.js 的代理（不打印 key 本身）。 */
+export function backendConfig() {
+  return { url: API_URL, key: API_KEY, hasKey: !!API_KEY };
 }
 
 /**
@@ -439,6 +485,222 @@ export function readDataFile(relPath) {
   } catch (e) {
     return { ok: false, error: netErr(e) };
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// 自助建模 · 目录浏览 + 候选自动匹配（只读；候选一律从真实数据枚举，不写死）
+// --------------------------------------------------------------------------
+// 安全契约：这些函数只返回「目录名 + 基本元信息（是否存在/是否含 csv/csv 个数/
+// 被哪个 kb 注册/是否外部目录）」，绝不返回文件内容；「仅本机可访问」由 BFF
+// (index.js) 依据 req.socket.remoteAddress 把关（非 127.0.0.1/::1 → 403）。
+// ══════════════════════════════════════════════════════════════════════════
+
+// kbs.json 里 data_dir 的解析根 = 套件 codes/（所有相对 data_dir 均相对 codes/）
+const DATA_ROOT = KIT;
+
+// 危险路径拦截：盘符根 / 系统目录（大小写不敏感，反斜杠统一为 /）
+const DANGEROUS_PREFIXES = [
+  'c:/windows', 'c:/program files', 'c:/program files (x86)', 'c:/programdata',
+  'c:/perflogs', 'c:/$recycle.bin', 'c:/system volume information',
+  '/etc', '/usr', '/bin', '/sbin', '/boot', '/dev', '/proc', '/sys', '/var', '/root',
+  '/system', '/library', '/applications',
+];
+
+/** 统一路径分隔符并去掉尾部斜杠（Windows 反斜杠 → /）；保留盘符根（C:/）。 */
+function normPath(p) {
+  let s = String(p || '').replace(/\\/g, '/').replace(/\/+$/, '');
+  if (/^[A-Za-z]:$/.test(s)) s += '/';   // 盘符根补回斜杠，避免退化成盘符相对路径
+  return s;
+}
+
+/** 危险路径判定：盘符根（C:/）、文件系统根（/）、系统目录（C:/Windows 等）。 */
+export function isDangerousPath(p) {
+  const n = normPath(p).toLowerCase();
+  if (!n) return true;
+  if (/^[a-z]:\/?$/.test(n)) return true;   // 盘符根
+  return DANGEROUS_PREFIXES.some(pre => n === pre || n.startsWith(pre + '/'));
+}
+
+/** 判断绝对路径是否位于套件 codes/ 内（用于标注「外部数据目录」）。 */
+function isUnderKit(abs) {
+  const a = normPath(abs).toLowerCase();
+  const k = normPath(KIT).toLowerCase();
+  return a === k || a.startsWith(k + '/');
+}
+
+/** 上级目录（用于浏览器的「返回上级」）；盘符根返回自身。 */
+function parentOf(abs) {
+  const n = normPath(abs);
+  const i = n.lastIndexOf('/');
+  if (i < 0) return '';
+  const par = n.slice(0, i);
+  if (!par || /^[a-z]:$/i.test(par)) return /^[a-z]:$/i.test(par) ? par + '/' : n;
+  return par;
+}
+
+/** 该目录被哪些已注册 kb 的 data_dir 引用（相对路径按 codes/ 归一，绝对路径按原值比对）。 */
+function kbsUsingDir(dirPath) {
+  const target = normPath(dirPath).toLowerCase();
+  const out = [];
+  const kbs = loadKbs();
+  for (const [kb, v] of Object.entries(kbs)) {
+    const dd = v && v.data_dir;
+    if (!dd) continue;
+    if (normPath(dd).toLowerCase() === target) out.push(kb);
+  }
+  return out;
+}
+
+/** 由目录名反推建议 kb 名（data_xxx → xxx；纯 data → 空，无法唯一推导）。 */
+function suggestKbFromDir(dirPath) {
+  const name = basename(normPath(dirPath));
+  const m = /^data_(.+)$/i.exec(name);
+  if (m && m[1]) return m[1];
+  return '';
+}
+
+/** 目录「只目录名 + 元信息」：存在性 / 是否目录 / csv 个数 / 注册归属 / 建议 kb。绝不读文件内容。 */
+function dirMeta(absPath, displayPath) {
+  let exists = false, isDir = false, csvCount = 0;
+  try { exists = existsSync(absPath); if (exists) isDir = statSync(absPath).isDirectory(); } catch (e) { isDir = false; }
+  if (isDir) { try { csvCount = readdirSync(absPath).filter(f => /\.csv$/i.test(f)).length; } catch (e) { csvCount = 0; } }
+  return {
+    path: normPath(displayPath), name: basename(normPath(displayPath)) || normPath(displayPath),
+    exists, is_dir: isDir, has_csv: csvCount > 0, csv_count: csvCount,
+    suggested_kb: suggestKbFromDir(displayPath), registered_by: kbsUsingDir(displayPath),
+    external: !isUnderKit(absPath),
+  };
+}
+
+/** 列盘符（真实存在的根；含平台标记）。只返回名字与存在性，不含任何文件信息。 */
+export function listDrives() {
+  const drives = [];
+  for (const L of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') {
+    const root = `${L}:/`;
+    let ok = false;
+    try { ok = existsSync(root) && statSync(root).isDirectory(); } catch (e) { ok = false; }
+    if (ok) drives.push({ root, label: `${L}:` });
+  }
+  return { ok: true, platform: os.platform(), root: DATA_ROOT, drives };
+}
+
+/**
+ * 列某目录下的子目录（只目录名 + csv 统计 + 注册归属 + 建议 kb + 是否外部）。
+ * @param {string} targetAbs 目标目录绝对路径（本机限定由 BFF 把关）
+ * @returns {{ok, path?, parent?, dirs?, error?}}
+ */
+export function listDirs(targetAbs) {
+  const p = String(targetAbs || '').trim();
+  if (!p) return { ok: false, error: 'path 必填' };
+  const abs = normPath(p);
+  let isDir = false;
+  try { isDir = existsSync(abs) && statSync(abs).isDirectory(); } catch (e) { isDir = false; }
+  if (!isDir) return { ok: false, error: `目录不存在或不可读: ${p}` };
+  let names = [];
+  try { names = readdirSync(abs); } catch (e) { return { ok: false, error: '目录不可读' }; }
+  const dirs = [];
+  for (const name of names.sort()) {
+    if (name.startsWith('.')) continue;
+    if (HIDDEN_DIRS.has(name)) continue;
+    const full = join(abs, name);
+    let st = null;
+    try { st = statSync(full); } catch (e) { continue; }
+    if (!st.isDirectory()) continue;
+    const meta = dirMeta(full, `${abs}/${name}`);
+    dirs.push({
+      name, path: meta.path, has_csv: meta.has_csv, csv_count: meta.csv_count,
+      registered_by: meta.registered_by, suggested_kb: meta.suggested_kb, external: meta.external,
+    });
+  }
+  return { ok: true, path: abs, parent: parentOf(abs), dirs };
+}
+
+/**
+ * 候选数据目录（从真实数据枚举，不写死）：
+ *   ① kbs.json 里所有已注册 kb 的 data_dir（缺失则不计）
+ *   ② 套件 codes/ 下所有真实存在的 data*（data / data_valve / data_food ...）目录
+ * 每个候选附证据：是否存在 / csv 个数 / 被哪些 kb 注册 / 建议 kb / 是否外部目录。
+ * @returns {{ok, candidates?, root?}}
+ */
+export function selfmodelCandidates() {
+  const map = new Map();   // key = 归一化小写路径，去重
+  const add = (disp) => { const k = normPath(disp).toLowerCase(); if (k && !map.has(k)) map.set(k, normPath(disp)); };
+
+  // ① 已注册 data_dir
+  for (const [, v] of Object.entries(loadKbs())) {
+    if (v && v.data_dir) add(v.data_dir);
+  }
+  // ② codes/ 下真实 data* 目录（只目录，排除 data_loader.py 之类文件）
+  let names = [];
+  try { names = readdirSync(DATA_ROOT); } catch (e) { names = []; }
+  for (const name of names) {
+    if (!/^data(_|$)/i.test(name)) continue;    // data / data_xxx，排除 data.py/data_import.py
+    let st = null;
+    try { st = statSync(join(DATA_ROOT, name)); } catch (e) { continue; }
+    if (st.isDirectory()) add(name);
+  }
+
+  const candidates = [];
+  for (const disp of map.values()) {
+    const abs = isAbsolute(disp) ? disp : join(DATA_ROOT, disp);
+    candidates.push(dirMeta(abs, disp));
+  }
+  // 排序：已注册者优先 → csv 多者优先 → 名字
+  candidates.sort((a, b) =>
+    (b.registered_by.length - a.registered_by.length) ||
+    (b.csv_count - a.csv_count) ||
+    a.path.localeCompare(b.path));
+  return { ok: true, root: DATA_ROOT, candidates };
+}
+
+/**
+ * 选中目录后的校验：存在性 / 可读性 / 是否含 csv / 是否被别的 kb 占用 / 危险路径 / 外部目录。
+ * 找不到匹配时给出显式状态（match='none'），绝不静默回退到写死值。
+ * @param {string} kb 当前 kb 名（用于判定占用冲突与匹配度）
+ * @param {string} dir 目录（相对 codes/ 或绝对路径）
+ * @returns {{ok, data?:{...}, error?}}
+ */
+export function validateDataDir(kb, dir) {
+  const d = normPath(dir);
+  if (!d) return { ok: false, error: '数据目录为空' };
+  const abs = isAbsolute(d) ? d : join(DATA_ROOT, d);
+  const dangerous = isDangerousPath(abs);
+  let exists = false, isDir = false, readable = false, csvCount = 0;
+  try { exists = existsSync(abs); if (exists) isDir = statSync(abs).isDirectory(); } catch (e) { isDir = false; }
+  if (isDir) { try { readdirSync(abs); readable = true; } catch (e) { readable = false; } }
+  if (readable) { try { csvCount = readdirSync(abs).filter(f => /\.csv$/i.test(f)).length; } catch (e) { csvCount = 0; } }
+  const kbName = String(kb || '').trim();
+  const registeredBy = kbsUsingDir(d);
+  const occupiedBy = registeredBy.filter(k => k !== kbName);   // 被「别的」kb 占用
+  const selfRegistered = !!kbName && registeredBy.includes(kbName);
+  const suggestedKb = suggestKbFromDir(d);
+  const external = !isUnderKit(abs);
+
+  // 匹配度：registered(该 kb 已注册) / name-match(data_<kb> 规范化匹配) / weak(有线索) / none(新目录)
+  let match = 'none';
+  if (selfRegistered) match = 'registered';
+  else if (suggestedKb && suggestedKb.toLowerCase() === kbName.toLowerCase()) match = 'name-match';
+  else if (registeredBy.length || suggestedKb) match = 'weak';
+
+  const problems = [];
+  if (dangerous) problems.push('危险路径（盘符根/系统目录）已拦截');
+  if (!exists) problems.push('目录不存在');
+  else if (!isDir) problems.push('不是目录');
+  else if (!readable) problems.push('目录不可读');
+  else if (csvCount === 0) problems.push('目录内没有 CSV 数据文件');
+  if (occupiedBy.length) problems.push(`已被其它知识库占用：${occupiedBy.join('、')}`);
+
+  return {
+    ok: true,
+    data: {
+      dir: d, abs, exists, is_dir: isDir, readable, has_csv: csvCount > 0, csv_count: csvCount,
+      registered_by: registeredBy, occupied_by: occupiedBy, self_registered: selfRegistered,
+      suggested_kb: suggestedKb, external, dangerous, match, problems,
+      blocked: problems.length > 0,
+      // 显式提示：未匹配到任何已注册目录 → 「这是新目录」，交用户确认，不静默回退
+      note: match === 'none' ? '未匹配到已注册目录，这是一个新目录，请确认后继续' : '',
+    },
+  };
 }
 
 /**
@@ -982,13 +1244,15 @@ export async function suggestOntologySchema(kb, dataDir) {
  * schema 为人工编辑后的完整对象（entities 必须原样带上 attribute.role，丢了问答会失效）。
  * 后端据其产出 nt + lexicon 并注册/激活 kb。返回 {kb, schema_path, nt, lexicon, status, ask_ready}。
  */
-export async function confirmOntologySchema(kb, schema, dataDir) {
+export async function confirmOntologySchema(kb, schema, dataDir, hierarchyConfirmed, extensionsConfirmed) {
   try {
     if (!kb) return { ok: false, error: 'kb 必填' };
     if (!schema || !Array.isArray(schema.entities) || schema.entities.length === 0) {
       return { ok: false, error: 'schema.entities 必填' };
     }
-    const body = { kb, schema };
+    // ③ 人在环：把「层次与定义确认」/「扩展描述项确认」的勾选原样透传，后端未确认一律拒绝落库
+    const body = { kb, schema, hierarchy_confirmed: hierarchyConfirmed === true,
+                   extensions_confirmed: extensionsConfirmed === true };
     if (dataDir) body.data_dir = String(dataDir).trim();
     const r = await apiFetch('/api/ontology/confirm', { method: 'POST', body, timeout: 180000 });
     return r && r.ok ? { ok: true, data: r.data } : { ok: false, error: (r && r.error) || '确认生效失败' };

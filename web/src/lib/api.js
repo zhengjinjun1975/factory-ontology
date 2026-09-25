@@ -328,13 +328,53 @@ export async function suggestSchema(kb, dataDir) {
 }
 
 /** ② 人拍板：把人工确认/修改后的完整 schema 原样回传（entities 必须含 attribute.role），
- *  后端按它产出 nt + lexicon 并注册 kb。 */
-export async function confirmSchema(kb, schema, dataDir) {
+ *  后端按它产出 nt + lexicon 并注册 kb。
+ *  hierarchyConfirmed：③ 人在环 —— 「层次与定义确认」已勾选；未勾选后端拒绝落库（不静默通过）。 */
+export async function confirmSchema(kb, schema, dataDir, hierarchyConfirmed, extensionsConfirmed) {
   return fetchRetry('/api/ontology/confirm', {
     method: 'POST',
     headers: JSON_HEADERS,
-    body: JSON.stringify({ kb, schema, data_dir: dataDir }),
+    body: JSON.stringify({ kb, schema, data_dir: dataDir,
+                           hierarchy_confirmed: hierarchyConfirmed === true,
+                           extensions_confirmed: extensionsConfirmed === true }),
   });
+}
+
+// ── 自助建模 · 目录浏览（仅本机）与候选自动匹配 ────────────────────────────
+/** 列盘符（本机限定：非 127.0.0.1/::1 访问 → 403）。只返回盘符名与存在性。 */
+export function fetchFsDrives() {
+  return fetchRetry('/api/fs/drives', { cache: 'no-store' });
+}
+
+/** 列某目录下的子目录（本机限定）。只返回目录名 + 基本元信息，绝不返回文件内容。 */
+export function fetchFsDirs(path) {
+  return fetchRetry(`/api/fs/dirs?path=${encodeURIComponent(path)}`, { cache: 'no-store' });
+}
+
+/** 候选数据目录：从真实数据枚举（kbs.json 已注册 data_dir + codes/ 下真实 data* 目录），
+ *  每项带证据（是否存在 / csv 个数 / 被哪个 kb 注册 / 建议 kb / 是否外部目录）。 */
+export function fetchSelfModelCandidates() {
+  return fetchRetry('/api/ontology/selfmodel/candidates', { cache: 'no-store' });
+}
+
+/** 选中目录校验：存在 / 可读 / 含 csv / 占用冲突 / 危险路径 / 外部目录 / 匹配度。 */
+export function validateSelfModelDir(kb, dir) {
+  return fetchRetry('/api/ontology/selfmodel/validate', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ kb, dir }),
+  });
+}
+
+/** 甲方自助接入：上传数据文件 → 后端落盘 data_<kb>/ → 自动建模 → 返回可用 kb。
+ *  multipart 透传（BFF /api/ontology/self-onboard → 后端同名端点）。 */
+export function selfOnboardFiles(files, { kb = '', name = '', industry = '' } = {}) {
+  const fd = new FormData();
+  for (const f of (files || [])) fd.append('files', f);
+  fd.append('kb', kb);
+  fd.append('name', name);
+  fd.append('industry', industry);
+  return fetchRetry('/api/ontology/self-onboard', { method: 'POST', body: fd });
 }
 
 // ── 企业设置（企业名/logo/行业，后端持久化）──
