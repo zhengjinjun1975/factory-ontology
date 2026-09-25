@@ -77,3 +77,6 @@ codes/config/sso.json
 codes/config/active_ontology.json
 # 后端鉴权 key 配置文件(C4: 含真实 key, 不入库; 可只用环境变量)
 codes/config/api_keys.json
+
+# 本地微调编译缓存（与本项目无关）
+unsloth_compiled_cache/
