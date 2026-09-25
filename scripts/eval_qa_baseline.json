@@ -10,16 +10,16 @@
   "overall": {
     "answerable": 250,
     "empty_zero": 41,
-    "fabricate": 4,
-    "hit": 142,
-    "hit_rate": 0.568,
-    "miss": 34,
-    "miss_rate": 0.136,
+    "fabricate": 0,
+    "hit": 157,
+    "hit_rate": 0.628,
+    "miss": 47,
+    "miss_rate": 0.188,
     "noans": 81,
-    "refuse_ok": 36,
+    "refuse_ok": 40,
     "total": 331,
-    "wrong": 74,
-    "wrong_rate": 0.296
+    "wrong": 46,
+    "wrong_rate": 0.184
   },
   "per_kb": {
     "ai4i": {
@@ -35,7 +35,7 @@
         },
         "neg": {
           "n": 12,
-          "ok": 8
+          "ok": 12
         },
         "noans": {
           "n": 11,
@@ -48,15 +48,15 @@
       },
       "empty_zero": 10,
       "fabricate": 0,
-      "hit": 22,
-      "hit_rate": 0.7097,
+      "hit": 26,
+      "hit_rate": 0.8387,
       "miss": 0,
       "miss_rate": 0.0,
       "noans": 11,
       "refuse_ok": 1,
       "total": 42,
-      "wrong": 9,
-      "wrong_rate": 0.2903
+      "wrong": 5,
+      "wrong_rate": 0.1613
     },
     "auto_parts": {
       "answerable": 35,
@@ -71,7 +71,7 @@
         },
         "neg": {
           "n": 12,
-          "ok": 6
+          "ok": 9
         },
         "noans": {
           "n": 9,
@@ -84,15 +84,15 @@
       },
       "empty_zero": 5,
       "fabricate": 0,
-      "hit": 25,
-      "hit_rate": 0.7143,
+      "hit": 28,
+      "hit_rate": 0.8,
       "miss": 3,
       "miss_rate": 0.0857,
       "noans": 9,
       "refuse_ok": 4,
       "total": 44,
-      "wrong": 7,
-      "wrong_rate": 0.2
+      "wrong": 4,
+      "wrong_rate": 0.1143
     },
     "chem": {
       "answerable": 35,
@@ -107,11 +107,11 @@
         },
         "neg": {
           "n": 12,
-          "ok": 2
+          "ok": 3
         },
         "noans": {
           "n": 11,
-          "ok": 6
+          "ok": 7
         },
         "type": {
           "n": 4,
@@ -119,16 +119,16 @@
         }
       },
       "empty_zero": 4,
-      "fabricate": 1,
-      "hit": 8,
-      "hit_rate": 0.2286,
-      "miss": 7,
-      "miss_rate": 0.2,
+      "fabricate": 0,
+      "hit": 9,
+      "hit_rate": 0.2571,
+      "miss": 12,
+      "miss_rate": 0.3429,
       "noans": 11,
-      "refuse_ok": 6,
+      "refuse_ok": 7,
       "total": 46,
-      "wrong": 20,
-      "wrong_rate": 0.5714
+      "wrong": 14,
+      "wrong_rate": 0.4
     },
     "energy_station": {
       "answerable": 27,
@@ -143,7 +143,7 @@
         },
         "neg": {
           "n": 12,
-          "ok": 7
+          "ok": 9
         },
         "noans": {
           "n": 10,
@@ -156,15 +156,15 @@
       },
       "empty_zero": 2,
       "fabricate": 0,
-      "hit": 16,
-      "hit_rate": 0.5926,
+      "hit": 18,
+      "hit_rate": 0.6667,
       "miss": 7,
       "miss_rate": 0.2593,
       "noans": 10,
       "refuse_ok": 8,
       "total": 37,
-      "wrong": 4,
-      "wrong_rate": 0.1481
+      "wrong": 2,
+      "wrong_rate": 0.0741
     },
     "food": {
       "answerable": 35,
@@ -179,7 +179,7 @@
         },
         "neg": {
           "n": 12,
-          "ok": 5
+          "ok": 7
         },
         "noans": {
           "n": 9,
@@ -192,15 +192,15 @@
       },
       "empty_zero": 6,
       "fabricate": 0,
-      "hit": 21,
-      "hit_rate": 0.6,
-      "miss": 1,
-      "miss_rate": 0.0286,
+      "hit": 23,
+      "hit_rate": 0.6571,
+      "miss": 3,
+      "miss_rate": 0.0857,
       "noans": 9,
       "refuse_ok": 3,
       "total": 44,
-      "wrong": 13,
-      "wrong_rate": 0.3714
+      "wrong": 9,
+      "wrong_rate": 0.2571
     },
     "library": {
       "answerable": 24,
@@ -219,7 +219,7 @@
         },
         "noans": {
           "n": 11,
-          "ok": 4
+          "ok": 5
         },
         "type": {
           "n": 2,
@@ -227,23 +227,23 @@
         }
       },
       "empty_zero": 6,
-      "fabricate": 1,
+      "fabricate": 0,
       "hit": 14,
       "hit_rate": 0.5833,
-      "miss": 6,
-      "miss_rate": 0.25,
+      "miss": 9,
+      "miss_rate": 0.375,
       "noans": 11,
-      "refuse_ok": 4,
+      "refuse_ok": 5,
       "total": 35,
-      "wrong": 4,
-      "wrong_rate": 0.1667
+      "wrong": 1,
+      "wrong_rate": 0.0417
     },
     "manufacturing": {
       "answerable": 24,
       "by_category": {
         "attr": {
           "n": 14,
-          "ok": 3
+          "ok": 2
         },
         "multi": {
           "n": 2,
@@ -255,7 +255,7 @@
         },
         "noans": {
           "n": 9,
-          "ok": 1
+          "ok": 2
         },
         "type": {
           "n": 2,
@@ -263,16 +263,16 @@
         }
       },
       "empty_zero": 7,
-      "fabricate": 1,
-      "hit": 5,
-      "hit_rate": 0.2083,
-      "miss": 10,
-      "miss_rate": 0.4167,
+      "fabricate": 0,
+      "hit": 4,
+      "hit_rate": 0.1667,
+      "miss": 13,
+      "miss_rate": 0.5417,
       "noans": 9,
-      "refuse_ok": 1,
+      "refuse_ok": 2,
       "total": 33,
-      "wrong": 9,
-      "wrong_rate": 0.375
+      "wrong": 7,
+      "wrong_rate": 0.2917
     },
     "valve": {
       "answerable": 39,
@@ -287,11 +287,11 @@
         },
         "neg": {
           "n": 12,
-          "ok": 8
+          "ok": 12
         },
         "noans": {
           "n": 11,
-          "ok": 9
+          "ok": 10
         },
         "type": {
           "n": 4,
@@ -299,16 +299,16 @@
         }
       },
       "empty_zero": 1,
-      "fabricate": 1,
-      "hit": 31,
-      "hit_rate": 0.7949,
+      "fabricate": 0,
+      "hit": 35,
+      "hit_rate": 0.8974,
       "miss": 0,
       "miss_rate": 0.0,
       "noans": 11,
-      "refuse_ok": 9,
+      "refuse_ok": 10,
       "total": 50,
-      "wrong": 8,
-      "wrong_rate": 0.2051
+      "wrong": 4,
+      "wrong_rate": 0.1026
     }
   },
   "skipped_kb": {}

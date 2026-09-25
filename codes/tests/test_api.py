@@ -27,10 +27,12 @@ def test_api_endpoints():
     assert c.get("/health").status_code == 200
     assert c.get("/").status_code == 200
     # 问答(规则引擎) — 带鉴权头
-    r = c.post("/api/ask", json={"question": "乳制品的数量"}, headers=_API_HEADERS)
+    # 显式指定 kb=food：本用例断言的是「食品库能答食品问题」，与全局激活态(active_ontology.json)
+    # 解耦，免得测试结果随运行时切库而漂移。
+    r = c.post("/api/ask", json={"question": "乳制品的数量", "kb": "food"}, headers=_API_HEADERS)
     assert r.status_code == 200 and "3" in r.json()["answer"]
     # 问答(答不上给引导)
-    r = c.post("/api/ask", json={"question": "完全无关xyz"}, headers=_API_HEADERS)
+    r = c.post("/api/ask", json={"question": "完全无关xyz", "kb": "food"}, headers=_API_HEADERS)
     assert r.status_code == 200 and r.json()["mode"] == "miss"
     # 溯源
     r = c.get("/api/trace/forward?batch=B001", headers=_API_HEADERS)
