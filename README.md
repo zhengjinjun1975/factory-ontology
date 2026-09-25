@@ -5,7 +5,7 @@
 
 **工厂本体驱动的数据问答框架。** 把结构化台账变成可自然语言提问的语义知识图谱，CSV 进，答案出，每个答案都带证据。
 
-[![Version](https://img.shields.io/badge/version-0.3.2-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
 [![CI](https://github.com/zhengjinjun1975/factory-ontology/actions/workflows/ci.yml/badge.svg)](https://github.com/zhengjinjun1975/factory-ontology/actions)
@@ -267,7 +267,11 @@ data_loader → schema_ontology（schema 驱动统一建模 + suggest_schema 自
 | `api_server.py` | REST API：问答、正/反向溯源、扫码、统计、管理、知识库/评测/资产契约端点 |
 | `web/` | Svelte5 前端：CSV 上传 → 建模 → 问答 → 证据溯源 → 知识图谱/分析看板 |
 
-周边能力（2.x 时代沉淀，保留可用）：`csv_to_owl.py`/`multi_table.py`（无 schema 的单表/多表建本体兼容路径）、`evidence.py`（证据提取）、`graph_store.py`（SQLite 图持久化）、`mcp_server.py`（MCP server，AI agent 可调用）、`voice_assistant.py`（语音助手）、`data_import.py`/`data_quality.py`/`monitor.py`（数据接入/质量校验/看门狗）、`new_kb.py`（新知识库骨架）、`agents/lexicon_agent.py`（自动词典生成）、`config/`（模型配置 + 词典 + schema + 多租户注册表）。
+周边能力（2.x 时代沉淀，保留可用）：`csv_to_owl.py`/`multi_table.py`（无 schema 的单表/多表建本体兼容路径）、`evidence.py`（证据提取）、`graph_store.py`（SQLite 图持久化）、`mcp_server.py`（MCP server，AI agent 可调用）、`voice_assistant.py`（语音助手）、`data_import.py`/`data_quality.py`/`monitor.py`（数据接入/质量校验/看门狗）、`new_kb.py`（新知识库骨架）、`agents/lexicon_agent.py`（自动词典生成）、`config/`（模型配置 + 词典 + schema + 多租户/SSO 配置）。
+
+商业化鉴权与自助建模（v0.4.0）：`tenant.py`（多租户解析 + 请求级租户上下文）、`db_dialect.py`/`db_loader.py`（行级隔离单点，缺租户 fail-closed）、`token_guard.py`（令牌吊销 / 刷新轮替 / 限速状态层）、`sso.py`（SSO/OIDC-JWT 适配器，LDAP 为接口占位）、`audit_chain.py`（哈希链审计账本，带 tenant）、`schema_ontology.py` 的类层次 / 定义 / 具名子类派生内核、`config/tenants.json` + `config/sso.example.json`（配置样例，真实配置 gitignore）。
+
+自检脚本：`scripts/run_all_gates.py`（一把跑全部门，可给 CI 复用）、`scripts/check_boundary.py`（开源边界：甲方痕迹 / 依赖合规）、`scripts/check_chainbreak.py`（前后端断链审计），以及各能力对应的 `scripts/verify_*.py`（多租户 / 严格鉴权 / 令牌与限速 / SSO / 自助建模浏览 / 建模质量与合规）。
 
 ### 生态插件（第三方扩展）
 
@@ -308,7 +312,7 @@ cd codes
 python valve_demo.py
 ```
 
-实测输出（v0.3.1，规则部分确定性可复现）：
+实测输出（v0.3.1，规则部分确定性可复现，数字仍同口径可用）：
 
 ```
 规则问答:  一共有多少个阀门 → 一共有 8 条记录
@@ -342,7 +346,7 @@ python api_server.py          # http://localhost:8000
 | `GET /api/admin/audit` | 审计日志查询 |
 | `GET /metrics` | 请求计数指标 |
 
-工程化能力：角色化鉴权（`FOOD_ADMIN_KEY`/`FOOD_READ_KEY`，默认 fail-closed：未配置或 key 不匹配一律 401）、增量重建（数据 hash 检测，变了才重建）、多租户隔离（`config/kbs.json`）、Docker 一条命令部署（`docker compose up -d`）、结构化日志。
+工程化能力：角色化鉴权（`FOOD_ADMIN_KEY`/`FOOD_READ_KEY`，默认 fail-closed：未配置或 key 不匹配一律 401；key 可走环境变量或 `config/api_keys.json`）、多租户与行级隔离（`config/tenants.json` 租户注册表 + 数据访问层强制租户条件，缺上下文 fail-closed）、严格鉴权灰度开关（`FOOD_STRICT_AUTH`，默认关）、上传体积上限（`FOOD_MAX_UPLOAD_MB`，默认 50MB，超限 413 且不落盘）、令牌吊销 / 刷新轮替 / 限速防爆破（`POST /api/auth/revoke|refresh|ban|unban`）、SSO/OIDC(JWT) 可选适配器（`codes/sso.py`，本地凭据优先）、增量重建（数据 hash 检测，变了才重建）、Docker 一条命令部署（`docker compose up -d`）、结构化日志 + 哈希链审计账本。
 
 ## Web 前端
 
@@ -385,6 +389,23 @@ python csv_to_owl.py data/food_products.csv output/food_products.nt
 python benchmark.py data/food_products.csv
 python valve_demo.py
 ```
+
+## 评测基线与自检门
+
+**问答评测集**（`scripts/eval_qa.py`，确定性生成，标准答案全部由真实 CSV 算出，零人工标注、不调模型）：8 个行业 KB、共 **331 问**（可答 250 + 无答案 81），五类问法（普通属性 / 类型词作主语 / 多实体多表 / 否定或比较 / 无答案）。判分把 **未命中（诚实拒答）≠ 误答（有答案但答错）≠ 编造** 分列。
+
+实测基线（`scripts/eval_qa_baseline.json`，v0.4.0）：命中率 **62.8%（157/250）**、未命中 18.8%、**误答率 18.4%**、**编造 0**（无答案 81 题中正确拒绝 40）。误答率仍是当前最大短板；逐 KB 分维度明细见基线 JSON 的 `per_kb.<kb>.by_category`。
+
+> 口径说明：该基线是 `ontology_qa_v3.answer` 的 in-process 口径（规则 + 本体这一确定性地基），**不含** LLM 润色 / 文档 RAG 融合 / GraphRAG 与混合检索兜底层。
+
+**八道自检门**（一把跑全部门，纯标准库，各门自起临时端口并收尾）：
+
+```bash
+python scripts/run_all_gates.py          # 全部（含最慢的评测基线）
+python scripts/run_all_gates.py --fast   # 跳过评测基线
+```
+
+门目：KB 注册表与词典分层 · 商用加固（鉴权/方言/审计链）· 编排上半截 · 问答信封与未命中 · 模型建议层 · 边界自检（甲方痕迹/依赖）· 仓库单测（pytest）· 问答评测基线（回归门）。**v0.4.0 当前 8 门全绿。**
 
 ## 模型配置
 
@@ -462,9 +483,9 @@ start.bat      # Windows
 
 ## 版本
 
-当前版本 **v0.3.2**。版本历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本 **v0.4.0**。版本历史见 [CHANGELOG.md](CHANGELOG.md)。
 
-0.3.x 为当前版本线（问答解析层修复 + 词典补译 + 版本号统一为单一事实源）；0.2.x 为 schema 驱动重构 + 检索/评测/上传/前端增强；0.1.x 为 schema 驱动重构基线；2.9.x 及更早为重构前的能力演进。
+0.4.x 为当前版本线（多租户与行级隔离 + 鉴权加固 + 令牌吊销/刷新与限速 + SSO 适配 + 自助建模目录浏览/自动匹配 + 建模质量与合规治理）；0.3.x 为问答解析层修复 + 词典资产闭环 + 版本号统一为单一事实源；0.2.x 为 schema 驱动重构 + 检索/评测/上传/前端增强；0.1.x 为 schema 驱动重构基线；2.9.x 及更早为重构前的能力演进。
 
 ## 开源与闭源：开源算法原子层 + 闭源编排层
 
@@ -492,6 +513,8 @@ start.bat      # Windows
 - **规模**：内存图为主，台账级；20 万实体可用 SQLite 图持久化过渡，不适合百万级实体图
 - **词典校对**：自动词典偶有误判，关键字段需人工确认
 - **LLM 稳定性**：本地小模型偶发空响应，生产建议用更强模型
+- **鉴权**：严格鉴权开关（`FOOD_STRICT_AUTH`）**默认关闭**——默认部署下本体结构与图端点仍可匿名读；多进程/多实例部署下，令牌吊销名单与限速计数为本地状态文件，**多实例不共享**；MySQL/PostgreSQL 行级隔离**只有代码、未在真库验证**；LDAP 适配器仅为接口占位（未实现）；SSO 只落地 JWT 直验（HS256 / RS256），未做完整 OAuth2 授权码流程
+- **建模合规上限**：实体扩展描述项齐备率可达 **77%**（等价类无真实同义词可依据，不伪造；等价类不可提升是诚实结论），具名子类未做实例级归类
 - **工程化程度**：有 CI / pytest / Docker 基础部署，无分布式，无大规模生产部署故事。它是可复现的方法论实现，不是开箱即用的生产平台
 - **原子化边界**：开源侧交付算法原子（认知/rag/事件）与确定性内核；自动化编排、反馈学习闭环在闭源侧，本仓库不包含也未证实该能力
 

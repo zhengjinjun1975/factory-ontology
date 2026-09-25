@@ -15,7 +15,7 @@ import os
 import sys
 import json
 
-__version__ = "0.3.2"
+__version__ = "0.4.0"
 import importlib.util
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -38,6 +38,19 @@ def _load(mod, path):
 
 def _name(source_path):
     return os.path.splitext(os.path.basename(source_path))[0]
+
+
+def _rel_or_abs(p, base):
+    """相对路径，跨盘（Windows C:/D: 不同挂载）不可计算时回退绝对路径。
+
+    自助建模允许选**仓库外/异盘**数据目录（界面「外部数据目录」），
+    此时 os.path.relpath 会抛 ValueError('path is on mount C:, start on mount D:')，
+    曾导致 confirm 建本体失败（报「按确认 schema 建本体失败」，真因被掩盖）。
+    """
+    try:
+        return os.path.relpath(p, base)
+    except ValueError:
+        return os.path.abspath(p)
 
 
 def setup_schema(data_dir, schema_path, table="factory"):
@@ -93,8 +106,8 @@ def setup_schema(data_dir, schema_path, table="factory"):
         print(f"❌ 本体建模失败（步骤3/3 建本体）: {e}")
         return None, None
 
-    json.dump({"nt": os.path.relpath(nt, ROOT), "schema": os.path.relpath(schema_path, ROOT),
-               "data_dir": os.path.relpath(data_dir, ROOT), "table": table},
+    json.dump({"nt": _rel_or_abs(nt, ROOT), "schema": _rel_or_abs(schema_path, ROOT),
+               "data_dir": _rel_or_abs(data_dir, ROOT), "table": table},
               open(STATE, "w", encoding="utf-8"))
     return nt, None
 

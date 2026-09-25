@@ -1,5 +1,115 @@
 # Changelog
 
+## [0.4.0] - 2026-09-25
+
+### 商业化鉴权加固 + 自助建模与建模质量（多租户 / 严格鉴权 / 令牌 / SSO / 向导 / 类层次）
+> 本版为一次功能级发布：累计工作区 57 个文件改动。八道自检门全绿（`python scripts/run_all_gates.py` → 全部通过（8 个门）），问答评测回归门命中率 **62.8%**、误答率 **18.4%**、编造 **0**。逐项证据见 `docs/实验/` 各报告。
+
+**新增 · 多租户与行级隔离**（`docs/实验/多租户与行级隔离-20260924.md`）
+- 新增 `codes/tenant.py`（租户解析：凭据声明 > `X-Tenant-Id` > 默认租户 `default`；`contextvars` 请求级上下文，线程/协程安全）+ `codes/config/tenants.json`（配置驱动租户注册表，缺省只含 `default` 且 `kbs:"*"`，老部署行为逐字段不变）。
+- 行级隔离单点：`codes/db_dialect.py` 新增 `tenant_clause` / `select_all_scoped`（缺租户上下文 fail-closed → `TenantContextError`）；`codes/db_loader.py` SQLite 读路径 PRAGMA 探测租户列并强制加租户条件（无租户列的历史表 SQL 与改前逐字节一致）。
+- KB 可见性：`codes/kb_registry.py` `list_kbs` / `get_kb(tenant=)` 按租户过滤，未知/越权抛 `TenantDenied`（拒绝而非空列表）。
+- 审计双通道带 `tenant`：`codes/audit_chain.py` 每条账本记录与 JSONL 访问日志必带租户。
+- 新端点：`GET /api/kbs`（当前租户可见 KB）；`/api/admin/kbs` 增加 `tenant` / `total`；令牌 `fotk2` 携带租户声明。
+- 自检 `scripts/verify_tenant.py`：**87/87 通过**（真实 HTTP，两套凭据各打一遍）。
+
+**新增 · 严格鉴权灰度开关 + 上传体积上限**（`docs/实验/严格鉴权开关与上传上限-20260924.md`）
+- `FOOD_STRICT_AUTH=1/true/yes/on` 时，本体结构/图/图 SVG/app-config/flows/metrics 等匿名只读端点要求凭据（无/无效 401、`/admin` 非 admin 403）；**默认关，行为逐字节不变**。
+- 上传上限 `FOOD_MAX_UPLOAD_MB`（默认 50MB）：`POST /api/admin/upload` 与 `POST /api/knowledge/ingest` 超限返回 **413 且不落盘**，读入改分块累计（AST 扫描 0 处无界 `await file.read()`）。
+- 自检 `scripts/verify_strict_auth.py`：**47/47 通过**。
+
+**新增 · 令牌吊销 / 刷新轮替 + 限速防爆破**（`docs/实验/令牌吊销与限速-20260924.md`）
+- 新增 `codes/token_guard.py`（零依赖，纯标准库 SQLite；状态目录有界，默认 `FOOD_AUTH_STATE_DIR=<repo>/var/auth_state`）。
+- 令牌格式扩展：`fotk3.<role>.<tenant|->.<exp>.<jti>.<sig>`（可吊销访问令牌）、`fotkr1.*`（刷新令牌）；**默认仍签发 `fotk1`，老令牌照旧可用**。
+- 新端点：`POST /api/auth/refresh`（刷新即轮替、旧刷新令牌用后即废、复用留审计 `refresh_reuse`）、`POST /api/auth/revoke`（按 `jti` / 按主体批量，吊销后**立即 401**）、`POST /api/auth/ban` / `POST /api/auth/unban`、`GET /api/auth/state`。
+- 限速：按「主体」与「来源 IP」两路计数，失败累计超阈值短时封禁（**429** + `Retry-After`），`ban`/`throttle`/`unban` 全留审计；正常凭据在封禁期间不被误伤。
+- 自检 `scripts/verify_token_guard.py`：**39/39 通过**。
+
+**新增 · SSO / OIDC(JWT) / LDAP 适配器**（`docs/实验/SSO接入适配-20260924.md`）
+- 新增 `codes/sso.py`：适配器注册表（注册/启用/停用）+ `OIDCJWTProvider`（**HS256 + 纯标准库 RS256 公钥验签**）+ `LDAPProvider`（**接口占位，未实现**）。
+- `codes/api_server.py` 仅**追加** SSO 入口（`_principal` 末尾）与 `GET /api/auth/sso/status`（admin，只报非敏感配置）；**本地静态 key / 租户 key / 本地令牌永远优先**，SSO 只作兜底。
+- 新增配置样例 `codes/config/sso.example.json`（`enabled:false`，全部示例值）；真实密钥配置 `codes/config/sso.json` 已 gitignore。
+- 自检 `scripts/verify_sso.py`：**56/56 通过**（篡改签名/过期/issuer/audience 不匹配/缺声明全拒）。
+
+**新增 · 自助建模：目录浏览 + 自动匹配推导**（`docs/实验/自助建模目录浏览与自动匹配-20260925.md`）
+- 后端/BFF：`web/server/ontology.js` 新增只读目录枚举与校验（`listDrives`/`listDirs`/`selfmodelCandidates`/`validateDataDir`/`isDangerousPath`，**只返回目录名与元信息，不返回文件内容**）；`web/server/index.js` 新增 `GET /api/fs/drives`、`GET /api/fs/dirs`（**仅本机**，非 127.0.0.1/::1 → 403）、`GET /api/ontology/selfmodel/candidates`、`POST /api/ontology/selfmodel/validate`、`POST /api/ontology/self-onboard`。
+- 后端补齐此前缺失的 `POST /api/ontology/self-onboard`（修反向后端断链）；`_resolve_src` / `confirm` 支持仓库外绝对路径并新增危险路径（盘符根/系统目录）拦截。
+- 前端：移除 `SelfModelPanel.svelte` 里写死的 `data_valve` 默认，改为从真实数据枚举推导（kb↔目录双向匹配、逐项证据 chip、目录选择器弹窗）；新增封装 `web/src/lib/api.js`。
+- 自检 `scripts/verify_selfmodel_browse.py`：**33/33 通过**；`check_chainbreak.py` 反向断链归零。
+
+**新增 · 激活态单一真相源 + 服务/文案修复**（`docs/实验/修A_C组-状态单一真相源与服务-20260925.md`）
+- 新增运行态 `codes/config/active_ontology.json`（已 gitignore）作为「当前生效本体」唯一写入点（建库/切库写入，服务启动读取）；`GET /api/kb/active`、`POST /api/kb/active`。
+- `/api/standard/compliance`、`/api/standard/export`、`roundtrip`、`quality`、`/api/ask` 缺省 kb 一律跟随当前激活库（不再写死全局 `config/ontology_schema.json`）；`confirm` / `self-onboard` 新增 `data_dir` 占用冲突校验（4091 拒绝）。
+- 鉴权 key 来源改为「环境变量优先 → `codes/config/api_keys.json`」，一处未配时返回 503 + 指引（仍 fail-closed）。
+- 自检 `scripts/verify_active_ontology.py`：**32/32 通过**（含「重启后端后激活态仍是切换后的库」实测）。
+
+**新增 · 建模质量：类层次 / 实体定义 / 具名子类**（`docs/实验/建模质量-类层次与定义-20260925.md`、`docs/实验/建模质量-扩展描述项-20260925.md`）
+- `codes/schema_ontology.py` 新增确定性派生内核：`derive_class_hierarchy` / `apply_class_hierarchy` / `derive_definitions` / `derive_named_subclasses` / `apply_named_subclasses`（纯规则、零 token、同输入同输出）。
+- `/api/ontology/suggest` 增返 `hierarchy` / `definitions` / `subclasses`（只读预览，逐条带 `rule` / `evidence`）；`/api/ontology/confirm` 增 `hierarchy_confirmed` / `extensions_confirmed` 硬门（未确认 / 缺依据 / 父实体不存在 → 拒绝落库，**模型只建议、人来确认**）。
+- 实测（同源 `ontology_check._check_standard`）：valve 合规度 84.2→**100.0**、实体核心描述项 83.3→**100.0**、类层次 0→**8/38**；food_co 84.2→**100.0**、类层次 0→**7/31**；实体扩展描述项齐备率 75.0→**77.0**。
+- 自检 `scripts/verify_standard_hierarchy.py`（39/39）、`scripts/verify_standard_extended.py`（41/41）。
+
+**修复**
+- 反向后端断链：补齐 `POST /api/ontology/self-onboard` 后端路由（3.4/第四节）。
+- BFF 未代理 `/api/standard/`：合规面板此前拿到首页 HTML → 显示空；`web/server/index.js` 新增该前缀转发并纳入登录门禁（C1）。
+- 错误文案骗人：`apiFetch` 对框架级 ≥400 如实透出后端原因（401 → 「未登录或会话已过期，请重新登录」；403/429/5xx → 后端 `detail`），不再被「后端建模失败」兜底掩盖（C2）。
+- 漏带 key 即整站 401：key 支持落配置文件 + 未配置时明确指引（C4）。
+- `codes/run.py` 新增 `_rel_or_abs()` 替换 `os.path.relpath`：修「自助建模选异盘/仓库外数据目录时 `ValueError: path is on mount C:, start on mount D:`」被掩盖成「按确认 schema 建本体失败」的真 bug。
+- `scripts/verify_kb_registry.py` 去掉「恰好 33 个 KB」的脆弱硬编码断言，改为「未缩水 ≥33 且无 `verify_*` 残渣」（D2）。
+- `codes/tests/test_api.py` 食品库问答用例显式传 `kb="food"`，与全局激活态解耦，防测试随切库漂移。
+- 建模「实体平铺」：自动派生类层次 + 补实体 Definition，消除合规面板两条 major 提示（D1）。
+- 前端 `SelfModelPanel.svelte`：候选数据目录由常驻长列表改为**下拉一行**（默认收起、点开展开）；按钮去除 emoji/图标字形，统一站内既有 `.btn` 样式（B1/B2）。
+
+**安全**
+- 多租户行级隔离 fail-closed（缺租户上下文即拒，越权拒绝而非返回空）。
+- 严格鉴权灰度开关（**默认关闭**）保护 8 条匿名只读业务端点；`/health` 保持匿名探活，`/metrics` 严格模式下需 read 凭据。
+- 上传体积上限（默认 50MB），超限 413 且不落盘。
+- 令牌吊销下一请求即生效；刷新令牌轮替、复用被拒并留审计；失败限速 429 防爆破。
+- SSO 篡改签名 / 过期 / issuer / audience 不匹配 / 缺声明一律拒绝；SSO 开启时本地凭据仍可用。
+- `.gitignore` 追加：`var/`（鉴权运行时状态）、`codes/config/sso.json`、`codes/config/active_ontology.json`、`codes/config/api_keys.json`（后两者含运行态/真实 key）。
+- 自检脚本脱敏：4 个新增自检脚本内的本地测试 admin/read key 常量由 `devkey-*` 改为中性的 `verify-admin-key` / `verify-read-key`（`scripts/check_boundary.py` A1/A2 违规 0）。
+
+**变更**
+- 版本号 `0.3.2 → 0.4.0`，统一 6 处落点（`codes/run.py` `__version__`、`web/package.json`、`web/package-lock.json`（版本字段）、`codes/e2e_test.py` 断言、`web/server/index.js` 兜底版本、`README.md` 徽章与版本节）。
+- `codes/export/ontology.ttl` / `ontology.jsonld` / `shapes.ttl`：标准导出物重新生成（含类层次与命名空间治理），为验证时的生成物。
+- `codes/config/lexicon_valve.json`：被 `/api/ontology/confirm` 既有流程重生成（新增行业层键，`synonym_map` 有增有减），**非本轮新增逻辑**（见类层次报告 §6.4）。
+- `codes/config/ontology_schema_valve.json` / `ontology_schema_food_co.json`：落库类层次、实体 Definition、具名子类（valve 30 条 / food_co 24 条）。
+- `codes/config/kbs.json`：新增 KB `food_co`；`food_co.data_dir` 登记为 `data_food_co`（原指向共享目录 `data`，会误扩实体，已纠正）。
+- `POST /api/knowledge/ingest` 超限响应码由 200（信封 code=4001）改为 **413**（信封体结构保留）。
+- `scripts/eval_qa_baseline.json`：回归基线同步至当前真值（命中率 0.568→**0.628**、误答率 0.296→**0.184**、编造 4→**0**），与已发布的问答信封改造一致。
+- `/health` 增加 `apiKeyConfigured` / `backend` 字段（BFF 侧，便于排障，不暴露 key）。
+- 前端构建产物重新生成：`web/public/index.html` + `web/public/assets/*`（旧 hash 文件删除，新 hash 文件新增）。
+- 令牌格式扩展（`fotk3` / `fotkr1`）为**附加**，默认输出与旧版逐字节一致。
+
+**文档**
+- 新增实验报告：`docs/实验/多租户与行级隔离-20260924.md`、`严格鉴权开关与上传上限-20260924.md`、`令牌吊销与限速-20260924.md`、`SSO接入适配-20260924.md`、`商业化鉴权4轮总账-20260925.md`、`自助建模目录浏览与自动匹配-20260925.md`、`修A_C组-状态单一真相源与服务-20260925.md`、`建模质量-类层次与定义-20260925.md`、`建模质量-扩展描述项-20260925.md`、`待修-自助建模前端-20260925.md`（及 `_4轮工作计划-20260924.md`）。
+- 新增发布准备：`docs/发布/发布准备-20260925.md`。
+- 更新 `CHANGELOG.md`、`README.md`（能力清单 / 快速开始 / 评测基线与自检门 / 已知限制）。
+
+**补记：本版本线内此前已提交、未记入 CHANGELOG 的批次**（仅列事实，SHA 可在 `git log` 核对）
+- `9a2c343` 改造第一批：问答评测基线 + KB 注册表与词典分层 + 商用加固。
+- `e197585` 改造第二批：问答统一信封 + 编排上半截。
+- `c922d17` 改造第三批：模型建议层 + 检查工具与 CI（`scripts/check_boundary.py` / `check_chainbreak.py` / `.github/workflows/ci.yml` self-check job）。
+- `b5e8b29` / `5dd7f5b`：`scripts/run_all_gates.py`（一把跑全部门）+ 修其 A2 本机路径。
+- `5c3e482` 批7：开源净化 —— 甲方痕迹脱敏（A1/A2 归零）+ 报告。
+
+**本版已知限制 / 未完成项**（据各报告「没做到」章节如实汇总，未粉饰）
+1. 严格鉴权开关 `FOOD_STRICT_AUTH` **默认关闭** —— 默认部署下本体结构与图仍可匿名读；上线前需决定是否默认开；且该开关是**路径白名单**（新增匿名端点需手工加进 `_STRICT_READ_PATHS` 才受保护）；`/admin` HTML 在严格模式下浏览器无法直接打开（顶层导航不带请求头）。
+2. **多进程/多实例部署下，令牌吊销名单与限速计数是本地状态文件，多实例不共享**（要共享需引入 Redis/数据库，本版未做）。
+3. **MySQL / PostgreSQL 的行级隔离只有代码，无真库验证**（本机未起真库，驱动未安装）；且 mysql/pg 侧不做租户列自动探测（需配置显式 `tenant_col`）。
+4. **LDAP 只做接口占位，未实现、未实测**。
+5. **SSO 只落地 JWT 直验（HS256 + RS256）**；完整 OAuth2 授权码流程（跳转 / 换 token / JWKS 在线轮换）未做。
+6. **等效类（EquivalentClass）两库均不可提升** —— 词典/别名表无「被建模成实体」的真同义实体，故不伪造；实体扩展描述项齐备率因此封顶 77%（有真实依据下的可达值，数学上限约 81%，不填假关系）。
+7. **具名子类未做实例级归类**（未生成 `:Valve_products_闸阀` 的实例 `rdf:type`）；且 `--kb` 只落 valve / food_co，历史测试残渣库（valve2/valve3/valve9）未处理。
+8. **`codes/data_loader.py:57` 有一处未加租户过滤的 SQL 站点**（不在允许改动的文件范围内，已登记未改）。
+9. **`X-Tenant-Id` 头本身不鉴权**：无凭据的既有路由仍可用该头自选租户；真实部署建议前置网关鉴权或只信凭据声明。
+10. **default 租户等同超管**（`kbs:"*"` 可见全部 KB）—— 这是「老部署行为不变」的锚点，真实多租户部署须收口其 scope。
+11. **外部绝对路径的「建本体」未端到端实测**；`self-onboard` 后端路由未做真实上传建模端到端实测（避免在真机跑真实建模写产物）；`/api/fs/dirs` 不拦危险路径（仅 `selfmodel/validate` 拦）。
+12. **BFF 门禁「单企业收敛」语义未改**：经 BFF 的请求会把激活库拉回登录用户绑定的 kb（一企业一库的既有产品语义）；仅通过后端 API 切库而不同步 `user.kb` 时，下次经 BFF 的请求会回退。
+13. **`/api/stats` 分组统计 tie 顺序既有非确定性**（同版本两进程 raw 结果不同）—— 与本版改动无关，但影响「逐字段相等」类断言。
+14. **超大 body 的 ASGI 层 spool 不在本改动可控范围**（Starlette 进入端点前先落 `SpooledTemporaryFile`）；未做自定义 ASGI 中间件级流式拒绝。
+15. 限速阈值、上传上限、吊销名单上限均为**保守默认值**，属需业务侧复核的参数。
+
 ## [0.3.2] - 2026-09-16
 
 ### 词典资产闭环：行业积累真正转起来（数据资产可导出、可导入、可按独立来源沉淀）
