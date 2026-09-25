@@ -1,5 +1,5 @@
-# valve-factory-ontology — OWL 导出（ontology_export.py v0.3.0）
-# 源: schema valve-factory-ontology v1.0
+# auto-inferred-ontology — OWL 导出（ontology_export.py v0.3.0）
+# 源: schema auto-inferred-ontology v1.0
 
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
@@ -7,389 +7,379 @@
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 @prefix skos: <http://www.w3.org/2004/02/skos/core#> .
 @prefix sh: <http://www.w3.org/ns/shacl#> .
-@prefix fac: <http://factory.example/ontology#> .
+@prefix o: <https://ontology.example.com/industry/valve#> .
 
-fac: a owl:Ontology ;
-    rdfs:label "阀门工厂本体"@zh ;
-    owl:versionIRI <https://ontology.example.com/factory/1.0.0> .
+o: a owl:Ontology ;
+    rdfs:label "auto-inferred-ontology"@zh ;
+    owl:versionIRI <https://ontology.example.com/industry/valve/1.0> .
 
-fac:BusinessObject a owl:Class ;
-    rdfs:label "BusinessObject"@zh .
+o:BatchGroup a owl:Class ;
+    rdfs:label "BatchGroup"@zh .
 
-fac:Production a owl:Class ;
-    rdfs:subClassOf fac:BusinessObject ;
+o:Production a owl:Class ;
+    rdfs:subClassOf o:BatchGroup ;
     rdfs:label "生产域"@zh .
 
-fac:Procurement a owl:Class ;
-    rdfs:subClassOf fac:BusinessObject ;
+o:Equipment a owl:Class ;
+    rdfs:subClassOf o:设备域 ;
+    rdfs:label "设备域"@zh .
+
+o:Quality a owl:Class ;
+    rdfs:subClassOf o:质量域 ;
+    rdfs:label "质量域"@zh .
+
+o:Procurement a owl:Class ;
+    rdfs:subClassOf o:采购域 ;
     rdfs:label "采购域"@zh .
 
-fac:Sales a owl:Class ;
-    rdfs:subClassOf fac:BusinessObject ;
+o:Sales a owl:Class ;
+    rdfs:subClassOf o:销售域 ;
     rdfs:label "销售域"@zh .
 
-fac:Valve_batches a owl:Class ;
-    rdfs:subClassOf fac:Production ;
+o:Valve_batch_ingredient a owl:Class ;
+    rdfs:subClassOf o:Production ;
+    rdfs:label "批次配料"@zh ;
+    skos:definition "生产域中的批次配料，数据来源于 valve_batch_ingredient 表，以 batch_id 唯一标识，记录raw_id等信息；取值样例（原料编号=R005/R007）。"@zh .
+
+o:Valve_batches a owl:Class ;
+    rdfs:subClassOf o:Production ;
     rdfs:label "批次"@zh ;
-    skos:definition "一次生产批次, 关联生产的产品、用料、班组与批状态。"@zh .
+    skos:definition "生产域中的批次，数据来源于 valve_batches 表，以 id 唯一标识，记录product_id、produce_date、quantity、raw_parts、team等信息；取值样例（产品编号=P004/P007；生产日期=2026-07-02/2026-07-03）。"@zh .
 
-fac:Valve_batch_ingredient a owl:Class ;
-    rdfs:subClassOf fac:Production ;
-    rdfs:label "批次原料"@zh ;
-    skos:definition "批次与原材料的多对多配料明细(批次用料构成)。"@zh .
-
-fac:Valve_customers a owl:Class ;
-    rdfs:subClassOf fac:Sales ;
+o:Valve_customers a owl:Class ;
+    rdfs:subClassOf o:Sales ;
     rdfs:label "客户"@zh ;
-    skos:definition "采购阀门产品的客户企业, 记录区域、行业归属与信用等级。"@zh .
+    skos:definition "销售域中的客户，数据来源于 valve_customers 表，以 id 唯一标识，记录customer_name、region、industry、credit_level等信息；取值样例（客户名称=华北炼化/华东化工集团；区域=华北/华东）。"@zh .
 
-fac:Valve_equipment a owl:Class ;
-    rdfs:subClassOf fac:Production ;
+o:Valve_equipment a owl:Class ;
+    rdfs:subClassOf o:Equipment ;
     rdfs:label "设备"@zh ;
-    skos:definition "生产现场的设备台账, 含设备类型、所属车间、装机功率与运行状态。"@zh .
+    skos:definition "设备域中的设备，数据来源于 valve_equipment 表，以 id 唯一标识，记录device_name、device_type、workshop、power_kw、status等信息；取值样例（设备名称=数控车床/立式铣床；设备类型=机加设备/机加设备）。"@zh .
 
-fac:Valve_products a owl:Class ;
-    rdfs:subClassOf fac:Production ;
+o:Valve_products a owl:Class ;
+    rdfs:subClassOf o:Procurement ;
     rdfs:label "产品"@zh ;
-    skos:definition "工厂对外销售/交付的成品阀门及其派生型号, 含口径、压力等级、连接方式、密封与阀体材质等规格。"@zh .
+    skos:definition "采购域中的产品，数据来源于 valve_products 表，以 id 唯一标识，记录model_code、product_name、type、size_mm、pressure_grade等信息；取值样例（型号代码=Z41H-16C/Z941T-16；产品名称=闸阀 Z41H-16C/电动闸阀 Z941T-16）。"@zh .
 
-fac:Valve_qc a owl:Class ;
-    rdfs:subClassOf fac:Production ;
+o:Valve_qc a owl:Class ;
+    rdfs:subClassOf o:Quality ;
     rdfs:label "质检"@zh ;
-    skos:definition "批次的质量检验记录, 含检查项目、压力规则、保压时长与泄漏判定结果。"@zh .
+    skos:definition "质量域中的质检，数据来源于 valve_qc 表，以 id 唯一标识，记录batch_id、check_item、press_rule、hold_sec、leak_bubbles_min等信息；取值样例（批次编号=B007/B003；检查项目=低压密封试验/壳体试验）。"@zh .
 
-fac:Valve_raw_materials a owl:Class ;
-    rdfs:subClassOf fac:Procurement ;
-    rdfs:label "原材料"@zh ;
-    skos:definition "采购入库的原材料/零部件, 含材质、供应商与到货质检结果。"@zh .
+o:Valve_raw_materials a owl:Class ;
+    rdfs:subClassOf o:Procurement ;
+    rdfs:label "原料"@zh ;
+    skos:definition "采购域中的原料，数据来源于 valve_raw_materials 表，以 id 唯一标识，记录part_name、material、supplier、qc_result、stock等信息；取值样例（部件名称=阀体铸件/阀体铸件；材质=WCB/CF8）。"@zh .
 
-fac:Valve_sales a owl:Class ;
-    rdfs:subClassOf fac:Sales ;
+o:Valve_sales a owl:Class ;
+    rdfs:subClassOf o:Sales ;
     rdfs:label "销售"@zh ;
-    skos:definition "一次阀门销售记录, 关联产品与客户, 含数量、日期与金额。"@zh .
+    skos:definition "销售域中的销售，数据来源于 valve_sales 表，以 id 唯一标识，记录product_id、customer_id、quantity、sale_date、amount等信息；取值样例（产品编号=P006/P007；客户编号=C005/C003）。"@zh .
 
-fac:id a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_batches ;
+o:id a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_batches ;
     rdfs:range xsd:string ;
     rdfs:label "编号"@zh .
 
-fac:produceDate a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_batches ;
+o:produceDate a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_batches ;
     rdfs:range xsd:date ;
     rdfs:label "生产日期"@zh .
 
-fac:quantity a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_batches ;
+o:quantity a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_batches ;
     rdfs:range xsd:decimal ;
     rdfs:label "数量"@zh .
 
-fac:rawParts a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_batches ;
+o:rawParts a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_batches ;
     rdfs:range xsd:string ;
     rdfs:label "原料"@zh .
 
-fac:status a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_batches ;
+o:status a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_batches ;
     rdfs:range xsd:string ;
     rdfs:label "状态"@zh .
 
-fac:team a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_batches ;
+o:team a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_batches ;
     rdfs:range xsd:string ;
     rdfs:label "班组"@zh .
 
-fac:creditLevel a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_customers ;
+o:creditLevel a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_customers ;
     rdfs:range xsd:string ;
-    rdfs:label "信用等级"@zh ;
-    skos:definition "客户信用等级, 用于销售授信与风险控制。"@zh .
+    rdfs:label "信用等级"@zh .
 
-fac:customerName a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_customers ;
+o:customerName a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_customers ;
     rdfs:range xsd:string ;
-    rdfs:label "客户名"@zh .
+    rdfs:label "客户名称"@zh .
 
-fac:id a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_customers ;
+o:id a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_customers ;
     rdfs:range xsd:string ;
     rdfs:label "编号"@zh .
 
-fac:industry a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_customers ;
+o:industry a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_customers ;
     rdfs:range xsd:string ;
     rdfs:label "行业"@zh .
 
-fac:region a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_customers ;
+o:region a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_customers ;
     rdfs:range xsd:string ;
     rdfs:label "区域"@zh .
 
-fac:currentA a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_equipment ;
+o:currentA a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_equipment ;
     rdfs:range xsd:decimal ;
     rdfs:label "电流(A)"@zh .
 
-fac:deviceName a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_equipment ;
+o:deviceName a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_equipment ;
     rdfs:range xsd:string ;
-    rdfs:label "设备名"@zh .
+    rdfs:label "设备名称"@zh .
 
-fac:deviceType a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_equipment ;
+o:deviceType a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_equipment ;
     rdfs:range xsd:string ;
     rdfs:label "设备类型"@zh .
 
-fac:id a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_equipment ;
+o:id a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_equipment ;
     rdfs:range xsd:string ;
     rdfs:label "编号"@zh .
 
-fac:powerKw a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_equipment ;
+o:powerKw a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_equipment ;
     rdfs:range xsd:decimal ;
-    rdfs:label "功率(kW)"@zh ;
-    skos:definition "设备装机功率, 单位千瓦。"@zh .
+    rdfs:label "功率(kW)"@zh .
 
-fac:status a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_equipment ;
+o:status a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_equipment ;
     rdfs:range xsd:string ;
     rdfs:label "状态"@zh .
 
-fac:tempC a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_equipment ;
+o:tempC a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_equipment ;
     rdfs:range xsd:decimal ;
     rdfs:label "温度(℃)"@zh .
 
-fac:vibrationMmS a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_equipment ;
+o:vibrationMmS a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_equipment ;
     rdfs:range xsd:decimal ;
-    rdfs:label "振动(mm/s)"@zh ;
-    skos:definition "设备运行振动烈度, 单位 mm/s, 用于状态与故障判定。"@zh .
+    rdfs:label "振动(mm/s)"@zh .
 
-fac:workshop a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_equipment ;
+o:workshop a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_equipment ;
     rdfs:range xsd:string ;
     rdfs:label "车间"@zh .
 
-fac:bodyMaterial a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_products ;
+o:bodyMaterial a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_products ;
     rdfs:range xsd:string ;
     rdfs:label "阀体材质"@zh .
 
-fac:connection a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_products ;
+o:connection a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_products ;
     rdfs:range xsd:string ;
-    rdfs:label "连接形式"@zh .
+    rdfs:label "连接方式"@zh .
 
-fac:id a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_products ;
+o:id a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_products ;
     rdfs:range xsd:string ;
     rdfs:label "编号"@zh .
 
-fac:modelCode a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_products ;
+o:modelCode a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_products ;
     rdfs:range xsd:string ;
-    rdfs:label "型号编码"@zh ;
-    skos:definition "产品型号编码, 工厂内部唯一标识产品规格。"@zh .
+    rdfs:label "型号代码"@zh .
 
-fac:pressureGrade a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_products ;
+o:pressureGrade a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_products ;
     rdfs:range xsd:string ;
-    rdfs:label "压力等级"@zh ;
-    skos:definition "阀门公称压力等级(如 PN16), 决定承压能力。"@zh .
+    rdfs:label "压力等级"@zh .
 
-fac:price a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_products ;
+o:price a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_products ;
     rdfs:range xsd:decimal ;
     rdfs:label "价格"@zh .
 
-fac:productName a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_products ;
+o:productName a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_products ;
     rdfs:range xsd:string ;
-    rdfs:label "产品名"@zh .
+    rdfs:label "产品名称"@zh .
 
-fac:sealMaterial a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_products ;
+o:sealMaterial a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_products ;
     rdfs:range xsd:string ;
-    rdfs:label "密封面材质"@zh .
+    rdfs:label "密封材质"@zh .
 
-fac:sizeMm a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_products ;
+o:sizeMm a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_products ;
     rdfs:range xsd:decimal ;
-    rdfs:label "口径(mm)"@zh ;
-    skos:definition "阀门公称通径, 单位毫米。"@zh .
+    rdfs:label "尺寸(mm)"@zh .
 
-fac:standardNo a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_products ;
+o:standardNo a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_products ;
     rdfs:range xsd:string ;
     rdfs:label "标准号"@zh .
 
-fac:tempRange a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_products ;
+o:tempRange a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_products ;
     rdfs:range xsd:string ;
     rdfs:label "温度范围"@zh .
 
-fac:type a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_products ;
+o:type a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_products ;
     rdfs:range xsd:string ;
-    rdfs:label "阀门类型"@zh .
+    rdfs:label "类型"@zh .
 
-fac:checkDate a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_qc ;
+o:checkDate a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_qc ;
     rdfs:range xsd:date ;
-    rdfs:label "检验日期"@zh .
+    rdfs:label "检查日期"@zh .
 
-fac:checkItem a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_qc ;
+o:checkItem a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_qc ;
     rdfs:range xsd:string ;
-    rdfs:label "检验项"@zh .
+    rdfs:label "检查项目"@zh .
 
-fac:checker a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_qc ;
+o:checker a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_qc ;
     rdfs:range xsd:string ;
-    rdfs:label "检验员"@zh .
+    rdfs:label "检查员"@zh .
 
-fac:holdSec a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_qc ;
+o:holdSec a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_qc ;
     rdfs:range xsd:decimal ;
-    rdfs:label "保压(秒)"@zh .
+    rdfs:label "保压秒数"@zh .
 
-fac:id a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_qc ;
+o:id a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_qc ;
     rdfs:range xsd:string ;
     rdfs:label "编号"@zh .
 
-fac:leakBubblesMin a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_qc ;
+o:leakBubblesMin a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_qc ;
     rdfs:range xsd:decimal ;
-    rdfs:label "泄漏率(泡/min)"@zh ;
-    skos:definition "试压时每分钟允许的泄漏气泡数, 为 0 表示零泄漏。"@zh .
+    rdfs:label "泄漏气泡"@zh .
 
-fac:pressRule a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_qc ;
+o:pressRule a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_qc ;
     rdfs:range xsd:string ;
-    rdfs:label "试验压力"@zh .
+    rdfs:label "压力规则"@zh .
 
-fac:result a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_qc ;
+o:result a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_qc ;
     rdfs:range xsd:string ;
     rdfs:label "结果"@zh .
 
-fac:id a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_raw_materials ;
+o:id a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_raw_materials ;
     rdfs:range xsd:string ;
     rdfs:label "编号"@zh .
 
-fac:material a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_raw_materials ;
+o:material a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_raw_materials ;
     rdfs:range xsd:string ;
     rdfs:label "材质"@zh .
 
-fac:partName a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_raw_materials ;
+o:partName a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_raw_materials ;
     rdfs:range xsd:string ;
-    rdfs:label "部件名"@zh .
+    rdfs:label "部件名称"@zh .
 
-fac:qcResult a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_raw_materials ;
+o:qcResult a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_raw_materials ;
     rdfs:range xsd:string ;
     rdfs:label "质检结果"@zh .
 
-fac:stock a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_raw_materials ;
+o:stock a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_raw_materials ;
     rdfs:range xsd:decimal ;
     rdfs:label "库存"@zh .
 
-fac:supplier a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_raw_materials ;
+o:supplier a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_raw_materials ;
     rdfs:range xsd:string ;
     rdfs:label "供应商"@zh .
 
-fac:amount a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_sales ;
+o:amount a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_sales ;
     rdfs:range xsd:decimal ;
     rdfs:label "金额"@zh .
 
-fac:id a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_sales ;
+o:id a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_sales ;
     rdfs:range xsd:string ;
     rdfs:label "编号"@zh .
 
-fac:quantity a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_sales ;
+o:quantity a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_sales ;
     rdfs:range xsd:decimal ;
     rdfs:label "数量"@zh .
 
-fac:saleDate a owl:DatatypeProperty ;
-    rdfs:domain fac:Valve_sales ;
+o:saleDate a owl:DatatypeProperty ;
+    rdfs:domain o:Valve_sales ;
     rdfs:range xsd:date ;
     rdfs:label "销售日期"@zh .
 
-fac:belongsToBatch a owl:ObjectProperty ;
-    rdfs:domain fac:BatchIngredient ;
-    rdfs:range fac:Batch ;
-    rdfs:label "属于批次"@zh ;
-    skos:definition "BatchIngredient 与 Batch 的业务关联。"@zh .
+o:valveBatchIngredientBatchId a owl:ObjectProperty ;
+    rdfs:domain o:ValveBatchIngredient ;
+    rdfs:range o:ValveBatches ;
+    rdfs:label "所属批次"@zh .
 
-fac:boughtBy a owl:ObjectProperty ;
-    rdfs:domain fac:Sale ;
-    rdfs:range fac:Customer ;
-    rdfs:label "售予客户"@zh ;
-    skos:definition "销售记录指向购买该批产品的客户。"@zh .
+o:valveBatchIngredientRawId a owl:ObjectProperty ;
+    rdfs:domain o:ValveBatchIngredient ;
+    rdfs:range o:ValveRawMaterials ;
+    rdfs:label "使用原料"@zh .
 
-fac:checkedBy a owl:ObjectProperty ;
-    rdfs:domain fac:Qc ;
-    rdfs:range fac:Batch ;
-    rdfs:label "质检批次"@zh ;
-    skos:definition "质检记录对应哪一个生产批次。"@zh .
+o:valveBatchesProductId a owl:ObjectProperty ;
+    rdfs:domain o:ValveBatches ;
+    rdfs:range o:ValveProducts ;
+    rdfs:label "生产产品"@zh .
 
-fac:producedIn a owl:ObjectProperty ;
-    rdfs:domain fac:Batch ;
-    rdfs:range fac:Product ;
-    rdfs:label "生产产品"@zh ;
-    skos:definition "生产批次产出哪一个产品。"@zh .
+o:valveQcBatchId a owl:ObjectProperty ;
+    rdfs:domain o:ValveQc ;
+    rdfs:range o:ValveBatches ;
+    rdfs:label "所属批次"@zh .
 
-fac:sells a owl:ObjectProperty ;
-    rdfs:domain fac:Product ;
-    rdfs:range fac:Sale ;
-    rdfs:label "被销售"@zh ;
-    skos:definition "Product 与 Sale 的业务关联。"@zh .
+o:valveSalesCustomerId a owl:ObjectProperty ;
+    rdfs:domain o:ValveSales ;
+    rdfs:range o:ValveCustomers ;
+    rdfs:label "售予客户"@zh .
 
-fac:usesRawMaterial a owl:ObjectProperty ;
-    rdfs:domain fac:BatchIngredient ;
-    rdfs:range fac:RawMaterial ;
-    rdfs:label "使用原料"@zh ;
-    skos:definition "BatchIngredient 与 RawMaterial 的业务关联。"@zh .
+o:valveSalesProductId a owl:ObjectProperty ;
+    rdfs:domain o:ValveSales ;
+    rdfs:range o:ValveProducts ;
+    rdfs:label "生产产品"@zh .
 
 # ── 最小公理集（TBox）：主键唯一 + 属性基数 ──
 # 由 schema 自动派生；与 shapes.ttl 同源，前者做语义蕴含、后者做数据校验
 
-fac:Valve_batches owl:hasKey ( fac:id ) ;
-    rdfs:label "主键唯一：id"@zh .
-
-fac:Valve_batch_ingredient owl:hasKey ( fac:batchId ) ;
+o:Valve_batch_ingredient owl:hasKey ( o:batchId ) ;
     rdfs:label "主键唯一：batch_id"@zh .
 
-fac:Valve_customers owl:hasKey ( fac:id ) ;
+o:Valve_batches owl:hasKey ( o:id ) ;
     rdfs:label "主键唯一：id"@zh .
 
-fac:Valve_equipment owl:hasKey ( fac:id ) ;
+o:Valve_customers owl:hasKey ( o:id ) ;
     rdfs:label "主键唯一：id"@zh .
 
-fac:Valve_products owl:hasKey ( fac:id ) ;
+o:Valve_equipment owl:hasKey ( o:id ) ;
     rdfs:label "主键唯一：id"@zh .
 
-fac:Valve_qc owl:hasKey ( fac:id ) ;
+o:Valve_products owl:hasKey ( o:id ) ;
     rdfs:label "主键唯一：id"@zh .
 
-fac:Valve_raw_materials owl:hasKey ( fac:id ) ;
+o:Valve_qc owl:hasKey ( o:id ) ;
     rdfs:label "主键唯一：id"@zh .
 
-fac:Valve_sales owl:hasKey ( fac:id ) ;
+o:Valve_raw_materials owl:hasKey ( o:id ) ;
     rdfs:label "主键唯一：id"@zh .
 
-fac:PressureGradeEnum a owl:Class ;
-    owl:oneOf ( "PN10" "PN16" "PN25" "PN40" ) ;
-    rdfs:label "压力等级须为 PN10/16/25/40（枚举）"@zh .
+o:Valve_sales owl:hasKey ( o:id ) ;
+    rdfs:label "主键唯一：id"@zh .
 
-fac:pressureGrade rdfs:range fac:PressureGradeEnum .

@@ -1,4 +1,7 @@
 {
+  "version": "1.0",
+  "name": "auto-inferred-ontology",
+  "industry": "valve",
   "entities": [
     {
       "id": "Valve_batch_ingredient",
@@ -6,7 +9,7 @@
       "table": "valve_batch_ingredient",
       "key": "batch_id",
       "domain": "生产域",
-      "definition": "生产域中的批次配料，数据来源于 valve_batch_ingredient 表，以 batch_id 唯一标识，记录raw_id等信息。",
+      "definition": "生产域中的批次配料，数据来源于 valve_batch_ingredient 表，以 batch_id 唯一标识，记录raw_id等信息；取值样例（原料编号=R005/R007）。",
       "attributes": [
         {
           "name": "batch_id",
@@ -22,7 +25,11 @@
           "role": "reference",
           "required": false
         }
-      ]
+      ],
+      "parent": "BatchGroup",
+      "parent_evidence": "归入子类 BatchGroup（依据 R2-命名词干）",
+      "parent_rule": "R2-命名词干",
+      "definition_evidence": "依据表 valve_batch_ingredient 的字段 ['batch_id', 'raw_id']；取值样例来自字段 ['raw_id']（真实行）"
     },
     {
       "id": "Valve_batches",
@@ -30,7 +37,490 @@
       "table": "valve_batches",
       "key": "id",
       "domain": "生产域",
-      "definition": "生产域中的批次，数据来源于 valve_batches 表，以 id 唯一标识，记录product_id、produce_date、quantity、raw_parts、team等信息。",
+      "definition": "生产域中的批次，数据来源于 valve_batches 表，以 id 唯一标识，记录product_id、produce_date、quantity、raw_parts、team等信息；取值样例（产品编号=P004/P007；生产日期=2026-07-02/2026-07-03）。",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "product_id",
+          "label": "产品编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "produce_date",
+          "label": "生产日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "quantity",
+          "label": "数量",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "raw_parts",
+          "label": "原料",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "team",
+          "label": "班组",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        }
+      ],
+      "parent": "BatchGroup",
+      "parent_evidence": "归入子类 BatchGroup（依据 R2-命名词干）",
+      "parent_rule": "R2-命名词干",
+      "definition_evidence": "依据表 valve_batches 的字段 ['id', 'product_id', 'produce_date', 'quantity', 'raw_parts', 'team', 'status']；取值样例来自字段 ['product_id', 'produce_date']（真实行）"
+    },
+    {
+      "id": "Valve_customers",
+      "label": "客户",
+      "table": "valve_customers",
+      "key": "id",
+      "domain": "销售域",
+      "definition": "销售域中的客户，数据来源于 valve_customers 表，以 id 唯一标识，记录customer_name、region、industry、credit_level等信息；取值样例（客户名称=华北炼化/华东化工集团；区域=华北/华东）。",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "customer_name",
+          "label": "客户名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "region",
+          "label": "区域",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "industry",
+          "label": "行业",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "credit_level",
+          "label": "信用等级",
+          "type": "string",
+          "role": "category",
+          "required": false
+        }
+      ],
+      "parent": "销售域",
+      "parent_evidence": "归入业务域类 销售域（依据 R1-业务域，命中关键词 customer）",
+      "parent_rule": "R1-业务域",
+      "definition_evidence": "依据表 valve_customers 的字段 ['id', 'customer_name', 'region', 'industry', 'credit_level']；取值样例来自字段 ['customer_name', 'region']（真实行）"
+    },
+    {
+      "id": "Valve_equipment",
+      "label": "设备",
+      "table": "valve_equipment",
+      "key": "id",
+      "domain": "设备域",
+      "definition": "设备域中的设备，数据来源于 valve_equipment 表，以 id 唯一标识，记录device_name、device_type、workshop、power_kw、status等信息；取值样例（设备名称=数控车床/立式铣床；设备类型=机加设备/机加设备）。",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "device_name",
+          "label": "设备名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "device_type",
+          "label": "设备类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "workshop",
+          "label": "车间",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "power_kw",
+          "label": "功率(kW)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "vibration_mm_s",
+          "label": "振动(mm/s)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "temp_c",
+          "label": "温度(℃)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "current_a",
+          "label": "电流(A)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ],
+      "parent": "设备域",
+      "parent_evidence": "归入业务域类 设备域（依据 R1-业务域，命中关键词 device, equipment）",
+      "parent_rule": "R1-业务域",
+      "definition_evidence": "依据表 valve_equipment 的字段 ['id', 'device_name', 'device_type', 'workshop', 'power_kw', 'status', 'vibration_mm_s', 'temp_c', 'current_a']；取值样例来自字段 ['device_name', 'device_type']（真实行）"
+    },
+    {
+      "id": "Valve_products",
+      "label": "产品",
+      "table": "valve_products",
+      "key": "id",
+      "domain": "采购域",
+      "definition": "采购域中的产品，数据来源于 valve_products 表，以 id 唯一标识，记录model_code、product_name、type、size_mm、pressure_grade等信息；取值样例（型号代码=Z41H-16C/Z941T-16；产品名称=闸阀 Z41H-16C/电动闸阀 Z941T-16）。",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "model_code",
+          "label": "型号代码",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "product_name",
+          "label": "产品名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "type",
+          "label": "类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "size_mm",
+          "label": "尺寸(mm)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "pressure_grade",
+          "label": "压力等级",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "connection",
+          "label": "连接方式",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "seal_material",
+          "label": "密封材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "body_material",
+          "label": "阀体材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "standard_no",
+          "label": "标准号",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "temp_range",
+          "label": "温度范围",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "price",
+          "label": "价格",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ],
+      "parent": "采购域",
+      "parent_evidence": "归入业务域类 采购域（依据 R1-业务域，命中关键词 material）",
+      "parent_rule": "R1-业务域",
+      "definition_evidence": "依据表 valve_products 的字段 ['id', 'model_code', 'product_name', 'type', 'size_mm', 'pressure_grade', 'connection', 'seal_material', 'body_material', 'standard_no', 'temp_range', 'price']；取值样例来自字段 ['model_code', 'product_name']（真实行）"
+    },
+    {
+      "id": "Valve_qc",
+      "label": "质检",
+      "table": "valve_qc",
+      "key": "id",
+      "domain": "质量域",
+      "definition": "质量域中的质检，数据来源于 valve_qc 表，以 id 唯一标识，记录batch_id、check_item、press_rule、hold_sec、leak_bubbles_min等信息；取值样例（批次编号=B007/B003；检查项目=低压密封试验/壳体试验）。",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "batch_id",
+          "label": "批次编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "check_item",
+          "label": "检查项目",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "press_rule",
+          "label": "压力规则",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "hold_sec",
+          "label": "保压秒数",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "leak_bubbles_min",
+          "label": "泄漏气泡",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "result",
+          "label": "结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "checker",
+          "label": "检查员",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "check_date",
+          "label": "检查日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        }
+      ],
+      "parent": "质量域",
+      "parent_evidence": "归入业务域类 质量域（依据 R1-业务域，命中关键词 qc）",
+      "parent_rule": "R1-业务域",
+      "definition_evidence": "依据表 valve_qc 的字段 ['id', 'batch_id', 'check_item', 'press_rule', 'hold_sec', 'leak_bubbles_min', 'result', 'checker', 'check_date']；取值样例来自字段 ['batch_id', 'check_item']（真实行）"
+    },
+    {
+      "id": "Valve_raw_materials",
+      "label": "原料",
+      "table": "valve_raw_materials",
+      "key": "id",
+      "domain": "采购域",
+      "definition": "采购域中的原料，数据来源于 valve_raw_materials 表，以 id 唯一标识，记录part_name、material、supplier、qc_result、stock等信息；取值样例（部件名称=阀体铸件/阀体铸件；材质=WCB/CF8）。",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "part_name",
+          "label": "部件名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "material",
+          "label": "材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "supplier",
+          "label": "供应商",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "qc_result",
+          "label": "质检结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "stock",
+          "label": "库存",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ],
+      "parent": "采购域",
+      "parent_evidence": "归入业务域类 采购域（依据 R1-业务域，命中关键词 material, raw_material, supplier）",
+      "parent_rule": "R1-业务域",
+      "definition_evidence": "依据表 valve_raw_materials 的字段 ['id', 'part_name', 'material', 'supplier', 'qc_result', 'stock']；取值样例来自字段 ['part_name', 'material']（真实行）"
+    },
+    {
+      "id": "Valve_sales",
+      "label": "销售",
+      "table": "valve_sales",
+      "key": "id",
+      "domain": "销售域",
+      "definition": "销售域中的销售，数据来源于 valve_sales 表，以 id 唯一标识，记录product_id、customer_id、quantity、sale_date、amount等信息；取值样例（产品编号=P006/P007；客户编号=C005/C003）。",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "product_id",
+          "label": "产品编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "customer_id",
+          "label": "客户编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "quantity",
+          "label": "数量",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "sale_date",
+          "label": "销售日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "amount",
+          "label": "金额",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ],
+      "parent": "销售域",
+      "parent_evidence": "归入业务域类 销售域（依据 R1-业务域，命中关键词 customer, sale）",
+      "parent_rule": "R1-业务域",
+      "definition_evidence": "依据表 valve_sales 的字段 ['id', 'product_id', 'customer_id', 'quantity', 'sale_date', 'amount']；取值样例来自字段 ['product_id', 'customer_id']（真实行）"
+    },
+    {
+      "id": "Valve_batches__已入库",
+      "label": "已入库",
+      "table": null,
+      "key": null,
+      "domain": "生产域",
+      "kind": "subclass",
+      "definition": "批次中 status 为『已入库』的具体种类（依据表 valve_batches 字段 status 的真实取值，9 行）。",
+      "definition_evidence": "依据表 valve_batches 的分类列 'status' 的真实取值 '已入库'（命中 9/15 行）；该列取值域 3 个，属可枚举种类",
+      "parent": "Valve_batches",
+      "parent_evidence": "依据表 valve_batches 的分类列 'status' 的真实取值 '已入库'（命中 9/15 行）；该列取值域 3 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "status",
+      "subclass_value": "已入库",
       "attributes": [
         {
           "name": "id",
@@ -84,12 +574,151 @@
       ]
     },
     {
-      "id": "Valve_customers",
-      "label": "客户",
-      "table": "valve_customers",
-      "key": "id",
+      "id": "Valve_batches__待质检",
+      "label": "待质检",
+      "table": null,
+      "key": null,
+      "domain": "生产域",
+      "kind": "subclass",
+      "definition": "批次中 status 为『待质检』的具体种类（依据表 valve_batches 字段 status 的真实取值，4 行）。",
+      "definition_evidence": "依据表 valve_batches 的分类列 'status' 的真实取值 '待质检'（命中 4/15 行）；该列取值域 3 个，属可枚举种类",
+      "parent": "Valve_batches",
+      "parent_evidence": "依据表 valve_batches 的分类列 'status' 的真实取值 '待质检'（命中 4/15 行）；该列取值域 3 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "status",
+      "subclass_value": "待质检",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "product_id",
+          "label": "产品编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "produce_date",
+          "label": "生产日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "quantity",
+          "label": "数量",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "raw_parts",
+          "label": "原料",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "team",
+          "label": "班组",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_batches__生产中",
+      "label": "生产中",
+      "table": null,
+      "key": null,
+      "domain": "生产域",
+      "kind": "subclass",
+      "definition": "批次中 status 为『生产中』的具体种类（依据表 valve_batches 字段 status 的真实取值，2 行）。",
+      "definition_evidence": "依据表 valve_batches 的分类列 'status' 的真实取值 '生产中'（命中 2/15 行）；该列取值域 3 个，属可枚举种类",
+      "parent": "Valve_batches",
+      "parent_evidence": "依据表 valve_batches 的分类列 'status' 的真实取值 '生产中'（命中 2/15 行）；该列取值域 3 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "status",
+      "subclass_value": "生产中",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "product_id",
+          "label": "产品编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "produce_date",
+          "label": "生产日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "quantity",
+          "label": "数量",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "raw_parts",
+          "label": "原料",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "team",
+          "label": "班组",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_customers__A",
+      "label": "A",
+      "table": null,
+      "key": null,
       "domain": "销售域",
-      "definition": "销售域中的客户，数据来源于 valve_customers 表，以 id 唯一标识，记录customer_name、region、industry、credit_level等信息。",
+      "kind": "subclass",
+      "definition": "客户中 credit_level 为『A』的具体种类（依据表 valve_customers 字段 credit_level 的真实取值，4 行）。",
+      "definition_evidence": "依据表 valve_customers 的分类列 'credit_level' 的真实取值 'A'（命中 4/8 行）；该列取值域 3 个，属可枚举种类",
+      "parent": "Valve_customers",
+      "parent_evidence": "依据表 valve_customers 的分类列 'credit_level' 的真实取值 'A'（命中 4/8 行）；该列取值域 3 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "credit_level",
+      "subclass_value": "A",
       "attributes": [
         {
           "name": "id",
@@ -129,12 +758,123 @@
       ]
     },
     {
-      "id": "Valve_equipment",
-      "label": "设备",
-      "table": "valve_equipment",
-      "key": "id",
+      "id": "Valve_customers__B",
+      "label": "B",
+      "table": null,
+      "key": null,
+      "domain": "销售域",
+      "kind": "subclass",
+      "definition": "客户中 credit_level 为『B』的具体种类（依据表 valve_customers 字段 credit_level 的真实取值，3 行）。",
+      "definition_evidence": "依据表 valve_customers 的分类列 'credit_level' 的真实取值 'B'（命中 3/8 行）；该列取值域 3 个，属可枚举种类",
+      "parent": "Valve_customers",
+      "parent_evidence": "依据表 valve_customers 的分类列 'credit_level' 的真实取值 'B'（命中 3/8 行）；该列取值域 3 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "credit_level",
+      "subclass_value": "B",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "customer_name",
+          "label": "客户名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "region",
+          "label": "区域",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "industry",
+          "label": "行业",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "credit_level",
+          "label": "信用等级",
+          "type": "string",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_customers__C",
+      "label": "C",
+      "table": null,
+      "key": null,
+      "domain": "销售域",
+      "kind": "subclass",
+      "definition": "客户中 credit_level 为『C』的具体种类（依据表 valve_customers 字段 credit_level 的真实取值，1 行）。",
+      "definition_evidence": "依据表 valve_customers 的分类列 'credit_level' 的真实取值 'C'（命中 1/8 行）；该列取值域 3 个，属可枚举种类",
+      "parent": "Valve_customers",
+      "parent_evidence": "依据表 valve_customers 的分类列 'credit_level' 的真实取值 'C'（命中 1/8 行）；该列取值域 3 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "credit_level",
+      "subclass_value": "C",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "customer_name",
+          "label": "客户名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "region",
+          "label": "区域",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "industry",
+          "label": "行业",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "credit_level",
+          "label": "信用等级",
+          "type": "string",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_equipment__机加设备",
+      "label": "机加设备",
+      "table": null,
+      "key": null,
       "domain": "设备域",
-      "definition": "设备域中的设备，数据来源于 valve_equipment 表，以 id 唯一标识，记录device_name、device_type、workshop、power_kw、status等信息。",
+      "kind": "subclass",
+      "definition": "设备中 device_type 为『机加设备』的具体种类（依据表 valve_equipment 字段 device_type 的真实取值，3 行）。",
+      "definition_evidence": "依据表 valve_equipment 的分类列 'device_type' 的真实取值 '机加设备'（命中 3/10 行）；该列取值域 6 个，属可枚举种类",
+      "parent": "Valve_equipment",
+      "parent_evidence": "依据表 valve_equipment 的分类列 'device_type' 的真实取值 '机加设备'（命中 3/10 行）；该列取值域 6 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "device_type",
+      "subclass_value": "机加设备",
       "attributes": [
         {
           "name": "id",
@@ -202,12 +942,419 @@
       ]
     },
     {
-      "id": "Valve_products",
-      "label": "产品",
-      "table": "valve_products",
-      "key": "id",
+      "id": "Valve_equipment__试压设备",
+      "label": "试压设备",
+      "table": null,
+      "key": null,
+      "domain": "设备域",
+      "kind": "subclass",
+      "definition": "设备中 device_type 为『试压设备』的具体种类（依据表 valve_equipment 字段 device_type 的真实取值，2 行）。",
+      "definition_evidence": "依据表 valve_equipment 的分类列 'device_type' 的真实取值 '试压设备'（命中 2/10 行）；该列取值域 6 个，属可枚举种类",
+      "parent": "Valve_equipment",
+      "parent_evidence": "依据表 valve_equipment 的分类列 'device_type' 的真实取值 '试压设备'（命中 2/10 行）；该列取值域 6 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "device_type",
+      "subclass_value": "试压设备",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "device_name",
+          "label": "设备名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "device_type",
+          "label": "设备类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "workshop",
+          "label": "车间",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "power_kw",
+          "label": "功率(kW)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "vibration_mm_s",
+          "label": "振动(mm/s)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "temp_c",
+          "label": "温度(℃)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "current_a",
+          "label": "电流(A)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_equipment__铸造设备",
+      "label": "铸造设备",
+      "table": null,
+      "key": null,
+      "domain": "设备域",
+      "kind": "subclass",
+      "definition": "设备中 device_type 为『铸造设备』的具体种类（依据表 valve_equipment 字段 device_type 的真实取值，2 行）。",
+      "definition_evidence": "依据表 valve_equipment 的分类列 'device_type' 的真实取值 '铸造设备'（命中 2/10 行）；该列取值域 6 个，属可枚举种类",
+      "parent": "Valve_equipment",
+      "parent_evidence": "依据表 valve_equipment 的分类列 'device_type' 的真实取值 '铸造设备'（命中 2/10 行）；该列取值域 6 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "device_type",
+      "subclass_value": "铸造设备",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "device_name",
+          "label": "设备名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "device_type",
+          "label": "设备类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "workshop",
+          "label": "车间",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "power_kw",
+          "label": "功率(kW)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "vibration_mm_s",
+          "label": "振动(mm/s)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "temp_c",
+          "label": "温度(℃)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "current_a",
+          "label": "电流(A)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_equipment__焊接设备",
+      "label": "焊接设备",
+      "table": null,
+      "key": null,
+      "domain": "设备域",
+      "kind": "subclass",
+      "definition": "设备中 device_type 为『焊接设备』的具体种类（依据表 valve_equipment 字段 device_type 的真实取值，1 行）。",
+      "definition_evidence": "依据表 valve_equipment 的分类列 'device_type' 的真实取值 '焊接设备'（命中 1/10 行）；该列取值域 6 个，属可枚举种类",
+      "parent": "Valve_equipment",
+      "parent_evidence": "依据表 valve_equipment 的分类列 'device_type' 的真实取值 '焊接设备'（命中 1/10 行）；该列取值域 6 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "device_type",
+      "subclass_value": "焊接设备",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "device_name",
+          "label": "设备名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "device_type",
+          "label": "设备类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "workshop",
+          "label": "车间",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "power_kw",
+          "label": "功率(kW)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "vibration_mm_s",
+          "label": "振动(mm/s)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "temp_c",
+          "label": "温度(℃)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "current_a",
+          "label": "电流(A)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_equipment__表面处理设备",
+      "label": "表面处理设备",
+      "table": null,
+      "key": null,
+      "domain": "设备域",
+      "kind": "subclass",
+      "definition": "设备中 device_type 为『表面处理设备』的具体种类（依据表 valve_equipment 字段 device_type 的真实取值，1 行）。",
+      "definition_evidence": "依据表 valve_equipment 的分类列 'device_type' 的真实取值 '表面处理设备'（命中 1/10 行）；该列取值域 6 个，属可枚举种类",
+      "parent": "Valve_equipment",
+      "parent_evidence": "依据表 valve_equipment 的分类列 'device_type' 的真实取值 '表面处理设备'（命中 1/10 行）；该列取值域 6 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "device_type",
+      "subclass_value": "表面处理设备",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "device_name",
+          "label": "设备名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "device_type",
+          "label": "设备类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "workshop",
+          "label": "车间",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "power_kw",
+          "label": "功率(kW)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "vibration_mm_s",
+          "label": "振动(mm/s)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "temp_c",
+          "label": "温度(℃)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "current_a",
+          "label": "电流(A)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_equipment__装配设备",
+      "label": "装配设备",
+      "table": null,
+      "key": null,
+      "domain": "设备域",
+      "kind": "subclass",
+      "definition": "设备中 device_type 为『装配设备』的具体种类（依据表 valve_equipment 字段 device_type 的真实取值，1 行）。",
+      "definition_evidence": "依据表 valve_equipment 的分类列 'device_type' 的真实取值 '装配设备'（命中 1/10 行）；该列取值域 6 个，属可枚举种类",
+      "parent": "Valve_equipment",
+      "parent_evidence": "依据表 valve_equipment 的分类列 'device_type' 的真实取值 '装配设备'（命中 1/10 行）；该列取值域 6 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "device_type",
+      "subclass_value": "装配设备",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "device_name",
+          "label": "设备名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "device_type",
+          "label": "设备类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "workshop",
+          "label": "车间",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "power_kw",
+          "label": "功率(kW)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "vibration_mm_s",
+          "label": "振动(mm/s)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "temp_c",
+          "label": "温度(℃)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "current_a",
+          "label": "电流(A)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_products__球阀",
+      "label": "球阀",
+      "table": null,
+      "key": null,
       "domain": "采购域",
-      "definition": "采购域中的产品，数据来源于 valve_products 表，以 id 唯一标识，记录model_code、product_name、type、size_mm、pressure_grade等信息。",
+      "kind": "subclass",
+      "definition": "产品中 type 为『球阀』的具体种类（依据表 valve_products 字段 type 的真实取值，2 行）。",
+      "definition_evidence": "依据表 valve_products 的分类列 'type' 的真实取值 '球阀'（命中 2/8 行）；该列取值域 6 个，属可枚举种类",
+      "parent": "Valve_products",
+      "parent_evidence": "依据表 valve_products 的分类列 'type' 的真实取值 '球阀'（命中 2/8 行）；该列取值域 6 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "type",
+      "subclass_value": "球阀",
       "attributes": [
         {
           "name": "id",
@@ -296,12 +1443,524 @@
       ]
     },
     {
-      "id": "Valve_qc",
-      "label": "质检",
-      "table": "valve_qc",
-      "key": "id",
+      "id": "Valve_products__闸阀",
+      "label": "闸阀",
+      "table": null,
+      "key": null,
+      "domain": "采购域",
+      "kind": "subclass",
+      "definition": "产品中 type 为『闸阀』的具体种类（依据表 valve_products 字段 type 的真实取值，2 行）。",
+      "definition_evidence": "依据表 valve_products 的分类列 'type' 的真实取值 '闸阀'（命中 2/8 行）；该列取值域 6 个，属可枚举种类",
+      "parent": "Valve_products",
+      "parent_evidence": "依据表 valve_products 的分类列 'type' 的真实取值 '闸阀'（命中 2/8 行）；该列取值域 6 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "type",
+      "subclass_value": "闸阀",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "model_code",
+          "label": "型号代码",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "product_name",
+          "label": "产品名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "type",
+          "label": "类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "size_mm",
+          "label": "尺寸(mm)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "pressure_grade",
+          "label": "压力等级",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "connection",
+          "label": "连接方式",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "seal_material",
+          "label": "密封材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "body_material",
+          "label": "阀体材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "standard_no",
+          "label": "标准号",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "temp_range",
+          "label": "温度范围",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "price",
+          "label": "价格",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_products__安全阀",
+      "label": "安全阀",
+      "table": null,
+      "key": null,
+      "domain": "采购域",
+      "kind": "subclass",
+      "definition": "产品中 type 为『安全阀』的具体种类（依据表 valve_products 字段 type 的真实取值，1 行）。",
+      "definition_evidence": "依据表 valve_products 的分类列 'type' 的真实取值 '安全阀'（命中 1/8 行）；该列取值域 6 个，属可枚举种类",
+      "parent": "Valve_products",
+      "parent_evidence": "依据表 valve_products 的分类列 'type' 的真实取值 '安全阀'（命中 1/8 行）；该列取值域 6 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "type",
+      "subclass_value": "安全阀",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "model_code",
+          "label": "型号代码",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "product_name",
+          "label": "产品名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "type",
+          "label": "类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "size_mm",
+          "label": "尺寸(mm)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "pressure_grade",
+          "label": "压力等级",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "connection",
+          "label": "连接方式",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "seal_material",
+          "label": "密封材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "body_material",
+          "label": "阀体材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "standard_no",
+          "label": "标准号",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "temp_range",
+          "label": "温度范围",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "price",
+          "label": "价格",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_products__截止阀",
+      "label": "截止阀",
+      "table": null,
+      "key": null,
+      "domain": "采购域",
+      "kind": "subclass",
+      "definition": "产品中 type 为『截止阀』的具体种类（依据表 valve_products 字段 type 的真实取值，1 行）。",
+      "definition_evidence": "依据表 valve_products 的分类列 'type' 的真实取值 '截止阀'（命中 1/8 行）；该列取值域 6 个，属可枚举种类",
+      "parent": "Valve_products",
+      "parent_evidence": "依据表 valve_products 的分类列 'type' 的真实取值 '截止阀'（命中 1/8 行）；该列取值域 6 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "type",
+      "subclass_value": "截止阀",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "model_code",
+          "label": "型号代码",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "product_name",
+          "label": "产品名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "type",
+          "label": "类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "size_mm",
+          "label": "尺寸(mm)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "pressure_grade",
+          "label": "压力等级",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "connection",
+          "label": "连接方式",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "seal_material",
+          "label": "密封材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "body_material",
+          "label": "阀体材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "standard_no",
+          "label": "标准号",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "temp_range",
+          "label": "温度范围",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "price",
+          "label": "价格",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_products__止回阀",
+      "label": "止回阀",
+      "table": null,
+      "key": null,
+      "domain": "采购域",
+      "kind": "subclass",
+      "definition": "产品中 type 为『止回阀』的具体种类（依据表 valve_products 字段 type 的真实取值，1 行）。",
+      "definition_evidence": "依据表 valve_products 的分类列 'type' 的真实取值 '止回阀'（命中 1/8 行）；该列取值域 6 个，属可枚举种类",
+      "parent": "Valve_products",
+      "parent_evidence": "依据表 valve_products 的分类列 'type' 的真实取值 '止回阀'（命中 1/8 行）；该列取值域 6 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "type",
+      "subclass_value": "止回阀",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "model_code",
+          "label": "型号代码",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "product_name",
+          "label": "产品名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "type",
+          "label": "类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "size_mm",
+          "label": "尺寸(mm)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "pressure_grade",
+          "label": "压力等级",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "connection",
+          "label": "连接方式",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "seal_material",
+          "label": "密封材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "body_material",
+          "label": "阀体材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "standard_no",
+          "label": "标准号",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "temp_range",
+          "label": "温度范围",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "price",
+          "label": "价格",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_products__蝶阀",
+      "label": "蝶阀",
+      "table": null,
+      "key": null,
+      "domain": "采购域",
+      "kind": "subclass",
+      "definition": "产品中 type 为『蝶阀』的具体种类（依据表 valve_products 字段 type 的真实取值，1 行）。",
+      "definition_evidence": "依据表 valve_products 的分类列 'type' 的真实取值 '蝶阀'（命中 1/8 行）；该列取值域 6 个，属可枚举种类",
+      "parent": "Valve_products",
+      "parent_evidence": "依据表 valve_products 的分类列 'type' 的真实取值 '蝶阀'（命中 1/8 行）；该列取值域 6 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "type",
+      "subclass_value": "蝶阀",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "model_code",
+          "label": "型号代码",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "product_name",
+          "label": "产品名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "type",
+          "label": "类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "size_mm",
+          "label": "尺寸(mm)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "pressure_grade",
+          "label": "压力等级",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "connection",
+          "label": "连接方式",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "seal_material",
+          "label": "密封材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "body_material",
+          "label": "阀体材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "standard_no",
+          "label": "标准号",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "temp_range",
+          "label": "温度范围",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "price",
+          "label": "价格",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_qc__上密封试验",
+      "label": "上密封试验",
+      "table": null,
+      "key": null,
       "domain": "质量域",
-      "definition": "质量域中的质检，数据来源于 valve_qc 表，以 id 唯一标识，记录batch_id、check_item、press_rule、hold_sec、leak_bubbles_min等信息。",
+      "kind": "subclass",
+      "definition": "质检中 check_item 为『上密封试验』的具体种类（依据表 valve_qc 字段 check_item 的真实取值，9 行）。",
+      "definition_evidence": "依据表 valve_qc 的分类列 'check_item' 的真实取值 '上密封试验'（命中 9/24 行）；该列取值域 4 个，属可枚举种类",
+      "parent": "Valve_qc",
+      "parent_evidence": "依据表 valve_qc 的分类列 'check_item' 的真实取值 '上密封试验'（命中 9/24 行）；该列取值域 4 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "check_item",
+      "subclass_value": "上密封试验",
       "attributes": [
         {
           "name": "id",
@@ -369,12 +2028,259 @@
       ]
     },
     {
-      "id": "Valve_raw_materials",
-      "label": "原料",
-      "table": "valve_raw_materials",
-      "key": "id",
+      "id": "Valve_qc__低压密封试验",
+      "label": "低压密封试验",
+      "table": null,
+      "key": null,
+      "domain": "质量域",
+      "kind": "subclass",
+      "definition": "质检中 check_item 为『低压密封试验』的具体种类（依据表 valve_qc 字段 check_item 的真实取值，5 行）。",
+      "definition_evidence": "依据表 valve_qc 的分类列 'check_item' 的真实取值 '低压密封试验'（命中 5/24 行）；该列取值域 4 个，属可枚举种类",
+      "parent": "Valve_qc",
+      "parent_evidence": "依据表 valve_qc 的分类列 'check_item' 的真实取值 '低压密封试验'（命中 5/24 行）；该列取值域 4 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "check_item",
+      "subclass_value": "低压密封试验",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "batch_id",
+          "label": "批次编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "check_item",
+          "label": "检查项目",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "press_rule",
+          "label": "压力规则",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "hold_sec",
+          "label": "保压秒数",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "leak_bubbles_min",
+          "label": "泄漏气泡",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "result",
+          "label": "结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "checker",
+          "label": "检查员",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "check_date",
+          "label": "检查日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_qc__壳体试验",
+      "label": "壳体试验",
+      "table": null,
+      "key": null,
+      "domain": "质量域",
+      "kind": "subclass",
+      "definition": "质检中 check_item 为『壳体试验』的具体种类（依据表 valve_qc 字段 check_item 的真实取值，5 行）。",
+      "definition_evidence": "依据表 valve_qc 的分类列 'check_item' 的真实取值 '壳体试验'（命中 5/24 行）；该列取值域 4 个，属可枚举种类",
+      "parent": "Valve_qc",
+      "parent_evidence": "依据表 valve_qc 的分类列 'check_item' 的真实取值 '壳体试验'（命中 5/24 行）；该列取值域 4 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "check_item",
+      "subclass_value": "壳体试验",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "batch_id",
+          "label": "批次编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "check_item",
+          "label": "检查项目",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "press_rule",
+          "label": "压力规则",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "hold_sec",
+          "label": "保压秒数",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "leak_bubbles_min",
+          "label": "泄漏气泡",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "result",
+          "label": "结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "checker",
+          "label": "检查员",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "check_date",
+          "label": "检查日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_qc__高压密封试验",
+      "label": "高压密封试验",
+      "table": null,
+      "key": null,
+      "domain": "质量域",
+      "kind": "subclass",
+      "definition": "质检中 check_item 为『高压密封试验』的具体种类（依据表 valve_qc 字段 check_item 的真实取值，5 行）。",
+      "definition_evidence": "依据表 valve_qc 的分类列 'check_item' 的真实取值 '高压密封试验'（命中 5/24 行）；该列取值域 4 个，属可枚举种类",
+      "parent": "Valve_qc",
+      "parent_evidence": "依据表 valve_qc 的分类列 'check_item' 的真实取值 '高压密封试验'（命中 5/24 行）；该列取值域 4 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "check_item",
+      "subclass_value": "高压密封试验",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "batch_id",
+          "label": "批次编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "check_item",
+          "label": "检查项目",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "press_rule",
+          "label": "压力规则",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "hold_sec",
+          "label": "保压秒数",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "leak_bubbles_min",
+          "label": "泄漏气泡",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "result",
+          "label": "结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "checker",
+          "label": "检查员",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "check_date",
+          "label": "检查日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_raw_materials__阀体铸件",
+      "label": "阀体铸件",
+      "table": null,
+      "key": null,
       "domain": "采购域",
-      "definition": "采购域中的原料，数据来源于 valve_raw_materials 表，以 id 唯一标识，记录part_name、material、supplier、qc_result、stock等信息。",
+      "kind": "subclass",
+      "definition": "原料中 part_name 为『阀体铸件』的具体种类（依据表 valve_raw_materials 字段 part_name 的真实取值，3 行）。",
+      "definition_evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '阀体铸件'（命中 3/10 行）；该列取值域 8 个，属可枚举种类",
+      "parent": "Valve_raw_materials",
+      "parent_evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '阀体铸件'（命中 3/10 行）；该列取值域 8 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "part_name",
+      "subclass_value": "阀体铸件",
       "attributes": [
         {
           "name": "id",
@@ -421,12 +2327,19 @@
       ]
     },
     {
-      "id": "Valve_sales",
-      "label": "销售",
-      "table": "valve_sales",
-      "key": "id",
-      "domain": "销售域",
-      "definition": "销售域中的销售，数据来源于 valve_sales 表，以 id 唯一标识，记录product_id、customer_id、quantity、sale_date、amount等信息。",
+      "id": "Valve_raw_materials__垫片",
+      "label": "垫片",
+      "table": null,
+      "key": null,
+      "domain": "采购域",
+      "kind": "subclass",
+      "definition": "原料中 part_name 为『垫片』的具体种类（依据表 valve_raw_materials 字段 part_name 的真实取值，1 行）。",
+      "definition_evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '垫片'（命中 1/10 行）；该列取值域 8 个，属可枚举种类",
+      "parent": "Valve_raw_materials",
+      "parent_evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '垫片'（命中 1/10 行）；该列取值域 8 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "part_name",
+      "subclass_value": "垫片",
       "attributes": [
         {
           "name": "id",
@@ -436,36 +2349,390 @@
           "required": true
         },
         {
-          "name": "product_id",
-          "label": "产品编号",
+          "name": "part_name",
+          "label": "部件名称",
           "type": "string",
-          "role": "reference",
+          "role": "text",
           "required": false
         },
         {
-          "name": "customer_id",
-          "label": "客户编号",
+          "name": "material",
+          "label": "材质",
           "type": "string",
-          "role": "reference",
+          "role": "text",
           "required": false
         },
         {
-          "name": "quantity",
-          "label": "数量",
+          "name": "supplier",
+          "label": "供应商",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "qc_result",
+          "label": "质检结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "stock",
+          "label": "库存",
           "type": "number",
           "role": "measure",
           "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_raw_materials__密封圈",
+      "label": "密封圈",
+      "table": null,
+      "key": null,
+      "domain": "采购域",
+      "kind": "subclass",
+      "definition": "原料中 part_name 为『密封圈』的具体种类（依据表 valve_raw_materials 字段 part_name 的真实取值，1 行）。",
+      "definition_evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '密封圈'（命中 1/10 行）；该列取值域 8 个，属可枚举种类",
+      "parent": "Valve_raw_materials",
+      "parent_evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '密封圈'（命中 1/10 行）；该列取值域 8 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "part_name",
+      "subclass_value": "密封圈",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
         },
         {
-          "name": "sale_date",
-          "label": "销售日期",
-          "type": "date",
-          "role": "category",
+          "name": "part_name",
+          "label": "部件名称",
+          "type": "string",
+          "role": "text",
           "required": false
         },
         {
-          "name": "amount",
-          "label": "金额",
+          "name": "material",
+          "label": "材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "supplier",
+          "label": "供应商",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "qc_result",
+          "label": "质检结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "stock",
+          "label": "库存",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_raw_materials__弹簧",
+      "label": "弹簧",
+      "table": null,
+      "key": null,
+      "domain": "采购域",
+      "kind": "subclass",
+      "definition": "原料中 part_name 为『弹簧』的具体种类（依据表 valve_raw_materials 字段 part_name 的真实取值，1 行）。",
+      "definition_evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '弹簧'（命中 1/10 行）；该列取值域 8 个，属可枚举种类",
+      "parent": "Valve_raw_materials",
+      "parent_evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '弹簧'（命中 1/10 行）；该列取值域 8 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "part_name",
+      "subclass_value": "弹簧",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "part_name",
+          "label": "部件名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "material",
+          "label": "材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "supplier",
+          "label": "供应商",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "qc_result",
+          "label": "质检结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "stock",
+          "label": "库存",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_raw_materials__螺栓",
+      "label": "螺栓",
+      "table": null,
+      "key": null,
+      "domain": "采购域",
+      "kind": "subclass",
+      "definition": "原料中 part_name 为『螺栓』的具体种类（依据表 valve_raw_materials 字段 part_name 的真实取值，1 行）。",
+      "definition_evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '螺栓'（命中 1/10 行）；该列取值域 8 个，属可枚举种类",
+      "parent": "Valve_raw_materials",
+      "parent_evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '螺栓'（命中 1/10 行）；该列取值域 8 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "part_name",
+      "subclass_value": "螺栓",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "part_name",
+          "label": "部件名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "material",
+          "label": "材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "supplier",
+          "label": "供应商",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "qc_result",
+          "label": "质检结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "stock",
+          "label": "库存",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_raw_materials__阀杆",
+      "label": "阀杆",
+      "table": null,
+      "key": null,
+      "domain": "采购域",
+      "kind": "subclass",
+      "definition": "原料中 part_name 为『阀杆』的具体种类（依据表 valve_raw_materials 字段 part_name 的真实取值，1 行）。",
+      "definition_evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '阀杆'（命中 1/10 行）；该列取值域 8 个，属可枚举种类",
+      "parent": "Valve_raw_materials",
+      "parent_evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '阀杆'（命中 1/10 行）；该列取值域 8 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "part_name",
+      "subclass_value": "阀杆",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "part_name",
+          "label": "部件名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "material",
+          "label": "材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "supplier",
+          "label": "供应商",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "qc_result",
+          "label": "质检结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "stock",
+          "label": "库存",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_raw_materials__阀瓣",
+      "label": "阀瓣",
+      "table": null,
+      "key": null,
+      "domain": "采购域",
+      "kind": "subclass",
+      "definition": "原料中 part_name 为『阀瓣』的具体种类（依据表 valve_raw_materials 字段 part_name 的真实取值，1 行）。",
+      "definition_evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '阀瓣'（命中 1/10 行）；该列取值域 8 个，属可枚举种类",
+      "parent": "Valve_raw_materials",
+      "parent_evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '阀瓣'（命中 1/10 行）；该列取值域 8 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "part_name",
+      "subclass_value": "阀瓣",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "part_name",
+          "label": "部件名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "material",
+          "label": "材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "supplier",
+          "label": "供应商",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "qc_result",
+          "label": "质检结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "stock",
+          "label": "库存",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Valve_raw_materials__阀芯",
+      "label": "阀芯",
+      "table": null,
+      "key": null,
+      "domain": "采购域",
+      "kind": "subclass",
+      "definition": "原料中 part_name 为『阀芯』的具体种类（依据表 valve_raw_materials 字段 part_name 的真实取值，1 行）。",
+      "definition_evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '阀芯'（命中 1/10 行）；该列取值域 8 个，属可枚举种类",
+      "parent": "Valve_raw_materials",
+      "parent_evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '阀芯'（命中 1/10 行）；该列取值域 8 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "part_name",
+      "subclass_value": "阀芯",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "part_name",
+          "label": "部件名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "material",
+          "label": "材质",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "supplier",
+          "label": "供应商",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "qc_result",
+          "label": "质检结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "stock",
+          "label": "库存",
           "type": "number",
           "role": "measure",
           "required": false
@@ -577,7 +2844,620 @@
       "msg": "Valve_sales 主键 id 唯一"
     }
   ],
-  "version": "1.0",
-  "name": "auto-inferred-ontology",
-  "industry": "valve"
+  "hierarchy": [
+    {
+      "name": "Enterprise",
+      "parent": null,
+      "label": "企业",
+      "kind": "root",
+      "rule": "R0-根",
+      "evidence": "国标 GB/T 48000.3 §5.3 规定的根类"
+    },
+    {
+      "name": "BusinessObject",
+      "parent": "Enterprise",
+      "label": "业务对象",
+      "kind": "root",
+      "rule": "R0-根",
+      "evidence": "国标 §5.3 一级派生类：所有业务实体之共同上层类"
+    },
+    {
+      "name": "生产域",
+      "parent": "BusinessObject",
+      "label": "生产域",
+      "kind": "domain",
+      "rule": "R1-业务域",
+      "evidence": "表名/列名命中业务域关键词 batch, produce, product（_DOMAIN_KEYWORDS 命中项）"
+    },
+    {
+      "name": "销售域",
+      "parent": "BusinessObject",
+      "label": "销售域",
+      "kind": "domain",
+      "rule": "R1-业务域",
+      "evidence": "表名/列名命中业务域关键词 customer, sale（_DOMAIN_KEYWORDS 命中项）"
+    },
+    {
+      "name": "设备域",
+      "parent": "BusinessObject",
+      "label": "设备域",
+      "kind": "domain",
+      "rule": "R1-业务域",
+      "evidence": "表名/列名命中业务域关键词 device, equipment（_DOMAIN_KEYWORDS 命中项）"
+    },
+    {
+      "name": "采购域",
+      "parent": "BusinessObject",
+      "label": "采购域",
+      "kind": "domain",
+      "rule": "R1-业务域",
+      "evidence": "表名/列名命中业务域关键词 material, raw_material, supplier（_DOMAIN_KEYWORDS 命中项）"
+    },
+    {
+      "name": "质量域",
+      "parent": "BusinessObject",
+      "label": "质量域",
+      "kind": "domain",
+      "rule": "R1-业务域",
+      "evidence": "表名/列名命中业务域关键词 qc（_DOMAIN_KEYWORDS 命中项）"
+    },
+    {
+      "name": "BatchGroup",
+      "parent": "生产域",
+      "label": "批次类实体",
+      "kind": "stem",
+      "rule": "R2-命名词干",
+      "evidence": "去库前缀'valve' 后表名共享前导词干 'batch'（成员表: valve_batch_ingredient、valve_batches）"
+    },
+    {
+      "name": "Valve_batch_ingredient",
+      "parent": "BatchGroup",
+      "label": "批次配料",
+      "kind": "entity",
+      "rule": "R2-命名词干",
+      "evidence": "归入子类 BatchGroup（依据 R2-命名词干）"
+    },
+    {
+      "name": "Valve_batches",
+      "parent": "BatchGroup",
+      "label": "批次",
+      "kind": "entity",
+      "rule": "R2-命名词干",
+      "evidence": "归入子类 BatchGroup（依据 R2-命名词干）"
+    },
+    {
+      "name": "Valve_customers",
+      "parent": "销售域",
+      "label": "客户",
+      "kind": "entity",
+      "rule": "R1-业务域",
+      "evidence": "归入业务域类 销售域（依据 R1-业务域，命中关键词 customer）"
+    },
+    {
+      "name": "Valve_equipment",
+      "parent": "设备域",
+      "label": "设备",
+      "kind": "entity",
+      "rule": "R1-业务域",
+      "evidence": "归入业务域类 设备域（依据 R1-业务域，命中关键词 device, equipment）"
+    },
+    {
+      "name": "Valve_products",
+      "parent": "采购域",
+      "label": "产品",
+      "kind": "entity",
+      "rule": "R1-业务域",
+      "evidence": "归入业务域类 采购域（依据 R1-业务域，命中关键词 material）"
+    },
+    {
+      "name": "Valve_qc",
+      "parent": "质量域",
+      "label": "质检",
+      "kind": "entity",
+      "rule": "R1-业务域",
+      "evidence": "归入业务域类 质量域（依据 R1-业务域，命中关键词 qc）"
+    },
+    {
+      "name": "Valve_raw_materials",
+      "parent": "采购域",
+      "label": "原料",
+      "kind": "entity",
+      "rule": "R1-业务域",
+      "evidence": "归入业务域类 采购域（依据 R1-业务域，命中关键词 material, raw_material, supplier）"
+    },
+    {
+      "name": "Valve_sales",
+      "parent": "销售域",
+      "label": "销售",
+      "kind": "entity",
+      "rule": "R1-业务域",
+      "evidence": "归入业务域类 销售域（依据 R1-业务域，命中关键词 customer, sale）"
+    }
+  ],
+  "definitions": [
+    {
+      "entity": "Valve_batch_ingredient",
+      "definition": "生产域中的批次配料，数据来源于 valve_batch_ingredient 表，以 batch_id 唯一标识，记录raw_id等信息；取值样例（原料编号=R005/R007）。",
+      "rule": "R-DEF 结构(域/表/主键/关键字段)+取值样例",
+      "evidence": "依据表 valve_batch_ingredient 的字段 ['batch_id', 'raw_id']；取值样例来自字段 ['raw_id']（真实行）",
+      "source": "rule"
+    },
+    {
+      "entity": "Valve_batches",
+      "definition": "生产域中的批次，数据来源于 valve_batches 表，以 id 唯一标识，记录product_id、produce_date、quantity、raw_parts、team等信息；取值样例（产品编号=P004/P007；生产日期=2026-07-02/2026-07-03）。",
+      "rule": "R-DEF 结构(域/表/主键/关键字段)+取值样例",
+      "evidence": "依据表 valve_batches 的字段 ['id', 'product_id', 'produce_date', 'quantity', 'raw_parts', 'team', 'status']；取值样例来自字段 ['product_id', 'produce_date']（真实行）",
+      "source": "rule"
+    },
+    {
+      "entity": "Valve_customers",
+      "definition": "销售域中的客户，数据来源于 valve_customers 表，以 id 唯一标识，记录customer_name、region、industry、credit_level等信息；取值样例（客户名称=华北炼化/华东化工集团；区域=华北/华东）。",
+      "rule": "R-DEF 结构(域/表/主键/关键字段)+取值样例",
+      "evidence": "依据表 valve_customers 的字段 ['id', 'customer_name', 'region', 'industry', 'credit_level']；取值样例来自字段 ['customer_name', 'region']（真实行）",
+      "source": "rule"
+    },
+    {
+      "entity": "Valve_equipment",
+      "definition": "设备域中的设备，数据来源于 valve_equipment 表，以 id 唯一标识，记录device_name、device_type、workshop、power_kw、status等信息；取值样例（设备名称=数控车床/立式铣床；设备类型=机加设备/机加设备）。",
+      "rule": "R-DEF 结构(域/表/主键/关键字段)+取值样例",
+      "evidence": "依据表 valve_equipment 的字段 ['id', 'device_name', 'device_type', 'workshop', 'power_kw', 'status', 'vibration_mm_s', 'temp_c', 'current_a']；取值样例来自字段 ['device_name', 'device_type']（真实行）",
+      "source": "rule"
+    },
+    {
+      "entity": "Valve_products",
+      "definition": "采购域中的产品，数据来源于 valve_products 表，以 id 唯一标识，记录model_code、product_name、type、size_mm、pressure_grade等信息；取值样例（型号代码=Z41H-16C/Z941T-16；产品名称=闸阀 Z41H-16C/电动闸阀 Z941T-16）。",
+      "rule": "R-DEF 结构(域/表/主键/关键字段)+取值样例",
+      "evidence": "依据表 valve_products 的字段 ['id', 'model_code', 'product_name', 'type', 'size_mm', 'pressure_grade', 'connection', 'seal_material', 'body_material', 'standard_no', 'temp_range', 'price']；取值样例来自字段 ['model_code', 'product_name']（真实行）",
+      "source": "rule"
+    },
+    {
+      "entity": "Valve_qc",
+      "definition": "质量域中的质检，数据来源于 valve_qc 表，以 id 唯一标识，记录batch_id、check_item、press_rule、hold_sec、leak_bubbles_min等信息；取值样例（批次编号=B007/B003；检查项目=低压密封试验/壳体试验）。",
+      "rule": "R-DEF 结构(域/表/主键/关键字段)+取值样例",
+      "evidence": "依据表 valve_qc 的字段 ['id', 'batch_id', 'check_item', 'press_rule', 'hold_sec', 'leak_bubbles_min', 'result', 'checker', 'check_date']；取值样例来自字段 ['batch_id', 'check_item']（真实行）",
+      "source": "rule"
+    },
+    {
+      "entity": "Valve_raw_materials",
+      "definition": "采购域中的原料，数据来源于 valve_raw_materials 表，以 id 唯一标识，记录part_name、material、supplier、qc_result、stock等信息；取值样例（部件名称=阀体铸件/阀体铸件；材质=WCB/CF8）。",
+      "rule": "R-DEF 结构(域/表/主键/关键字段)+取值样例",
+      "evidence": "依据表 valve_raw_materials 的字段 ['id', 'part_name', 'material', 'supplier', 'qc_result', 'stock']；取值样例来自字段 ['part_name', 'material']（真实行）",
+      "source": "rule"
+    },
+    {
+      "entity": "Valve_sales",
+      "definition": "销售域中的销售，数据来源于 valve_sales 表，以 id 唯一标识，记录product_id、customer_id、quantity、sale_date、amount等信息；取值样例（产品编号=P006/P007；客户编号=C005/C003）。",
+      "rule": "R-DEF 结构(域/表/主键/关键字段)+取值样例",
+      "evidence": "依据表 valve_sales 的字段 ['id', 'product_id', 'customer_id', 'quantity', 'sale_date', 'amount']；取值样例来自字段 ['product_id', 'customer_id']（真实行）",
+      "source": "rule"
+    }
+  ],
+  "subclasses": [
+    {
+      "name": "Valve_batches__已入库",
+      "label": "已入库",
+      "parent": "Valve_batches",
+      "kind": "subclass",
+      "column": "status",
+      "value": "已入库",
+      "count": 9,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_batches 的分类列 'status' 的真实取值 '已入库'（命中 9/15 行）；该列取值域 3 个，属可枚举种类",
+      "definition": "批次中 status 为『已入库』的具体种类（依据表 valve_batches 字段 status 的真实取值，9 行）。"
+    },
+    {
+      "name": "Valve_batches__待质检",
+      "label": "待质检",
+      "parent": "Valve_batches",
+      "kind": "subclass",
+      "column": "status",
+      "value": "待质检",
+      "count": 4,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_batches 的分类列 'status' 的真实取值 '待质检'（命中 4/15 行）；该列取值域 3 个，属可枚举种类",
+      "definition": "批次中 status 为『待质检』的具体种类（依据表 valve_batches 字段 status 的真实取值，4 行）。"
+    },
+    {
+      "name": "Valve_batches__生产中",
+      "label": "生产中",
+      "parent": "Valve_batches",
+      "kind": "subclass",
+      "column": "status",
+      "value": "生产中",
+      "count": 2,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_batches 的分类列 'status' 的真实取值 '生产中'（命中 2/15 行）；该列取值域 3 个，属可枚举种类",
+      "definition": "批次中 status 为『生产中』的具体种类（依据表 valve_batches 字段 status 的真实取值，2 行）。"
+    },
+    {
+      "name": "Valve_customers__A",
+      "label": "A",
+      "parent": "Valve_customers",
+      "kind": "subclass",
+      "column": "credit_level",
+      "value": "A",
+      "count": 4,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_customers 的分类列 'credit_level' 的真实取值 'A'（命中 4/8 行）；该列取值域 3 个，属可枚举种类",
+      "definition": "客户中 credit_level 为『A』的具体种类（依据表 valve_customers 字段 credit_level 的真实取值，4 行）。"
+    },
+    {
+      "name": "Valve_customers__B",
+      "label": "B",
+      "parent": "Valve_customers",
+      "kind": "subclass",
+      "column": "credit_level",
+      "value": "B",
+      "count": 3,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_customers 的分类列 'credit_level' 的真实取值 'B'（命中 3/8 行）；该列取值域 3 个，属可枚举种类",
+      "definition": "客户中 credit_level 为『B』的具体种类（依据表 valve_customers 字段 credit_level 的真实取值，3 行）。"
+    },
+    {
+      "name": "Valve_customers__C",
+      "label": "C",
+      "parent": "Valve_customers",
+      "kind": "subclass",
+      "column": "credit_level",
+      "value": "C",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_customers 的分类列 'credit_level' 的真实取值 'C'（命中 1/8 行）；该列取值域 3 个，属可枚举种类",
+      "definition": "客户中 credit_level 为『C』的具体种类（依据表 valve_customers 字段 credit_level 的真实取值，1 行）。"
+    },
+    {
+      "name": "Valve_equipment__机加设备",
+      "label": "机加设备",
+      "parent": "Valve_equipment",
+      "kind": "subclass",
+      "column": "device_type",
+      "value": "机加设备",
+      "count": 3,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_equipment 的分类列 'device_type' 的真实取值 '机加设备'（命中 3/10 行）；该列取值域 6 个，属可枚举种类",
+      "definition": "设备中 device_type 为『机加设备』的具体种类（依据表 valve_equipment 字段 device_type 的真实取值，3 行）。"
+    },
+    {
+      "name": "Valve_equipment__试压设备",
+      "label": "试压设备",
+      "parent": "Valve_equipment",
+      "kind": "subclass",
+      "column": "device_type",
+      "value": "试压设备",
+      "count": 2,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_equipment 的分类列 'device_type' 的真实取值 '试压设备'（命中 2/10 行）；该列取值域 6 个，属可枚举种类",
+      "definition": "设备中 device_type 为『试压设备』的具体种类（依据表 valve_equipment 字段 device_type 的真实取值，2 行）。"
+    },
+    {
+      "name": "Valve_equipment__铸造设备",
+      "label": "铸造设备",
+      "parent": "Valve_equipment",
+      "kind": "subclass",
+      "column": "device_type",
+      "value": "铸造设备",
+      "count": 2,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_equipment 的分类列 'device_type' 的真实取值 '铸造设备'（命中 2/10 行）；该列取值域 6 个，属可枚举种类",
+      "definition": "设备中 device_type 为『铸造设备』的具体种类（依据表 valve_equipment 字段 device_type 的真实取值，2 行）。"
+    },
+    {
+      "name": "Valve_equipment__焊接设备",
+      "label": "焊接设备",
+      "parent": "Valve_equipment",
+      "kind": "subclass",
+      "column": "device_type",
+      "value": "焊接设备",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_equipment 的分类列 'device_type' 的真实取值 '焊接设备'（命中 1/10 行）；该列取值域 6 个，属可枚举种类",
+      "definition": "设备中 device_type 为『焊接设备』的具体种类（依据表 valve_equipment 字段 device_type 的真实取值，1 行）。"
+    },
+    {
+      "name": "Valve_equipment__表面处理设备",
+      "label": "表面处理设备",
+      "parent": "Valve_equipment",
+      "kind": "subclass",
+      "column": "device_type",
+      "value": "表面处理设备",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_equipment 的分类列 'device_type' 的真实取值 '表面处理设备'（命中 1/10 行）；该列取值域 6 个，属可枚举种类",
+      "definition": "设备中 device_type 为『表面处理设备』的具体种类（依据表 valve_equipment 字段 device_type 的真实取值，1 行）。"
+    },
+    {
+      "name": "Valve_equipment__装配设备",
+      "label": "装配设备",
+      "parent": "Valve_equipment",
+      "kind": "subclass",
+      "column": "device_type",
+      "value": "装配设备",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_equipment 的分类列 'device_type' 的真实取值 '装配设备'（命中 1/10 行）；该列取值域 6 个，属可枚举种类",
+      "definition": "设备中 device_type 为『装配设备』的具体种类（依据表 valve_equipment 字段 device_type 的真实取值，1 行）。"
+    },
+    {
+      "name": "Valve_products__球阀",
+      "label": "球阀",
+      "parent": "Valve_products",
+      "kind": "subclass",
+      "column": "type",
+      "value": "球阀",
+      "count": 2,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_products 的分类列 'type' 的真实取值 '球阀'（命中 2/8 行）；该列取值域 6 个，属可枚举种类",
+      "definition": "产品中 type 为『球阀』的具体种类（依据表 valve_products 字段 type 的真实取值，2 行）。"
+    },
+    {
+      "name": "Valve_products__闸阀",
+      "label": "闸阀",
+      "parent": "Valve_products",
+      "kind": "subclass",
+      "column": "type",
+      "value": "闸阀",
+      "count": 2,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_products 的分类列 'type' 的真实取值 '闸阀'（命中 2/8 行）；该列取值域 6 个，属可枚举种类",
+      "definition": "产品中 type 为『闸阀』的具体种类（依据表 valve_products 字段 type 的真实取值，2 行）。"
+    },
+    {
+      "name": "Valve_products__安全阀",
+      "label": "安全阀",
+      "parent": "Valve_products",
+      "kind": "subclass",
+      "column": "type",
+      "value": "安全阀",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_products 的分类列 'type' 的真实取值 '安全阀'（命中 1/8 行）；该列取值域 6 个，属可枚举种类",
+      "definition": "产品中 type 为『安全阀』的具体种类（依据表 valve_products 字段 type 的真实取值，1 行）。"
+    },
+    {
+      "name": "Valve_products__截止阀",
+      "label": "截止阀",
+      "parent": "Valve_products",
+      "kind": "subclass",
+      "column": "type",
+      "value": "截止阀",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_products 的分类列 'type' 的真实取值 '截止阀'（命中 1/8 行）；该列取值域 6 个，属可枚举种类",
+      "definition": "产品中 type 为『截止阀』的具体种类（依据表 valve_products 字段 type 的真实取值，1 行）。"
+    },
+    {
+      "name": "Valve_products__止回阀",
+      "label": "止回阀",
+      "parent": "Valve_products",
+      "kind": "subclass",
+      "column": "type",
+      "value": "止回阀",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_products 的分类列 'type' 的真实取值 '止回阀'（命中 1/8 行）；该列取值域 6 个，属可枚举种类",
+      "definition": "产品中 type 为『止回阀』的具体种类（依据表 valve_products 字段 type 的真实取值，1 行）。"
+    },
+    {
+      "name": "Valve_products__蝶阀",
+      "label": "蝶阀",
+      "parent": "Valve_products",
+      "kind": "subclass",
+      "column": "type",
+      "value": "蝶阀",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_products 的分类列 'type' 的真实取值 '蝶阀'（命中 1/8 行）；该列取值域 6 个，属可枚举种类",
+      "definition": "产品中 type 为『蝶阀』的具体种类（依据表 valve_products 字段 type 的真实取值，1 行）。"
+    },
+    {
+      "name": "Valve_qc__上密封试验",
+      "label": "上密封试验",
+      "parent": "Valve_qc",
+      "kind": "subclass",
+      "column": "check_item",
+      "value": "上密封试验",
+      "count": 9,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_qc 的分类列 'check_item' 的真实取值 '上密封试验'（命中 9/24 行）；该列取值域 4 个，属可枚举种类",
+      "definition": "质检中 check_item 为『上密封试验』的具体种类（依据表 valve_qc 字段 check_item 的真实取值，9 行）。"
+    },
+    {
+      "name": "Valve_qc__低压密封试验",
+      "label": "低压密封试验",
+      "parent": "Valve_qc",
+      "kind": "subclass",
+      "column": "check_item",
+      "value": "低压密封试验",
+      "count": 5,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_qc 的分类列 'check_item' 的真实取值 '低压密封试验'（命中 5/24 行）；该列取值域 4 个，属可枚举种类",
+      "definition": "质检中 check_item 为『低压密封试验』的具体种类（依据表 valve_qc 字段 check_item 的真实取值，5 行）。"
+    },
+    {
+      "name": "Valve_qc__壳体试验",
+      "label": "壳体试验",
+      "parent": "Valve_qc",
+      "kind": "subclass",
+      "column": "check_item",
+      "value": "壳体试验",
+      "count": 5,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_qc 的分类列 'check_item' 的真实取值 '壳体试验'（命中 5/24 行）；该列取值域 4 个，属可枚举种类",
+      "definition": "质检中 check_item 为『壳体试验』的具体种类（依据表 valve_qc 字段 check_item 的真实取值，5 行）。"
+    },
+    {
+      "name": "Valve_qc__高压密封试验",
+      "label": "高压密封试验",
+      "parent": "Valve_qc",
+      "kind": "subclass",
+      "column": "check_item",
+      "value": "高压密封试验",
+      "count": 5,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_qc 的分类列 'check_item' 的真实取值 '高压密封试验'（命中 5/24 行）；该列取值域 4 个，属可枚举种类",
+      "definition": "质检中 check_item 为『高压密封试验』的具体种类（依据表 valve_qc 字段 check_item 的真实取值，5 行）。"
+    },
+    {
+      "name": "Valve_raw_materials__阀体铸件",
+      "label": "阀体铸件",
+      "parent": "Valve_raw_materials",
+      "kind": "subclass",
+      "column": "part_name",
+      "value": "阀体铸件",
+      "count": 3,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '阀体铸件'（命中 3/10 行）；该列取值域 8 个，属可枚举种类",
+      "definition": "原料中 part_name 为『阀体铸件』的具体种类（依据表 valve_raw_materials 字段 part_name 的真实取值，3 行）。"
+    },
+    {
+      "name": "Valve_raw_materials__垫片",
+      "label": "垫片",
+      "parent": "Valve_raw_materials",
+      "kind": "subclass",
+      "column": "part_name",
+      "value": "垫片",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '垫片'（命中 1/10 行）；该列取值域 8 个，属可枚举种类",
+      "definition": "原料中 part_name 为『垫片』的具体种类（依据表 valve_raw_materials 字段 part_name 的真实取值，1 行）。"
+    },
+    {
+      "name": "Valve_raw_materials__密封圈",
+      "label": "密封圈",
+      "parent": "Valve_raw_materials",
+      "kind": "subclass",
+      "column": "part_name",
+      "value": "密封圈",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '密封圈'（命中 1/10 行）；该列取值域 8 个，属可枚举种类",
+      "definition": "原料中 part_name 为『密封圈』的具体种类（依据表 valve_raw_materials 字段 part_name 的真实取值，1 行）。"
+    },
+    {
+      "name": "Valve_raw_materials__弹簧",
+      "label": "弹簧",
+      "parent": "Valve_raw_materials",
+      "kind": "subclass",
+      "column": "part_name",
+      "value": "弹簧",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '弹簧'（命中 1/10 行）；该列取值域 8 个，属可枚举种类",
+      "definition": "原料中 part_name 为『弹簧』的具体种类（依据表 valve_raw_materials 字段 part_name 的真实取值，1 行）。"
+    },
+    {
+      "name": "Valve_raw_materials__螺栓",
+      "label": "螺栓",
+      "parent": "Valve_raw_materials",
+      "kind": "subclass",
+      "column": "part_name",
+      "value": "螺栓",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '螺栓'（命中 1/10 行）；该列取值域 8 个，属可枚举种类",
+      "definition": "原料中 part_name 为『螺栓』的具体种类（依据表 valve_raw_materials 字段 part_name 的真实取值，1 行）。"
+    },
+    {
+      "name": "Valve_raw_materials__阀杆",
+      "label": "阀杆",
+      "parent": "Valve_raw_materials",
+      "kind": "subclass",
+      "column": "part_name",
+      "value": "阀杆",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '阀杆'（命中 1/10 行）；该列取值域 8 个，属可枚举种类",
+      "definition": "原料中 part_name 为『阀杆』的具体种类（依据表 valve_raw_materials 字段 part_name 的真实取值，1 行）。"
+    },
+    {
+      "name": "Valve_raw_materials__阀瓣",
+      "label": "阀瓣",
+      "parent": "Valve_raw_materials",
+      "kind": "subclass",
+      "column": "part_name",
+      "value": "阀瓣",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '阀瓣'（命中 1/10 行）；该列取值域 8 个，属可枚举种类",
+      "definition": "原料中 part_name 为『阀瓣』的具体种类（依据表 valve_raw_materials 字段 part_name 的真实取值，1 行）。"
+    },
+    {
+      "name": "Valve_raw_materials__阀芯",
+      "label": "阀芯",
+      "parent": "Valve_raw_materials",
+      "kind": "subclass",
+      "column": "part_name",
+      "value": "阀芯",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 valve_raw_materials 的分类列 'part_name' 的真实取值 '阀芯'（命中 1/10 行）；该列取值域 8 个，属可枚举种类",
+      "definition": "原料中 part_name 为『阀芯』的具体种类（依据表 valve_raw_materials 字段 part_name 的真实取值，1 行）。"
+    }
+  ],
+  "class_hierarchy": [
+    {
+      "name": "Enterprise",
+      "parent": null,
+      "label": "企业",
+      "kind": "root",
+      "rule": "R0-根",
+      "evidence": "国标 GB/T 48000.3 §5.3 规定的根类"
+    },
+    {
+      "name": "BusinessObject",
+      "parent": "Enterprise",
+      "label": "业务对象",
+      "kind": "root",
+      "rule": "R0-根",
+      "evidence": "国标 §5.3 一级派生类：所有业务实体之共同上层类"
+    },
+    {
+      "name": "生产域",
+      "parent": "BusinessObject",
+      "label": "生产域",
+      "kind": "domain",
+      "rule": "R1-业务域",
+      "evidence": "表名/列名命中业务域关键词 batch, produce, product（_DOMAIN_KEYWORDS 命中项）"
+    },
+    {
+      "name": "销售域",
+      "parent": "BusinessObject",
+      "label": "销售域",
+      "kind": "domain",
+      "rule": "R1-业务域",
+      "evidence": "表名/列名命中业务域关键词 customer, sale（_DOMAIN_KEYWORDS 命中项）"
+    },
+    {
+      "name": "设备域",
+      "parent": "BusinessObject",
+      "label": "设备域",
+      "kind": "domain",
+      "rule": "R1-业务域",
+      "evidence": "表名/列名命中业务域关键词 device, equipment（_DOMAIN_KEYWORDS 命中项）"
+    },
+    {
+      "name": "采购域",
+      "parent": "BusinessObject",
+      "label": "采购域",
+      "kind": "domain",
+      "rule": "R1-业务域",
+      "evidence": "表名/列名命中业务域关键词 material, raw_material, supplier（_DOMAIN_KEYWORDS 命中项）"
+    },
+    {
+      "name": "质量域",
+      "parent": "BusinessObject",
+      "label": "质量域",
+      "kind": "domain",
+      "rule": "R1-业务域",
+      "evidence": "表名/列名命中业务域关键词 qc（_DOMAIN_KEYWORDS 命中项）"
+    },
+    {
+      "name": "BatchGroup",
+      "parent": "生产域",
+      "label": "批次类实体",
+      "kind": "stem",
+      "rule": "R2-命名词干",
+      "evidence": "去库前缀'valve' 后表名共享前导词干 'batch'（成员表: valve_batch_ingredient、valve_batches）"
+    }
+  ]
 }

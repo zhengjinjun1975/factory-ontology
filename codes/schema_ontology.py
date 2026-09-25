@@ -679,6 +679,367 @@ _DOMAIN_KEYWORDS = [
 ]
 
 
+# ═══════════ 类层次派生 + 实体 Definition 派生（确定性 · 证据驱动 · 可复算）═══════════
+# 目标（国标 GB/T 48000.3 §5.3 派生层次 + 表1 Definition 描述项）：
+#   自动建模产出的本体不再是「实体平铺」——每个实体都挂到一条可解释的派生链上。
+# 红线：
+#   · 每条父子关系都**写出依据**（用了哪个字段/取值/命名证据），并可从同一输入复算；
+#   · 全部走**纯规则**（零 token、离线、确定性），模型只能作为「建议候选」另路补入；
+#   · 这里只产出**建议**，是否写入本体由人在环确认（见 api_server confirm 的硬校验）。
+HIER_ROOT = "Enterprise"        # 根类（国标 §5.3 起算点）
+HIER_TOP = "BusinessObject"     # 一级派生类：所有业务实体之共同上层类
+
+# 不宜作为命名词干的通用词（避免把 id/name 这类列级词当成业务分组）
+_GENERIC_STEMS = {"id", "name", "code", "key", "type", "no", "data", "info",
+                  "list", "detail", "item", "value", "date", "time"}
+
+
+def _table_prefix_tokens(tables) -> list:
+    """返回所有表名**共有的前导 token**（库/行业前缀，如 valve_/food_）。
+
+    只有在**全部**表名前部都出现才剥离，避免把业务词误当库前缀；
+    最多剥 2 个，且剥完每张表至少还剩 1 个 token（否则不剥）。
+    """
+    tabs = [t for t in tables if t]
+    if len(tabs) < 2:
+        return []
+    tok_lists = [[x for x in str(t).lower().split("_") if x] for t in tabs]
+    if not all(tok_lists):
+        return []
+    pref = []
+    for i in range(min(len(t) for t in tok_lists)):
+        tok = tok_lists[0][i]
+        if all(t[i] == tok for t in tok_lists):
+            pref.append(tok)
+        else:
+            break
+    pref = pref[:2]
+    if any(len(t) - len(pref) < 1 for t in tok_lists):
+        return []
+    return pref
+
+
+def _strip_table_prefix(table, pref) -> str:
+    """剥掉库前缀后的表名（valve_batches --pref=[valve]--> batches）。"""
+    toks = [x for x in str(table).lower().split("_") if x]
+    return "_".join(toks[len(pref):]) or str(table).lower()
+
+
+def _domain_evidence(table, cols):
+    """表 → (业务域, 命中关键词列表)。关键词列表就是「业务域归属」这条依据的实件。
+
+    与 _infer_domain 同口径（同一 _DOMAIN_KEYWORDS、同一匹配顺序），
+    但额外把**命中的关键词**返回出来，使派生依据可写、可核。
+    """
+    txt = (str(table) + " " + " ".join(str(c) for c in cols)).lower()
+    for dom, keys in _DOMAIN_KEYWORDS:
+        hit = [k for k in keys if k in txt]
+        if hit:
+            return dom, hit
+    return "业务域", []
+
+
+def _is_number(s) -> bool:
+    try:
+        float(str(s).strip())
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def derive_class_hierarchy(schema: dict, data: dict = None) -> dict:
+    """派生类层次**建议**（确定性 · 证据驱动 · 可复算）。
+
+    规则表（按优先级）：
+      R0-根       Enterprise → BusinessObject
+                  依据：国标 GB/T 48000.3 §5.3 规定的根类/一级派生类（结构公理）
+      R1-业务域   实体 → <业务域类>（<业务域类> → BusinessObject）
+                  依据：表名/列名命中 _DOMAIN_KEYWORDS 的具体关键词（写出命中词）
+      R2-命名词干 同域内、去库前缀后表名共享**前导词干**的实体（≥2 个）→ <词干>Group
+                  依据：共享词干 + 全部成员表名（写出证据）
+    返回 {"nodes":[...], "assign":{entity_id: parent_name}, "prefix":[...]}
+      nodes 每项 {name, parent, label, kind, rule, evidence}；kind ∈ root/domain/stem/entity。
+    同输入同输出：全部为纯函数（只读 schema/data，遍历顺序确定）。
+    """
+    ents = list(schema.get("entities", []))
+    tables = [e.get("table") or e.get("id") for e in ents]
+    pref = _table_prefix_tokens(tables)
+
+    nodes = [
+        {"name": HIER_ROOT, "parent": None, "label": "企业", "kind": "root",
+         "rule": "R0-根", "evidence": "国标 GB/T 48000.3 §5.3 规定的根类"},
+        {"name": HIER_TOP, "parent": HIER_ROOT, "label": "业务对象", "kind": "root",
+         "rule": "R0-根", "evidence": "国标 §5.3 一级派生类：所有业务实体之共同上层类"},
+    ]
+
+    # 每实体的业务域 + 证据（命中关键词）
+    dom_of = {}
+    for e in ents:
+        table = e.get("table") or e.get("id")
+        rows = (data or {}).get(table) or []
+        cols = (list(rows[0].keys()) if rows else
+                [a.get("name") for a in e.get("attributes", [])])
+        dom, hit = _domain_evidence(table, cols)
+        if not hit and e.get("domain"):
+            # 实体已带 domain（外部声明）→ 认它，但依据如实标为「实体已声明 domain」
+            dom, hit = str(e.get("domain")), []
+        dom_of[e["id"]] = (dom, hit)
+
+    # R1：业务域类节点（去重，按首次出现顺序）
+    domain_order = []
+    for e in ents:
+        dom = dom_of[e["id"]][0]
+        if dom not in domain_order:
+            domain_order.append(dom)
+    for dom in domain_order:
+        hits = sorted({h for e in ents if dom_of[e["id"]][0] == dom for h in dom_of[e["id"]][1]})
+        if hits:
+            ev = "表名/列名命中业务域关键词 %s（_DOMAIN_KEYWORDS 命中项）" % (", ".join(hits))
+        else:
+            ev = "实体已声明业务域 '%s'（domain 字段）" % dom
+        nodes.append({"name": dom, "parent": HIER_TOP, "label": dom, "kind": "domain",
+                      "rule": "R1-业务域", "evidence": ev})
+
+    # R2：同域内命名词干分组（≥2 个成员才建子类）
+    stem_node_of = {}     # stem key -> node name
+    assign = {}           # entity id -> parent name
+    stem_members = {}     # (dom, stem) -> [entity...]
+    for e in ents:
+        dom = dom_of[e["id"]][0]
+        table = e.get("table") or e.get("id")
+        toks = [x for x in _strip_table_prefix(table, pref).split("_") if x]
+        stem = _singular(toks[0]) if toks else ""
+        if not stem or stem in _GENERIC_STEMS or len(stem) < 3:
+            continue
+        stem_members.setdefault((dom, stem), []).append(e)
+    for (dom, stem) in sorted(stem_members.keys()):
+        mem = stem_members[(dom, stem)]
+        if len(mem) < 2:
+            continue
+        name = _cap(stem) + "Group"
+        if name in stem_node_of.values():
+            name = _cap(dom.replace("域", "")) + _cap(stem) + "Group"
+        tabs = sorted((x.get("table") or x["id"]) for x in mem)
+        ev = ("去库前缀%s后表名共享前导词干 '%s'（成员表: %s）"
+              % (("'" + "_".join(pref) + "' ") if pref else "无", stem, "、".join(tabs)))
+        nodes.append({"name": name, "parent": dom,
+                      "label": (_entity_cn_label(stem) or stem) + "类实体",
+                      "kind": "stem", "rule": "R2-命名词干", "evidence": ev})
+        stem_node_of[(dom, stem)] = name
+        for x in mem:
+            assign[x["id"]] = name
+
+    # 实体节点：未进 R2 子类的直接挂业务域类
+    for e in ents:
+        dom, hit = dom_of[e["id"]]
+        parent = assign.get(e["id"]) or dom
+        if parent in stem_node_of.values():
+            ev = "归入子类 %s（依据 R2-命名词干）" % parent
+        else:
+            ev = ("归入业务域类 %s（依据 R1-业务域，命中关键词 %s）"
+                  % (dom, ", ".join(sorted(hit)) if hit else "—（实体已声明 domain）"))
+        nodes.append({"name": e["id"], "parent": parent,
+                      "label": e.get("label") or e["id"], "kind": "entity",
+                      "rule": "R2-命名词干" if parent in stem_node_of.values() else "R1-业务域",
+                      "evidence": ev})
+    return {"nodes": nodes, "assign": assign, "prefix": pref}
+
+
+def apply_class_hierarchy(schema: dict, nodes: list) -> dict:
+    """把（人确认后的）层次节点写回 schema：实体置 parent，非实体类进 class_hierarchy。
+
+    幂等：重复调用结果一致。nodes 里被删掉的实体 → 保持无 parent（confirm 会拦下）。
+    """
+    ents = {e["id"]: e for e in schema.get("entities", [])}
+    for e in ents.values():
+        e.pop("parent", None)
+        e.pop("parent_evidence", None)
+    ch = []
+    for n in nodes or []:
+        name, kind = n.get("name"), n.get("kind")
+        if not name:
+            continue
+        if kind == "entity" or name in ents:
+            if name in ents and n.get("parent"):
+                ents[name]["parent"] = n["parent"]
+                ents[name]["parent_evidence"] = n.get("evidence", "")
+        else:
+            ch.append({"name": name, "parent": n.get("parent"),
+                       "label": n.get("label") or name, "kind": kind,
+                       "rule": n.get("rule", ""), "evidence": n.get("evidence", "")})
+    if ch:
+        schema["class_hierarchy"] = ch
+    else:
+        schema.pop("class_hierarchy", None)
+    return schema
+
+
+# ═══════════ 扩展描述项：具名子类派生（GB/T 48000.3 表1 HasSubclass）═══════════
+# 治「实体扩展描述项齐备率 75%」：实体只有上属类(parent)、没有具名子类(HasSubclass)。
+# 只从**真实分类列的真实取值**派生具名子类，逐条带依据、同输入同输出、可复算；
+# 不猜同义、不伪造关系；是否写入本体由人在「扩展描述项确认」中拍板（不确认不落库）。
+#   · 分类列判据：列名（小写）落在 _KIND_COLUMN_PRIORITY 白名单内（种类/状态/结论语义），
+#     排除日期列（produce_date 等）、度量列、外键列 —— 它们不是「种类」。
+#   · 取值域基数须在 [_SUB_MIN, _SUB_MAX] 之间：太窄(1)不成子类，太宽(>8)是标识而非种类。
+#   · 每个实体至多取一个分类列：按优先级取最贴近「种类」语义者（type > category > … > result）。
+_SUB_MIN = 2
+_SUB_MAX = 8
+_KIND_COLUMN_PRIORITY = (
+    "type", "device_type", "product_type", "category", "kind", "class",
+    "part_name", "check_item", "material", "storage", "connection",
+    "credit_level", "status", "state", "result",
+)
+
+
+def _sub_local_name(value: str) -> str:
+    """取值 → 局部名片段（仅保留中文/字母/数字，其余转下划线；确定性）。"""
+    out = []
+    for ch in str(value).strip():
+        out.append(ch if (ch.isalnum() or ch == "_") else "_")
+    s = "".join(out).strip("_")
+    return s or "value"
+
+
+def _kind_column_of(ent: dict, data: dict) -> tuple:
+    """挑选实体最能代表「种类」的分类列 + 其真实取值分布。
+
+    返回 (col, [(value, count), ...])；无合格分类列返回 (None, [])。
+    确定性：按 _KIND_COLUMN_PRIORITY 优先级取第一个合格列；取值按 (计数降序, 值升序) 排序。
+    """
+    table = ent.get("table")
+    rows = (data or {}).get(table) if table else None
+    if not rows:
+        return None, []
+    cols = list(rows[0].keys())
+    present = [c for c in _KIND_COLUMN_PRIORITY if c in cols]
+    for col in present:
+        vals = [str(r.get(col)).strip() for r in rows
+                if r.get(col) is not None and str(r.get(col)).strip() != ""]
+        distinct = sorted(set(vals))
+        if _SUB_MIN <= len(distinct) <= _SUB_MAX:
+            from collections import Counter as _C
+            cnt = _C(vals)
+            ordered = sorted(cnt.items(), key=lambda kv: (-kv[1], kv[0]))
+            return col, ordered
+    return None, []
+
+
+def derive_named_subclasses(schema: dict, data: dict = None) -> list:
+    """派生「具名子类」**建议**（确定性 · 证据驱动 · 可复算）。
+
+    每条建议 {name, label, parent, kind, column, value, count, rule, evidence}：
+      · name    子类 id（= 父实体 id + '__' + 取值），全局唯一
+      · parent  父实体 id（本体的 subClassOf 目标）
+      · rule    R3-具名子类
+      · evidence 写明：依据哪张表、哪个字段、哪个真实取值、命中多少行
+    同输入同输出（纯函数，遍历/排序确定）。
+    """
+    out = []
+    for e in schema.get("entities", []):
+        if e.get("kind") == "subclass":      # 已是子类的不再往下派生（不递归）
+            continue
+        table = e.get("table")
+        col, ordered = _kind_column_of(e, data)
+        if not col:
+            continue
+        total = sum(c for _v, c in ordered)
+        for v, cnt in ordered:
+            out.append({
+                "name": "%s__%s" % (e["id"], _sub_local_name(v)),
+                "label": str(v),
+                "parent": e["id"],
+                "kind": "subclass",
+                "column": col,
+                "value": str(v),
+                "count": cnt,
+                "rule": "R3-具名子类",
+                "evidence": ("依据表 %s 的分类列 '%s' 的真实取值 '%s'（命中 %d/%d 行）；"
+                             "该列取值域 %d 个，属可枚举种类"
+                             % (table, col, v, cnt, total, len(ordered))),
+                "definition": ("%s中 %s 为『%s』的具体种类（依据表 %s 字段 %s 的真实取值，%d 行）。"
+                               % (e.get("label") or e["id"], col, v, table, col, cnt)),
+            })
+    return out
+
+
+def apply_named_subclasses(schema: dict, subs: list) -> dict:
+    """把（人确认后的）具名子类写回 schema：作为**类实体**（table=None，不产实例）。
+
+    幂等：先清掉本 schema 里此前落库的全部 subclass 类实体，再按 subs 重建；
+    属性从父实体继承（IS-A：子类共享父类属性），继承来的属性不重复占实例。
+    """
+    ents = schema.get("entities", [])
+    by_id = {e["id"]: e for e in ents}
+    # 清掉旧的子类实体（保持幂等，避免重复追加）
+    schema["entities"] = [e for e in ents if e.get("kind") != "subclass"]
+    ents = schema["entities"]
+    by_id = {e["id"]: e for e in ents}
+    for s in subs or []:
+        if not s.get("name") or not s.get("parent"):
+            continue
+        parent = by_id.get(s["parent"])
+        if not parent:
+            continue
+        sub = {
+            "id": s["name"],
+            "label": s.get("label") or s["name"],
+            "table": None,
+            "key": None,
+            "domain": parent.get("domain"),
+            "kind": "subclass",
+            "definition": s.get("definition") or "",
+            "definition_evidence": s.get("evidence") or "",
+            "parent": s["parent"],
+            "parent_evidence": s.get("evidence") or "",
+            "parent_rule": s.get("rule") or "R3-具名子类",
+            "subclass_column": s.get("column"),
+            "subclass_value": s.get("value"),
+            "attributes": json.loads(json.dumps(parent.get("attributes") or [])),
+        }
+        ents.append(sub)
+        by_id[sub["id"]] = sub
+    schema["subclasses"] = [dict(s) for s in (subs or [])]
+    return schema
+
+
+def derive_definitions(schema: dict, data: dict = None) -> list:
+    """派生实体 Definition **建议**（结构性定义 + 取值样例；确定性、可复算、有依据）。
+
+    定义构成：业务域/承载表/唯一标识/关键字段（来自 schema 实件）
+              + 取值样例（来自该表真实行，最多 2 个文本列的各自前 2 个取值）。
+    每条带 evidence（用了哪些字段与取值）；纯规则、零 token（模型仅可作为候选另路补入）。
+    """
+    out = []
+    for e in schema.get("entities", []):
+        table = e.get("table") or e.get("id")
+        rows = (data or {}).get(table) or []
+        base = (e.get("definition") or "").strip() or _entity_cn_definition(e)
+        samples = []
+        fields_used = []
+        for a in e.get("attributes", []):
+            aname = a.get("name")
+            if not aname or aname == e.get("key"):
+                continue
+            vals = [str(r.get(aname)).strip() for r in rows if r.get(aname) not in (None, "")]
+            vals = [v for v in vals if v and not _is_number(v)]
+            if vals:
+                samples.append("%s=%s" % (a.get("label") or aname, "/".join(vals[:2])))
+                fields_used.append(aname)
+            if len(samples) >= 2:
+                break
+        text = base
+        if samples:
+            text = text.rstrip("。") + "；取值样例（" + "；".join(samples) + "）。"
+        cols = [a.get("name") for a in e.get("attributes", [])]
+        ev = "依据表 %s 的字段 %s" % (table, cols)
+        if samples:
+            ev += "；取值样例来自字段 %s（真实行）" % fields_used
+        out.append({"entity": e["id"], "definition": text,
+                    "rule": "R-DEF 结构(域/表/主键/关键字段)+取值样例",
+                    "evidence": ev, "source": "rule"})
+    return out
+
+
 def suggest_schema(data: dict, use_llm: bool = True, industry: str = None) -> dict:
     """从多表数据自动推断 schema（schema-free，无需手写 ontology_schema.json）。
 
@@ -948,9 +1309,26 @@ def fill_iris(schema: dict) -> dict:
 def build_class_hierarchy(schema: dict) -> list:
     """类型体系：显式 parent 优先（国标 §5.3 根→一级→二级派生），回退 domain 分组 + 根 Enterprise。
 
-    schema 声明 entity.parent 时按声明建层次；未声明则保持原 domain 分组逻辑（向后兼容）。
+    · schema 带 class_hierarchy（自助建模「层次与定义确认」落库的类节点）→ 以它为准，
+      再把各实体按 parent 挂上去（派生链可含根/业务域/命名词干子类）。
+    · 否则 schema 声明 entity.parent 时按声明建层次；未声明则回退 domain 分组（向后兼容）。
     """
     ents = schema.get("entities", [])
+    ch = schema.get("class_hierarchy") or []
+    if ch:
+        nodes = []
+        seen = set()
+        for n in ch:
+            nm = n.get("name")
+            if not nm or nm in seen:
+                continue
+            nodes.append({"name": nm, "super": n.get("parent"),
+                          "label": n.get("label") or nm})
+            seen.add(nm)
+        for e in ents:
+            nodes.append({"name": e["id"], "super": e.get("parent") or "BusinessObject",
+                          "label": e.get("label") or e["id"]})
+        return nodes
     if any(e.get("parent") for e in ents):
         nodes = [{"name": "Enterprise", "super": None, "label": "企业"},
                  {"name": "BusinessObject", "super": "Enterprise", "label": "业务对象"}]
@@ -1008,15 +1386,30 @@ def _local_name(col: str) -> str:
 def _q(v) -> str:
     return '"%s"' % str(v).replace("\\", "\\\\").replace('"', '\\"')
 
-def _nt_class_decls(entities, eid_to_cls, L, ns, m):
+def _nt_class_decls(entities, eid_to_cls, L, ns, m, class_hierarchy=None):
     """类声明：本体头 + 根类 + 每实体 owl:Class（label / skos:definition / subClassOf）。
 
     覆盖 GB/T 48000.3 §5.3-5.5：类声明、中文 label、中文定义、类层次派生。
+    class_hierarchy（自助建模确认落库的类节点）先声明，保证实体 subClassOf 的目标类
+    都是有定义的主体（不产生悬空引用）。
     """
     L.append(f"<{ns}> {RDF_TYPE} {OWL_ONTOLOGY} .")
     L.append(f"<{ns}> {OWL_VERSIONIRI} <{m['version_iri']}> .")
     L.append(f"<{ns}> {RDFS_LABEL} {_q(m['label'])} .")
     declared = set(eid_to_cls.values())
+    # 类层次节点（根/业务域/命名词干子类）→ owl:Class + subClassOf
+    for n in (class_hierarchy or []):
+        nm = n.get("name")
+        if not nm:
+            continue
+        cls = _pascal(nm)
+        if cls in declared:
+            continue
+        L.append(f"<{ns}{cls}> {RDF_TYPE} {OWL_CLASS} .")
+        L.append(f"<{ns}{cls}> {RDFS_LABEL} {_q(n.get('label') or nm)} .")
+        if n.get("parent"):
+            L.append(f"<{ns}{cls}> {RDFS_SUBCLASS} <{ns}{_pascal(n['parent'])}> .")
+        declared.add(cls)
     # 显式 parent 但非已声明实体的父类（如 BusinessObject / 领域类）→ 单独声明为 owl:Class
     for ent in entities.values():
         p = ent.get("parent")
@@ -1197,7 +1590,7 @@ def to_nt(data: dict, schema: dict, outpath: str = None) -> list:
     # 实体 ID -> 类局部名（用表名风格，与 multi_table 下游兼容）
     eid_to_cls = {eid: (ent.get("table", eid).capitalize() if ent.get("table") else eid)
                   for eid, ent in entities.items()}
-    _nt_class_decls(entities, eid_to_cls, L, ns, m)
+    _nt_class_decls(entities, eid_to_cls, L, ns, m, class_hierarchy=schema.get("class_hierarchy"))
     _nt_property_decls(entities, relations, data, eid_to_cls, L, ns)
     _nt_category_hierarchy(entities, data, eid_to_cls, L, ns)
     _nt_instances(entities, relations, data, eid_to_cls, L, ns)

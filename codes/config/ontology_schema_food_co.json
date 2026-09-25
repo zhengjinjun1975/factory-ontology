@@ -1,0 +1,2477 @@
+{
+  "version": "1.0",
+  "name": "auto-inferred-ontology",
+  "industry": "food_co",
+  "entities": [
+    {
+      "id": "Food_batch_ingredient",
+      "label": "批次配料",
+      "table": "food_batch_ingredient",
+      "key": "batch_id",
+      "domain": "生产域",
+      "definition": "生产域中的批次配料，数据来源于 food_batch_ingredient 表，以 batch_id 唯一标识，记录raw_id等信息；取值样例（原料编号=RM001/RM005）。",
+      "attributes": [
+        {
+          "name": "batch_id",
+          "label": "批次编号",
+          "type": "string",
+          "role": "reference",
+          "required": true
+        },
+        {
+          "name": "raw_id",
+          "label": "原料编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        }
+      ],
+      "parent": "FoodGroup",
+      "parent_evidence": "归入子类 FoodGroup（依据 R2-命名词干）",
+      "parent_rule": "R2-命名词干",
+      "definition_evidence": "依据表 food_batch_ingredient 的字段 ['batch_id', 'raw_id']；取值样例来自字段 ['raw_id']（真实行）"
+    },
+    {
+      "id": "Food_batches",
+      "label": "批次",
+      "table": "food_batches",
+      "key": "id",
+      "domain": "生产域",
+      "definition": "生产域中的批次，数据来源于 food_batches 表，以 id 唯一标识，记录product_id、produce_date、quantity、raw_batches、team等信息；取值样例（产品编号=P001/P002；生产日期=2026-07-05/2026-07-05）。",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "product_id",
+          "label": "产品编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "produce_date",
+          "label": "生产日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "quantity",
+          "label": "数量",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "raw_batches",
+          "label": "raw_batches",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "team",
+          "label": "班组",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        }
+      ],
+      "parent": "FoodGroup",
+      "parent_evidence": "归入子类 FoodGroup（依据 R2-命名词干）",
+      "parent_rule": "R2-命名词干",
+      "definition_evidence": "依据表 food_batches 的字段 ['id', 'product_id', 'produce_date', 'quantity', 'raw_batches', 'team', 'status']；取值样例来自字段 ['product_id', 'produce_date']（真实行）"
+    },
+    {
+      "id": "Food_equipment",
+      "label": "设备",
+      "table": "food_equipment",
+      "key": "id",
+      "domain": "设备域",
+      "definition": "设备域中的设备，数据来源于 food_equipment 表，以 id 唯一标识，记录device_name、device_type、workshop、power_kw、status等信息；取值样例（设备名称=灌装机-01/烘焙炉-1；设备类型=灌装设备/烘烤设备）。",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "device_name",
+          "label": "设备名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "device_type",
+          "label": "设备类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "workshop",
+          "label": "车间",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "power_kw",
+          "label": "功率(kW)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        }
+      ],
+      "parent": "设备域",
+      "parent_evidence": "归入业务域类 设备域（依据 R1-业务域，命中关键词 device, equipment）",
+      "parent_rule": "R1-业务域",
+      "definition_evidence": "依据表 food_equipment 的字段 ['id', 'device_name', 'device_type', 'workshop', 'power_kw', 'status']；取值样例来自字段 ['device_name', 'device_type']（真实行）"
+    },
+    {
+      "id": "Food_products",
+      "label": "产品",
+      "table": "food_products",
+      "key": "id",
+      "domain": "生产域",
+      "definition": "生产域中的产品，数据来源于 food_products 表，以 id 唯一标识，记录product_name、category、spec、expiry_days、storage等信息；取值样例（产品名称=原味酸奶/草莓酸奶；category=乳制品/乳制品）。",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "product_name",
+          "label": "产品名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "category",
+          "label": "category",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "spec",
+          "label": "规格",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "expiry_days",
+          "label": "有效期days",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "storage",
+          "label": "storage",
+          "type": "string",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "price",
+          "label": "价格",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ],
+      "parent": "FoodGroup",
+      "parent_evidence": "归入子类 FoodGroup（依据 R2-命名词干）",
+      "parent_rule": "R2-命名词干",
+      "definition_evidence": "依据表 food_products 的字段 ['id', 'product_name', 'category', 'spec', 'expiry_days', 'storage', 'price']；取值样例来自字段 ['product_name', 'category']（真实行）"
+    },
+    {
+      "id": "Food_qc",
+      "label": "质检",
+      "table": "food_qc",
+      "key": "id",
+      "domain": "质量域",
+      "definition": "质量域中的质检，数据来源于 food_qc 表，以 id 唯一标识，记录batch_id、check_item、result、checker、check_date等信息；取值样例（批次编号=B001/B001；检查项目=菌落总数/蛋白质含量）。",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "batch_id",
+          "label": "批次编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "check_item",
+          "label": "检查项目",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "result",
+          "label": "结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "checker",
+          "label": "检查员",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "check_date",
+          "label": "检查日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        }
+      ],
+      "parent": "质量域",
+      "parent_evidence": "归入业务域类 质量域（依据 R1-业务域，命中关键词 qc）",
+      "parent_rule": "R1-业务域",
+      "definition_evidence": "依据表 food_qc 的字段 ['id', 'batch_id', 'check_item', 'result', 'checker', 'check_date']；取值样例来自字段 ['batch_id', 'check_item']（真实行）"
+    },
+    {
+      "id": "Food_raw_materials",
+      "label": "原料",
+      "table": "food_raw_materials",
+      "key": "id",
+      "domain": "采购域",
+      "definition": "采购域中的原料，数据来源于 food_raw_materials 表，以 id 唯一标识，记录raw_name、supplier、batch、expiry_date、stock_qty等信息；取值样例（raw名称=生牛乳/生牛乳；供应商=牧场A/牧场A）。",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "raw_name",
+          "label": "raw名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "supplier",
+          "label": "供应商",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "batch",
+          "label": "batch",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "expiry_date",
+          "label": "有效期date",
+          "type": "date",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "stock_qty",
+          "label": "库存数量",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "qc_result",
+          "label": "质检结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        }
+      ],
+      "parent": "采购域",
+      "parent_evidence": "归入业务域类 采购域（依据 R1-业务域，命中关键词 material, raw_material, supplier）",
+      "parent_rule": "R1-业务域",
+      "definition_evidence": "依据表 food_raw_materials 的字段 ['id', 'raw_name', 'supplier', 'batch', 'expiry_date', 'stock_qty', 'status', 'qc_result']；取值样例来自字段 ['raw_name', 'supplier']（真实行）"
+    },
+    {
+      "id": "Supplier",
+      "label": "供应商",
+      "table": "supplier",
+      "key": "id",
+      "domain": "采购域",
+      "definition": "采购域中的供应商，数据来源于 supplier 表，以 id 唯一标识，记录supplier_name、location等信息；取值样例（供应商名称=Fanuc/Siemens；location=日本/德国）。",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "supplier_name",
+          "label": "供应商名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "location",
+          "label": "location",
+          "type": "string",
+          "role": "text",
+          "required": false
+        }
+      ],
+      "parent": "采购域",
+      "parent_evidence": "归入业务域类 采购域（依据 R1-业务域，命中关键词 supplier）",
+      "parent_rule": "R1-业务域",
+      "definition_evidence": "依据表 supplier 的字段 ['id', 'supplier_name', 'location']；取值样例来自字段 ['supplier_name', 'location']（真实行）"
+    },
+    {
+      "id": "Food_batches__running",
+      "label": "running",
+      "table": null,
+      "key": null,
+      "domain": "生产域",
+      "kind": "subclass",
+      "definition": "批次中 status 为『running』的具体种类（依据表 food_batches 字段 status 的真实取值，7 行）。",
+      "definition_evidence": "依据表 food_batches 的分类列 'status' 的真实取值 'running'（命中 7/9 行）；该列取值域 3 个，属可枚举种类",
+      "parent": "Food_batches",
+      "parent_evidence": "依据表 food_batches 的分类列 'status' 的真实取值 'running'（命中 7/9 行）；该列取值域 3 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "status",
+      "subclass_value": "running",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "product_id",
+          "label": "产品编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "produce_date",
+          "label": "生产日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "quantity",
+          "label": "数量",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "raw_batches",
+          "label": "raw_batches",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "team",
+          "label": "班组",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_batches__alarm",
+      "label": "alarm",
+      "table": null,
+      "key": null,
+      "domain": "生产域",
+      "kind": "subclass",
+      "definition": "批次中 status 为『alarm』的具体种类（依据表 food_batches 字段 status 的真实取值，1 行）。",
+      "definition_evidence": "依据表 food_batches 的分类列 'status' 的真实取值 'alarm'（命中 1/9 行）；该列取值域 3 个，属可枚举种类",
+      "parent": "Food_batches",
+      "parent_evidence": "依据表 food_batches 的分类列 'status' 的真实取值 'alarm'（命中 1/9 行）；该列取值域 3 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "status",
+      "subclass_value": "alarm",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "product_id",
+          "label": "产品编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "produce_date",
+          "label": "生产日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "quantity",
+          "label": "数量",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "raw_batches",
+          "label": "raw_batches",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "team",
+          "label": "班组",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_batches__stopped",
+      "label": "stopped",
+      "table": null,
+      "key": null,
+      "domain": "生产域",
+      "kind": "subclass",
+      "definition": "批次中 status 为『stopped』的具体种类（依据表 food_batches 字段 status 的真实取值，1 行）。",
+      "definition_evidence": "依据表 food_batches 的分类列 'status' 的真实取值 'stopped'（命中 1/9 行）；该列取值域 3 个，属可枚举种类",
+      "parent": "Food_batches",
+      "parent_evidence": "依据表 food_batches 的分类列 'status' 的真实取值 'stopped'（命中 1/9 行）；该列取值域 3 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "status",
+      "subclass_value": "stopped",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "product_id",
+          "label": "产品编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "produce_date",
+          "label": "生产日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "quantity",
+          "label": "数量",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "raw_batches",
+          "label": "raw_batches",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "team",
+          "label": "班组",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_equipment__制冷设备",
+      "label": "制冷设备",
+      "table": null,
+      "key": null,
+      "domain": "设备域",
+      "kind": "subclass",
+      "definition": "设备中 device_type 为『制冷设备』的具体种类（依据表 food_equipment 字段 device_type 的真实取值，1 行）。",
+      "definition_evidence": "依据表 food_equipment 的分类列 'device_type' 的真实取值 '制冷设备'（命中 1/7 行）；该列取值域 7 个，属可枚举种类",
+      "parent": "Food_equipment",
+      "parent_evidence": "依据表 food_equipment 的分类列 'device_type' 的真实取值 '制冷设备'（命中 1/7 行）；该列取值域 7 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "device_type",
+      "subclass_value": "制冷设备",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "device_name",
+          "label": "设备名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "device_type",
+          "label": "设备类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "workshop",
+          "label": "车间",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "power_kw",
+          "label": "功率(kW)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_equipment__包装设备",
+      "label": "包装设备",
+      "table": null,
+      "key": null,
+      "domain": "设备域",
+      "kind": "subclass",
+      "definition": "设备中 device_type 为『包装设备』的具体种类（依据表 food_equipment 字段 device_type 的真实取值，1 行）。",
+      "definition_evidence": "依据表 food_equipment 的分类列 'device_type' 的真实取值 '包装设备'（命中 1/7 行）；该列取值域 7 个，属可枚举种类",
+      "parent": "Food_equipment",
+      "parent_evidence": "依据表 food_equipment 的分类列 'device_type' 的真实取值 '包装设备'（命中 1/7 行）；该列取值域 7 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "device_type",
+      "subclass_value": "包装设备",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "device_name",
+          "label": "设备名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "device_type",
+          "label": "设备类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "workshop",
+          "label": "车间",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "power_kw",
+          "label": "功率(kW)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_equipment__搅拌设备",
+      "label": "搅拌设备",
+      "table": null,
+      "key": null,
+      "domain": "设备域",
+      "kind": "subclass",
+      "definition": "设备中 device_type 为『搅拌设备』的具体种类（依据表 food_equipment 字段 device_type 的真实取值，1 行）。",
+      "definition_evidence": "依据表 food_equipment 的分类列 'device_type' 的真实取值 '搅拌设备'（命中 1/7 行）；该列取值域 7 个，属可枚举种类",
+      "parent": "Food_equipment",
+      "parent_evidence": "依据表 food_equipment 的分类列 'device_type' 的真实取值 '搅拌设备'（命中 1/7 行）；该列取值域 7 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "device_type",
+      "subclass_value": "搅拌设备",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "device_name",
+          "label": "设备名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "device_type",
+          "label": "设备类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "workshop",
+          "label": "车间",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "power_kw",
+          "label": "功率(kW)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_equipment__杀菌设备",
+      "label": "杀菌设备",
+      "table": null,
+      "key": null,
+      "domain": "设备域",
+      "kind": "subclass",
+      "definition": "设备中 device_type 为『杀菌设备』的具体种类（依据表 food_equipment 字段 device_type 的真实取值，1 行）。",
+      "definition_evidence": "依据表 food_equipment 的分类列 'device_type' 的真实取值 '杀菌设备'（命中 1/7 行）；该列取值域 7 个，属可枚举种类",
+      "parent": "Food_equipment",
+      "parent_evidence": "依据表 food_equipment 的分类列 'device_type' 的真实取值 '杀菌设备'（命中 1/7 行）；该列取值域 7 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "device_type",
+      "subclass_value": "杀菌设备",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "device_name",
+          "label": "设备名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "device_type",
+          "label": "设备类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "workshop",
+          "label": "车间",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "power_kw",
+          "label": "功率(kW)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_equipment__灌装设备",
+      "label": "灌装设备",
+      "table": null,
+      "key": null,
+      "domain": "设备域",
+      "kind": "subclass",
+      "definition": "设备中 device_type 为『灌装设备』的具体种类（依据表 food_equipment 字段 device_type 的真实取值，1 行）。",
+      "definition_evidence": "依据表 food_equipment 的分类列 'device_type' 的真实取值 '灌装设备'（命中 1/7 行）；该列取值域 7 个，属可枚举种类",
+      "parent": "Food_equipment",
+      "parent_evidence": "依据表 food_equipment 的分类列 'device_type' 的真实取值 '灌装设备'（命中 1/7 行）；该列取值域 7 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "device_type",
+      "subclass_value": "灌装设备",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "device_name",
+          "label": "设备名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "device_type",
+          "label": "设备类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "workshop",
+          "label": "车间",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "power_kw",
+          "label": "功率(kW)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_equipment__烘烤设备",
+      "label": "烘烤设备",
+      "table": null,
+      "key": null,
+      "domain": "设备域",
+      "kind": "subclass",
+      "definition": "设备中 device_type 为『烘烤设备』的具体种类（依据表 food_equipment 字段 device_type 的真实取值，1 行）。",
+      "definition_evidence": "依据表 food_equipment 的分类列 'device_type' 的真实取值 '烘烤设备'（命中 1/7 行）；该列取值域 7 个，属可枚举种类",
+      "parent": "Food_equipment",
+      "parent_evidence": "依据表 food_equipment 的分类列 'device_type' 的真实取值 '烘烤设备'（命中 1/7 行）；该列取值域 7 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "device_type",
+      "subclass_value": "烘烤设备",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "device_name",
+          "label": "设备名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "device_type",
+          "label": "设备类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "workshop",
+          "label": "车间",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "power_kw",
+          "label": "功率(kW)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_equipment__速冻设备",
+      "label": "速冻设备",
+      "table": null,
+      "key": null,
+      "domain": "设备域",
+      "kind": "subclass",
+      "definition": "设备中 device_type 为『速冻设备』的具体种类（依据表 food_equipment 字段 device_type 的真实取值，1 行）。",
+      "definition_evidence": "依据表 food_equipment 的分类列 'device_type' 的真实取值 '速冻设备'（命中 1/7 行）；该列取值域 7 个，属可枚举种类",
+      "parent": "Food_equipment",
+      "parent_evidence": "依据表 food_equipment 的分类列 'device_type' 的真实取值 '速冻设备'（命中 1/7 行）；该列取值域 7 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "device_type",
+      "subclass_value": "速冻设备",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "device_name",
+          "label": "设备名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "device_type",
+          "label": "设备类型",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "workshop",
+          "label": "车间",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "power_kw",
+          "label": "功率(kW)",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_products__乳制品",
+      "label": "乳制品",
+      "table": null,
+      "key": null,
+      "domain": "生产域",
+      "kind": "subclass",
+      "definition": "产品中 category 为『乳制品』的具体种类（依据表 food_products 字段 category 的真实取值，3 行）。",
+      "definition_evidence": "依据表 food_products 的分类列 'category' 的真实取值 '乳制品'（命中 3/8 行）；该列取值域 4 个，属可枚举种类",
+      "parent": "Food_products",
+      "parent_evidence": "依据表 food_products 的分类列 'category' 的真实取值 '乳制品'（命中 3/8 行）；该列取值域 4 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "category",
+      "subclass_value": "乳制品",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "product_name",
+          "label": "产品名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "category",
+          "label": "category",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "spec",
+          "label": "规格",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "expiry_days",
+          "label": "有效期days",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "storage",
+          "label": "storage",
+          "type": "string",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "price",
+          "label": "价格",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_products__烘焙食品",
+      "label": "烘焙食品",
+      "table": null,
+      "key": null,
+      "domain": "生产域",
+      "kind": "subclass",
+      "definition": "产品中 category 为『烘焙食品』的具体种类（依据表 food_products 字段 category 的真实取值，2 行）。",
+      "definition_evidence": "依据表 food_products 的分类列 'category' 的真实取值 '烘焙食品'（命中 2/8 行）；该列取值域 4 个，属可枚举种类",
+      "parent": "Food_products",
+      "parent_evidence": "依据表 food_products 的分类列 'category' 的真实取值 '烘焙食品'（命中 2/8 行）；该列取值域 4 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "category",
+      "subclass_value": "烘焙食品",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "product_name",
+          "label": "产品名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "category",
+          "label": "category",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "spec",
+          "label": "规格",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "expiry_days",
+          "label": "有效期days",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "storage",
+          "label": "storage",
+          "type": "string",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "price",
+          "label": "价格",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_products__速冻食品",
+      "label": "速冻食品",
+      "table": null,
+      "key": null,
+      "domain": "生产域",
+      "kind": "subclass",
+      "definition": "产品中 category 为『速冻食品』的具体种类（依据表 food_products 字段 category 的真实取值，2 行）。",
+      "definition_evidence": "依据表 food_products 的分类列 'category' 的真实取值 '速冻食品'（命中 2/8 行）；该列取值域 4 个，属可枚举种类",
+      "parent": "Food_products",
+      "parent_evidence": "依据表 food_products 的分类列 'category' 的真实取值 '速冻食品'（命中 2/8 行）；该列取值域 4 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "category",
+      "subclass_value": "速冻食品",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "product_name",
+          "label": "产品名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "category",
+          "label": "category",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "spec",
+          "label": "规格",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "expiry_days",
+          "label": "有效期days",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "storage",
+          "label": "storage",
+          "type": "string",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "price",
+          "label": "价格",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_products__果汁饮品",
+      "label": "果汁饮品",
+      "table": null,
+      "key": null,
+      "domain": "生产域",
+      "kind": "subclass",
+      "definition": "产品中 category 为『果汁饮品』的具体种类（依据表 food_products 字段 category 的真实取值，1 行）。",
+      "definition_evidence": "依据表 food_products 的分类列 'category' 的真实取值 '果汁饮品'（命中 1/8 行）；该列取值域 4 个，属可枚举种类",
+      "parent": "Food_products",
+      "parent_evidence": "依据表 food_products 的分类列 'category' 的真实取值 '果汁饮品'（命中 1/8 行）；该列取值域 4 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "category",
+      "subclass_value": "果汁饮品",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "product_name",
+          "label": "产品名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "category",
+          "label": "category",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "spec",
+          "label": "规格",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "expiry_days",
+          "label": "有效期days",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "storage",
+          "label": "storage",
+          "type": "string",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "price",
+          "label": "价格",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_qc__菌落总数",
+      "label": "菌落总数",
+      "table": null,
+      "key": null,
+      "domain": "质量域",
+      "kind": "subclass",
+      "definition": "质检中 check_item 为『菌落总数』的具体种类（依据表 food_qc 字段 check_item 的真实取值，3 行）。",
+      "definition_evidence": "依据表 food_qc 的分类列 'check_item' 的真实取值 '菌落总数'（命中 3/10 行）；该列取值域 7 个，属可枚举种类",
+      "parent": "Food_qc",
+      "parent_evidence": "依据表 food_qc 的分类列 'check_item' 的真实取值 '菌落总数'（命中 3/10 行）；该列取值域 7 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "check_item",
+      "subclass_value": "菌落总数",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "batch_id",
+          "label": "批次编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "check_item",
+          "label": "检查项目",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "result",
+          "label": "结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "checker",
+          "label": "检查员",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "check_date",
+          "label": "检查日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_qc__致病菌",
+      "label": "致病菌",
+      "table": null,
+      "key": null,
+      "domain": "质量域",
+      "kind": "subclass",
+      "definition": "质检中 check_item 为『致病菌』的具体种类（依据表 food_qc 字段 check_item 的真实取值，2 行）。",
+      "definition_evidence": "依据表 food_qc 的分类列 'check_item' 的真实取值 '致病菌'（命中 2/10 行）；该列取值域 7 个，属可枚举种类",
+      "parent": "Food_qc",
+      "parent_evidence": "依据表 food_qc 的分类列 'check_item' 的真实取值 '致病菌'（命中 2/10 行）；该列取值域 7 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "check_item",
+      "subclass_value": "致病菌",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "batch_id",
+          "label": "批次编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "check_item",
+          "label": "检查项目",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "result",
+          "label": "结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "checker",
+          "label": "检查员",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "check_date",
+          "label": "检查日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_qc__三聚氰胺",
+      "label": "三聚氰胺",
+      "table": null,
+      "key": null,
+      "domain": "质量域",
+      "kind": "subclass",
+      "definition": "质检中 check_item 为『三聚氰胺』的具体种类（依据表 food_qc 字段 check_item 的真实取值，1 行）。",
+      "definition_evidence": "依据表 food_qc 的分类列 'check_item' 的真实取值 '三聚氰胺'（命中 1/10 行）；该列取值域 7 个，属可枚举种类",
+      "parent": "Food_qc",
+      "parent_evidence": "依据表 food_qc 的分类列 'check_item' 的真实取值 '三聚氰胺'（命中 1/10 行）；该列取值域 7 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "check_item",
+      "subclass_value": "三聚氰胺",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "batch_id",
+          "label": "批次编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "check_item",
+          "label": "检查项目",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "result",
+          "label": "结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "checker",
+          "label": "检查员",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "check_date",
+          "label": "检查日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_qc__农药残留",
+      "label": "农药残留",
+      "table": null,
+      "key": null,
+      "domain": "质量域",
+      "kind": "subclass",
+      "definition": "质检中 check_item 为『农药残留』的具体种类（依据表 food_qc 字段 check_item 的真实取值，1 行）。",
+      "definition_evidence": "依据表 food_qc 的分类列 'check_item' 的真实取值 '农药残留'（命中 1/10 行）；该列取值域 7 个，属可枚举种类",
+      "parent": "Food_qc",
+      "parent_evidence": "依据表 food_qc 的分类列 'check_item' 的真实取值 '农药残留'（命中 1/10 行）；该列取值域 7 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "check_item",
+      "subclass_value": "农药残留",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "batch_id",
+          "label": "批次编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "check_item",
+          "label": "检查项目",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "result",
+          "label": "结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "checker",
+          "label": "检查员",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "check_date",
+          "label": "检查日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_qc__水分含量",
+      "label": "水分含量",
+      "table": null,
+      "key": null,
+      "domain": "质量域",
+      "kind": "subclass",
+      "definition": "质检中 check_item 为『水分含量』的具体种类（依据表 food_qc 字段 check_item 的真实取值，1 行）。",
+      "definition_evidence": "依据表 food_qc 的分类列 'check_item' 的真实取值 '水分含量'（命中 1/10 行）；该列取值域 7 个，属可枚举种类",
+      "parent": "Food_qc",
+      "parent_evidence": "依据表 food_qc 的分类列 'check_item' 的真实取值 '水分含量'（命中 1/10 行）；该列取值域 7 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "check_item",
+      "subclass_value": "水分含量",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "batch_id",
+          "label": "批次编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "check_item",
+          "label": "检查项目",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "result",
+          "label": "结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "checker",
+          "label": "检查员",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "check_date",
+          "label": "检查日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_qc__蛋白质含量",
+      "label": "蛋白质含量",
+      "table": null,
+      "key": null,
+      "domain": "质量域",
+      "kind": "subclass",
+      "definition": "质检中 check_item 为『蛋白质含量』的具体种类（依据表 food_qc 字段 check_item 的真实取值，1 行）。",
+      "definition_evidence": "依据表 food_qc 的分类列 'check_item' 的真实取值 '蛋白质含量'（命中 1/10 行）；该列取值域 7 个，属可枚举种类",
+      "parent": "Food_qc",
+      "parent_evidence": "依据表 food_qc 的分类列 'check_item' 的真实取值 '蛋白质含量'（命中 1/10 行）；该列取值域 7 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "check_item",
+      "subclass_value": "蛋白质含量",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "batch_id",
+          "label": "批次编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "check_item",
+          "label": "检查项目",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "result",
+          "label": "结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "checker",
+          "label": "检查员",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "check_date",
+          "label": "检查日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_qc__酸度",
+      "label": "酸度",
+      "table": null,
+      "key": null,
+      "domain": "质量域",
+      "kind": "subclass",
+      "definition": "质检中 check_item 为『酸度』的具体种类（依据表 food_qc 字段 check_item 的真实取值，1 行）。",
+      "definition_evidence": "依据表 food_qc 的分类列 'check_item' 的真实取值 '酸度'（命中 1/10 行）；该列取值域 7 个，属可枚举种类",
+      "parent": "Food_qc",
+      "parent_evidence": "依据表 food_qc 的分类列 'check_item' 的真实取值 '酸度'（命中 1/10 行）；该列取值域 7 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "check_item",
+      "subclass_value": "酸度",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "batch_id",
+          "label": "批次编号",
+          "type": "string",
+          "role": "reference",
+          "required": false
+        },
+        {
+          "name": "check_item",
+          "label": "检查项目",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "result",
+          "label": "结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "checker",
+          "label": "检查员",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "check_date",
+          "label": "检查日期",
+          "type": "date",
+          "role": "category",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_raw_materials__running",
+      "label": "running",
+      "table": null,
+      "key": null,
+      "domain": "采购域",
+      "kind": "subclass",
+      "definition": "原料中 status 为『running』的具体种类（依据表 food_raw_materials 字段 status 的真实取值，7 行）。",
+      "definition_evidence": "依据表 food_raw_materials 的分类列 'status' 的真实取值 'running'（命中 7/10 行）；该列取值域 3 个，属可枚举种类",
+      "parent": "Food_raw_materials",
+      "parent_evidence": "依据表 food_raw_materials 的分类列 'status' 的真实取值 'running'（命中 7/10 行）；该列取值域 3 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "status",
+      "subclass_value": "running",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "raw_name",
+          "label": "raw名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "supplier",
+          "label": "供应商",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "batch",
+          "label": "batch",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "expiry_date",
+          "label": "有效期date",
+          "type": "date",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "stock_qty",
+          "label": "库存数量",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "qc_result",
+          "label": "质检结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_raw_materials__stopped",
+      "label": "stopped",
+      "table": null,
+      "key": null,
+      "domain": "采购域",
+      "kind": "subclass",
+      "definition": "原料中 status 为『stopped』的具体种类（依据表 food_raw_materials 字段 status 的真实取值，2 行）。",
+      "definition_evidence": "依据表 food_raw_materials 的分类列 'status' 的真实取值 'stopped'（命中 2/10 行）；该列取值域 3 个，属可枚举种类",
+      "parent": "Food_raw_materials",
+      "parent_evidence": "依据表 food_raw_materials 的分类列 'status' 的真实取值 'stopped'（命中 2/10 行）；该列取值域 3 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "status",
+      "subclass_value": "stopped",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "raw_name",
+          "label": "raw名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "supplier",
+          "label": "供应商",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "batch",
+          "label": "batch",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "expiry_date",
+          "label": "有效期date",
+          "type": "date",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "stock_qty",
+          "label": "库存数量",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "qc_result",
+          "label": "质检结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "Food_raw_materials__idle",
+      "label": "idle",
+      "table": null,
+      "key": null,
+      "domain": "采购域",
+      "kind": "subclass",
+      "definition": "原料中 status 为『idle』的具体种类（依据表 food_raw_materials 字段 status 的真实取值，1 行）。",
+      "definition_evidence": "依据表 food_raw_materials 的分类列 'status' 的真实取值 'idle'（命中 1/10 行）；该列取值域 3 个，属可枚举种类",
+      "parent": "Food_raw_materials",
+      "parent_evidence": "依据表 food_raw_materials 的分类列 'status' 的真实取值 'idle'（命中 1/10 行）；该列取值域 3 个，属可枚举种类",
+      "parent_rule": "R3-具名子类",
+      "subclass_column": "status",
+      "subclass_value": "idle",
+      "attributes": [
+        {
+          "name": "id",
+          "label": "编号",
+          "type": "string",
+          "role": "identifier",
+          "required": true
+        },
+        {
+          "name": "raw_name",
+          "label": "raw名称",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "supplier",
+          "label": "供应商",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "batch",
+          "label": "batch",
+          "type": "string",
+          "role": "text",
+          "required": false
+        },
+        {
+          "name": "expiry_date",
+          "label": "有效期date",
+          "type": "date",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "stock_qty",
+          "label": "库存数量",
+          "type": "number",
+          "role": "measure",
+          "required": false
+        },
+        {
+          "name": "status",
+          "label": "状态",
+          "type": "string",
+          "role": "category",
+          "required": false
+        },
+        {
+          "name": "qc_result",
+          "label": "质检结果",
+          "type": "string",
+          "role": "text",
+          "required": false
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "id": "food_batch_ingredient_batch_id",
+      "from": "Food_batch_ingredient",
+      "to": "Food_batches",
+      "fk": "food_batch_ingredient.batch_id",
+      "cardinality": "N:1",
+      "label": "所属批次",
+      "auto": true,
+      "source": "fk"
+    },
+    {
+      "id": "food_batch_ingredient_raw_id",
+      "from": "Food_batch_ingredient",
+      "to": "Food_raw_materials",
+      "fk": "food_batch_ingredient.raw_id",
+      "cardinality": "N:1",
+      "label": "使用原料",
+      "auto": true,
+      "source": "fk"
+    },
+    {
+      "id": "food_batches_product_id",
+      "from": "Food_batches",
+      "to": "Food_products",
+      "fk": "food_batches.product_id",
+      "cardinality": "N:1",
+      "label": "生产产品",
+      "auto": true,
+      "source": "fk"
+    },
+    {
+      "id": "food_qc_batch_id",
+      "from": "Food_qc",
+      "to": "Food_batches",
+      "fk": "food_qc.batch_id",
+      "cardinality": "N:1",
+      "label": "所属批次",
+      "auto": true,
+      "source": "fk"
+    }
+  ],
+  "constraints": [
+    {
+      "type": "unique",
+      "on": "Food_batch_ingredient.batch_id",
+      "msg": "Food_batch_ingredient 主键 batch_id 唯一"
+    },
+    {
+      "type": "unique",
+      "on": "Food_batches.id",
+      "msg": "Food_batches 主键 id 唯一"
+    },
+    {
+      "type": "unique",
+      "on": "Food_equipment.id",
+      "msg": "Food_equipment 主键 id 唯一"
+    },
+    {
+      "type": "unique",
+      "on": "Food_products.id",
+      "msg": "Food_products 主键 id 唯一"
+    },
+    {
+      "type": "unique",
+      "on": "Food_qc.id",
+      "msg": "Food_qc 主键 id 唯一"
+    },
+    {
+      "type": "unique",
+      "on": "Food_raw_materials.id",
+      "msg": "Food_raw_materials 主键 id 唯一"
+    },
+    {
+      "type": "unique",
+      "on": "Supplier.id",
+      "msg": "Supplier 主键 id 唯一"
+    }
+  ],
+  "hierarchy": [
+    {
+      "name": "Enterprise",
+      "parent": null,
+      "label": "企业",
+      "kind": "root",
+      "rule": "R0-根",
+      "evidence": "国标 GB/T 48000.3 §5.3 规定的根类"
+    },
+    {
+      "name": "BusinessObject",
+      "parent": "Enterprise",
+      "label": "业务对象",
+      "kind": "root",
+      "rule": "R0-根",
+      "evidence": "国标 §5.3 一级派生类：所有业务实体之共同上层类"
+    },
+    {
+      "name": "生产域",
+      "parent": "BusinessObject",
+      "label": "生产域",
+      "kind": "domain",
+      "rule": "R1-业务域",
+      "evidence": "表名/列名命中业务域关键词 batch, produce, product（_DOMAIN_KEYWORDS 命中项）"
+    },
+    {
+      "name": "设备域",
+      "parent": "BusinessObject",
+      "label": "设备域",
+      "kind": "domain",
+      "rule": "R1-业务域",
+      "evidence": "表名/列名命中业务域关键词 device, equipment（_DOMAIN_KEYWORDS 命中项）"
+    },
+    {
+      "name": "质量域",
+      "parent": "BusinessObject",
+      "label": "质量域",
+      "kind": "domain",
+      "rule": "R1-业务域",
+      "evidence": "表名/列名命中业务域关键词 qc（_DOMAIN_KEYWORDS 命中项）"
+    },
+    {
+      "name": "采购域",
+      "parent": "BusinessObject",
+      "label": "采购域",
+      "kind": "domain",
+      "rule": "R1-业务域",
+      "evidence": "表名/列名命中业务域关键词 material, raw_material, supplier（_DOMAIN_KEYWORDS 命中项）"
+    },
+    {
+      "name": "FoodGroup",
+      "parent": "生产域",
+      "label": "food类实体",
+      "kind": "stem",
+      "rule": "R2-命名词干",
+      "evidence": "去库前缀无后表名共享前导词干 'food'（成员表: food_batch_ingredient、food_batches、food_products）"
+    },
+    {
+      "name": "Food_batch_ingredient",
+      "parent": "FoodGroup",
+      "label": "批次配料",
+      "kind": "entity",
+      "rule": "R2-命名词干",
+      "evidence": "归入子类 FoodGroup（依据 R2-命名词干）"
+    },
+    {
+      "name": "Food_batches",
+      "parent": "FoodGroup",
+      "label": "批次",
+      "kind": "entity",
+      "rule": "R2-命名词干",
+      "evidence": "归入子类 FoodGroup（依据 R2-命名词干）"
+    },
+    {
+      "name": "Food_equipment",
+      "parent": "设备域",
+      "label": "设备",
+      "kind": "entity",
+      "rule": "R1-业务域",
+      "evidence": "归入业务域类 设备域（依据 R1-业务域，命中关键词 device, equipment）"
+    },
+    {
+      "name": "Food_products",
+      "parent": "FoodGroup",
+      "label": "产品",
+      "kind": "entity",
+      "rule": "R2-命名词干",
+      "evidence": "归入子类 FoodGroup（依据 R2-命名词干）"
+    },
+    {
+      "name": "Food_qc",
+      "parent": "质量域",
+      "label": "质检",
+      "kind": "entity",
+      "rule": "R1-业务域",
+      "evidence": "归入业务域类 质量域（依据 R1-业务域，命中关键词 qc）"
+    },
+    {
+      "name": "Food_raw_materials",
+      "parent": "采购域",
+      "label": "原料",
+      "kind": "entity",
+      "rule": "R1-业务域",
+      "evidence": "归入业务域类 采购域（依据 R1-业务域，命中关键词 material, raw_material, supplier）"
+    },
+    {
+      "name": "Supplier",
+      "parent": "采购域",
+      "label": "供应商",
+      "kind": "entity",
+      "rule": "R1-业务域",
+      "evidence": "归入业务域类 采购域（依据 R1-业务域，命中关键词 supplier）"
+    }
+  ],
+  "definitions": [
+    {
+      "entity": "Food_batch_ingredient",
+      "definition": "生产域中的批次配料，数据来源于 food_batch_ingredient 表，以 batch_id 唯一标识，记录raw_id等信息；取值样例（原料编号=RM001/RM005）。",
+      "rule": "R-DEF 结构(域/表/主键/关键字段)+取值样例",
+      "evidence": "依据表 food_batch_ingredient 的字段 ['batch_id', 'raw_id']；取值样例来自字段 ['raw_id']（真实行）",
+      "source": "rule"
+    },
+    {
+      "entity": "Food_batches",
+      "definition": "生产域中的批次，数据来源于 food_batches 表，以 id 唯一标识，记录product_id、produce_date、quantity、raw_batches、team等信息；取值样例（产品编号=P001/P002；生产日期=2026-07-05/2026-07-05）。",
+      "rule": "R-DEF 结构(域/表/主键/关键字段)+取值样例",
+      "evidence": "依据表 food_batches 的字段 ['id', 'product_id', 'produce_date', 'quantity', 'raw_batches', 'team', 'status']；取值样例来自字段 ['product_id', 'produce_date']（真实行）",
+      "source": "rule"
+    },
+    {
+      "entity": "Food_equipment",
+      "definition": "设备域中的设备，数据来源于 food_equipment 表，以 id 唯一标识，记录device_name、device_type、workshop、power_kw、status等信息；取值样例（设备名称=灌装机-01/烘焙炉-1；设备类型=灌装设备/烘烤设备）。",
+      "rule": "R-DEF 结构(域/表/主键/关键字段)+取值样例",
+      "evidence": "依据表 food_equipment 的字段 ['id', 'device_name', 'device_type', 'workshop', 'power_kw', 'status']；取值样例来自字段 ['device_name', 'device_type']（真实行）",
+      "source": "rule"
+    },
+    {
+      "entity": "Food_products",
+      "definition": "生产域中的产品，数据来源于 food_products 表，以 id 唯一标识，记录product_name、category、spec、expiry_days、storage等信息；取值样例（产品名称=原味酸奶/草莓酸奶；category=乳制品/乳制品）。",
+      "rule": "R-DEF 结构(域/表/主键/关键字段)+取值样例",
+      "evidence": "依据表 food_products 的字段 ['id', 'product_name', 'category', 'spec', 'expiry_days', 'storage', 'price']；取值样例来自字段 ['product_name', 'category']（真实行）",
+      "source": "rule"
+    },
+    {
+      "entity": "Food_qc",
+      "definition": "质量域中的质检，数据来源于 food_qc 表，以 id 唯一标识，记录batch_id、check_item、result、checker、check_date等信息；取值样例（批次编号=B001/B001；检查项目=菌落总数/蛋白质含量）。",
+      "rule": "R-DEF 结构(域/表/主键/关键字段)+取值样例",
+      "evidence": "依据表 food_qc 的字段 ['id', 'batch_id', 'check_item', 'result', 'checker', 'check_date']；取值样例来自字段 ['batch_id', 'check_item']（真实行）",
+      "source": "rule"
+    },
+    {
+      "entity": "Food_raw_materials",
+      "definition": "采购域中的原料，数据来源于 food_raw_materials 表，以 id 唯一标识，记录raw_name、supplier、batch、expiry_date、stock_qty等信息；取值样例（raw名称=生牛乳/生牛乳；供应商=牧场A/牧场A）。",
+      "rule": "R-DEF 结构(域/表/主键/关键字段)+取值样例",
+      "evidence": "依据表 food_raw_materials 的字段 ['id', 'raw_name', 'supplier', 'batch', 'expiry_date', 'stock_qty', 'status', 'qc_result']；取值样例来自字段 ['raw_name', 'supplier']（真实行）",
+      "source": "rule"
+    },
+    {
+      "entity": "Supplier",
+      "definition": "采购域中的供应商，数据来源于 supplier 表，以 id 唯一标识，记录supplier_name、location等信息；取值样例（供应商名称=Fanuc/Siemens；location=日本/德国）。",
+      "rule": "R-DEF 结构(域/表/主键/关键字段)+取值样例",
+      "evidence": "依据表 supplier 的字段 ['id', 'supplier_name', 'location']；取值样例来自字段 ['supplier_name', 'location']（真实行）",
+      "source": "rule"
+    }
+  ],
+  "subclasses": [
+    {
+      "name": "Food_batches__running",
+      "label": "running",
+      "parent": "Food_batches",
+      "kind": "subclass",
+      "column": "status",
+      "value": "running",
+      "count": 7,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_batches 的分类列 'status' 的真实取值 'running'（命中 7/9 行）；该列取值域 3 个，属可枚举种类",
+      "definition": "批次中 status 为『running』的具体种类（依据表 food_batches 字段 status 的真实取值，7 行）。"
+    },
+    {
+      "name": "Food_batches__alarm",
+      "label": "alarm",
+      "parent": "Food_batches",
+      "kind": "subclass",
+      "column": "status",
+      "value": "alarm",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_batches 的分类列 'status' 的真实取值 'alarm'（命中 1/9 行）；该列取值域 3 个，属可枚举种类",
+      "definition": "批次中 status 为『alarm』的具体种类（依据表 food_batches 字段 status 的真实取值，1 行）。"
+    },
+    {
+      "name": "Food_batches__stopped",
+      "label": "stopped",
+      "parent": "Food_batches",
+      "kind": "subclass",
+      "column": "status",
+      "value": "stopped",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_batches 的分类列 'status' 的真实取值 'stopped'（命中 1/9 行）；该列取值域 3 个，属可枚举种类",
+      "definition": "批次中 status 为『stopped』的具体种类（依据表 food_batches 字段 status 的真实取值，1 行）。"
+    },
+    {
+      "name": "Food_equipment__制冷设备",
+      "label": "制冷设备",
+      "parent": "Food_equipment",
+      "kind": "subclass",
+      "column": "device_type",
+      "value": "制冷设备",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_equipment 的分类列 'device_type' 的真实取值 '制冷设备'（命中 1/7 行）；该列取值域 7 个，属可枚举种类",
+      "definition": "设备中 device_type 为『制冷设备』的具体种类（依据表 food_equipment 字段 device_type 的真实取值，1 行）。"
+    },
+    {
+      "name": "Food_equipment__包装设备",
+      "label": "包装设备",
+      "parent": "Food_equipment",
+      "kind": "subclass",
+      "column": "device_type",
+      "value": "包装设备",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_equipment 的分类列 'device_type' 的真实取值 '包装设备'（命中 1/7 行）；该列取值域 7 个，属可枚举种类",
+      "definition": "设备中 device_type 为『包装设备』的具体种类（依据表 food_equipment 字段 device_type 的真实取值，1 行）。"
+    },
+    {
+      "name": "Food_equipment__搅拌设备",
+      "label": "搅拌设备",
+      "parent": "Food_equipment",
+      "kind": "subclass",
+      "column": "device_type",
+      "value": "搅拌设备",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_equipment 的分类列 'device_type' 的真实取值 '搅拌设备'（命中 1/7 行）；该列取值域 7 个，属可枚举种类",
+      "definition": "设备中 device_type 为『搅拌设备』的具体种类（依据表 food_equipment 字段 device_type 的真实取值，1 行）。"
+    },
+    {
+      "name": "Food_equipment__杀菌设备",
+      "label": "杀菌设备",
+      "parent": "Food_equipment",
+      "kind": "subclass",
+      "column": "device_type",
+      "value": "杀菌设备",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_equipment 的分类列 'device_type' 的真实取值 '杀菌设备'（命中 1/7 行）；该列取值域 7 个，属可枚举种类",
+      "definition": "设备中 device_type 为『杀菌设备』的具体种类（依据表 food_equipment 字段 device_type 的真实取值，1 行）。"
+    },
+    {
+      "name": "Food_equipment__灌装设备",
+      "label": "灌装设备",
+      "parent": "Food_equipment",
+      "kind": "subclass",
+      "column": "device_type",
+      "value": "灌装设备",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_equipment 的分类列 'device_type' 的真实取值 '灌装设备'（命中 1/7 行）；该列取值域 7 个，属可枚举种类",
+      "definition": "设备中 device_type 为『灌装设备』的具体种类（依据表 food_equipment 字段 device_type 的真实取值，1 行）。"
+    },
+    {
+      "name": "Food_equipment__烘烤设备",
+      "label": "烘烤设备",
+      "parent": "Food_equipment",
+      "kind": "subclass",
+      "column": "device_type",
+      "value": "烘烤设备",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_equipment 的分类列 'device_type' 的真实取值 '烘烤设备'（命中 1/7 行）；该列取值域 7 个，属可枚举种类",
+      "definition": "设备中 device_type 为『烘烤设备』的具体种类（依据表 food_equipment 字段 device_type 的真实取值，1 行）。"
+    },
+    {
+      "name": "Food_equipment__速冻设备",
+      "label": "速冻设备",
+      "parent": "Food_equipment",
+      "kind": "subclass",
+      "column": "device_type",
+      "value": "速冻设备",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_equipment 的分类列 'device_type' 的真实取值 '速冻设备'（命中 1/7 行）；该列取值域 7 个，属可枚举种类",
+      "definition": "设备中 device_type 为『速冻设备』的具体种类（依据表 food_equipment 字段 device_type 的真实取值，1 行）。"
+    },
+    {
+      "name": "Food_products__乳制品",
+      "label": "乳制品",
+      "parent": "Food_products",
+      "kind": "subclass",
+      "column": "category",
+      "value": "乳制品",
+      "count": 3,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_products 的分类列 'category' 的真实取值 '乳制品'（命中 3/8 行）；该列取值域 4 个，属可枚举种类",
+      "definition": "产品中 category 为『乳制品』的具体种类（依据表 food_products 字段 category 的真实取值，3 行）。"
+    },
+    {
+      "name": "Food_products__烘焙食品",
+      "label": "烘焙食品",
+      "parent": "Food_products",
+      "kind": "subclass",
+      "column": "category",
+      "value": "烘焙食品",
+      "count": 2,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_products 的分类列 'category' 的真实取值 '烘焙食品'（命中 2/8 行）；该列取值域 4 个，属可枚举种类",
+      "definition": "产品中 category 为『烘焙食品』的具体种类（依据表 food_products 字段 category 的真实取值，2 行）。"
+    },
+    {
+      "name": "Food_products__速冻食品",
+      "label": "速冻食品",
+      "parent": "Food_products",
+      "kind": "subclass",
+      "column": "category",
+      "value": "速冻食品",
+      "count": 2,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_products 的分类列 'category' 的真实取值 '速冻食品'（命中 2/8 行）；该列取值域 4 个，属可枚举种类",
+      "definition": "产品中 category 为『速冻食品』的具体种类（依据表 food_products 字段 category 的真实取值，2 行）。"
+    },
+    {
+      "name": "Food_products__果汁饮品",
+      "label": "果汁饮品",
+      "parent": "Food_products",
+      "kind": "subclass",
+      "column": "category",
+      "value": "果汁饮品",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_products 的分类列 'category' 的真实取值 '果汁饮品'（命中 1/8 行）；该列取值域 4 个，属可枚举种类",
+      "definition": "产品中 category 为『果汁饮品』的具体种类（依据表 food_products 字段 category 的真实取值，1 行）。"
+    },
+    {
+      "name": "Food_qc__菌落总数",
+      "label": "菌落总数",
+      "parent": "Food_qc",
+      "kind": "subclass",
+      "column": "check_item",
+      "value": "菌落总数",
+      "count": 3,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_qc 的分类列 'check_item' 的真实取值 '菌落总数'（命中 3/10 行）；该列取值域 7 个，属可枚举种类",
+      "definition": "质检中 check_item 为『菌落总数』的具体种类（依据表 food_qc 字段 check_item 的真实取值，3 行）。"
+    },
+    {
+      "name": "Food_qc__致病菌",
+      "label": "致病菌",
+      "parent": "Food_qc",
+      "kind": "subclass",
+      "column": "check_item",
+      "value": "致病菌",
+      "count": 2,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_qc 的分类列 'check_item' 的真实取值 '致病菌'（命中 2/10 行）；该列取值域 7 个，属可枚举种类",
+      "definition": "质检中 check_item 为『致病菌』的具体种类（依据表 food_qc 字段 check_item 的真实取值，2 行）。"
+    },
+    {
+      "name": "Food_qc__三聚氰胺",
+      "label": "三聚氰胺",
+      "parent": "Food_qc",
+      "kind": "subclass",
+      "column": "check_item",
+      "value": "三聚氰胺",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_qc 的分类列 'check_item' 的真实取值 '三聚氰胺'（命中 1/10 行）；该列取值域 7 个，属可枚举种类",
+      "definition": "质检中 check_item 为『三聚氰胺』的具体种类（依据表 food_qc 字段 check_item 的真实取值，1 行）。"
+    },
+    {
+      "name": "Food_qc__农药残留",
+      "label": "农药残留",
+      "parent": "Food_qc",
+      "kind": "subclass",
+      "column": "check_item",
+      "value": "农药残留",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_qc 的分类列 'check_item' 的真实取值 '农药残留'（命中 1/10 行）；该列取值域 7 个，属可枚举种类",
+      "definition": "质检中 check_item 为『农药残留』的具体种类（依据表 food_qc 字段 check_item 的真实取值，1 行）。"
+    },
+    {
+      "name": "Food_qc__水分含量",
+      "label": "水分含量",
+      "parent": "Food_qc",
+      "kind": "subclass",
+      "column": "check_item",
+      "value": "水分含量",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_qc 的分类列 'check_item' 的真实取值 '水分含量'（命中 1/10 行）；该列取值域 7 个，属可枚举种类",
+      "definition": "质检中 check_item 为『水分含量』的具体种类（依据表 food_qc 字段 check_item 的真实取值，1 行）。"
+    },
+    {
+      "name": "Food_qc__蛋白质含量",
+      "label": "蛋白质含量",
+      "parent": "Food_qc",
+      "kind": "subclass",
+      "column": "check_item",
+      "value": "蛋白质含量",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_qc 的分类列 'check_item' 的真实取值 '蛋白质含量'（命中 1/10 行）；该列取值域 7 个，属可枚举种类",
+      "definition": "质检中 check_item 为『蛋白质含量』的具体种类（依据表 food_qc 字段 check_item 的真实取值，1 行）。"
+    },
+    {
+      "name": "Food_qc__酸度",
+      "label": "酸度",
+      "parent": "Food_qc",
+      "kind": "subclass",
+      "column": "check_item",
+      "value": "酸度",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_qc 的分类列 'check_item' 的真实取值 '酸度'（命中 1/10 行）；该列取值域 7 个，属可枚举种类",
+      "definition": "质检中 check_item 为『酸度』的具体种类（依据表 food_qc 字段 check_item 的真实取值，1 行）。"
+    },
+    {
+      "name": "Food_raw_materials__running",
+      "label": "running",
+      "parent": "Food_raw_materials",
+      "kind": "subclass",
+      "column": "status",
+      "value": "running",
+      "count": 7,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_raw_materials 的分类列 'status' 的真实取值 'running'（命中 7/10 行）；该列取值域 3 个，属可枚举种类",
+      "definition": "原料中 status 为『running』的具体种类（依据表 food_raw_materials 字段 status 的真实取值，7 行）。"
+    },
+    {
+      "name": "Food_raw_materials__stopped",
+      "label": "stopped",
+      "parent": "Food_raw_materials",
+      "kind": "subclass",
+      "column": "status",
+      "value": "stopped",
+      "count": 2,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_raw_materials 的分类列 'status' 的真实取值 'stopped'（命中 2/10 行）；该列取值域 3 个，属可枚举种类",
+      "definition": "原料中 status 为『stopped』的具体种类（依据表 food_raw_materials 字段 status 的真实取值，2 行）。"
+    },
+    {
+      "name": "Food_raw_materials__idle",
+      "label": "idle",
+      "parent": "Food_raw_materials",
+      "kind": "subclass",
+      "column": "status",
+      "value": "idle",
+      "count": 1,
+      "rule": "R3-具名子类",
+      "evidence": "依据表 food_raw_materials 的分类列 'status' 的真实取值 'idle'（命中 1/10 行）；该列取值域 3 个，属可枚举种类",
+      "definition": "原料中 status 为『idle』的具体种类（依据表 food_raw_materials 字段 status 的真实取值，1 行）。"
+    }
+  ],
+  "class_hierarchy": [
+    {
+      "name": "Enterprise",
+      "parent": null,
+      "label": "企业",
+      "kind": "root",
+      "rule": "R0-根",
+      "evidence": "国标 GB/T 48000.3 §5.3 规定的根类"
+    },
+    {
+      "name": "BusinessObject",
+      "parent": "Enterprise",
+      "label": "业务对象",
+      "kind": "root",
+      "rule": "R0-根",
+      "evidence": "国标 §5.3 一级派生类：所有业务实体之共同上层类"
+    },
+    {
+      "name": "生产域",
+      "parent": "BusinessObject",
+      "label": "生产域",
+      "kind": "domain",
+      "rule": "R1-业务域",
+      "evidence": "表名/列名命中业务域关键词 batch, produce, product（_DOMAIN_KEYWORDS 命中项）"
+    },
+    {
+      "name": "设备域",
+      "parent": "BusinessObject",
+      "label": "设备域",
+      "kind": "domain",
+      "rule": "R1-业务域",
+      "evidence": "表名/列名命中业务域关键词 device, equipment（_DOMAIN_KEYWORDS 命中项）"
+    },
+    {
+      "name": "质量域",
+      "parent": "BusinessObject",
+      "label": "质量域",
+      "kind": "domain",
+      "rule": "R1-业务域",
+      "evidence": "表名/列名命中业务域关键词 qc（_DOMAIN_KEYWORDS 命中项）"
+    },
+    {
+      "name": "采购域",
+      "parent": "BusinessObject",
+      "label": "采购域",
+      "kind": "domain",
+      "rule": "R1-业务域",
+      "evidence": "表名/列名命中业务域关键词 material, raw_material, supplier（_DOMAIN_KEYWORDS 命中项）"
+    },
+    {
+      "name": "FoodGroup",
+      "parent": "生产域",
+      "label": "food类实体",
+      "kind": "stem",
+      "rule": "R2-命名词干",
+      "evidence": "去库前缀无后表名共享前导词干 'food'（成员表: food_batch_ingredient、food_batches、food_products）"
+    }
+  ]
+}

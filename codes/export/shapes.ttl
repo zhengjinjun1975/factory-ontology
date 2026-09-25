@@ -1,4 +1,4 @@
-# valve-factory-ontology — SHACL 约束导出（ontology_export.py v0.3.0）
+# auto-inferred-ontology — SHACL 约束导出（ontology_export.py v0.3.0）
 # constraints 与运行时 validate 同源派生（避免双写漂移）
 
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
@@ -7,78 +7,77 @@
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 @prefix skos: <http://www.w3.org/2004/02/skos/core#> .
 @prefix sh: <http://www.w3.org/ns/shacl#> .
-@prefix fac: <http://factory.example/ontology#> .
+@prefix o: <https://ontology.example.com/industry/valve#> .
 
-fac:sh_Product_id_unique a sh:PropertyShape ;
-    sh:path fac:id ;
+o:sh_Valve_batch_ingredient_batchId_unique a sh:PropertyShape ;
+    sh:path o:batchId ;
     sh:maxCount 1 ;
-    sh:message "产品编号唯一"@zh .
+    sh:message "Valve_batch_ingredient 主键 batch_id 唯一"@zh .
 
-fac:sh_Customer_id_unique a sh:PropertyShape ;
-    sh:path fac:id ;
+o:sh_Valve_batches_id_unique a sh:PropertyShape ;
+    sh:path o:id ;
     sh:maxCount 1 ;
-    sh:message "客户编号唯一"@zh .
+    sh:message "Valve_batches 主键 id 唯一"@zh .
 
-fac:sh_Equipment_id_unique a sh:PropertyShape ;
-    sh:path fac:id ;
+o:sh_Valve_customers_id_unique a sh:PropertyShape ;
+    sh:path o:id ;
     sh:maxCount 1 ;
-    sh:message "设备编号唯一"@zh .
+    sh:message "Valve_customers 主键 id 唯一"@zh .
 
-fac:sh_RawMaterial_id_unique a sh:PropertyShape ;
-    sh:path fac:id ;
+o:sh_Valve_equipment_id_unique a sh:PropertyShape ;
+    sh:path o:id ;
     sh:maxCount 1 ;
-    sh:message "原材料编号唯一"@zh .
+    sh:message "Valve_equipment 主键 id 唯一"@zh .
 
-fac:sh_Product_pressureGrade_in a sh:PropertyShape ;
-    sh:path fac:pressureGrade ;
-    sh:in ( "PN10" "PN16" "PN25" "PN40" ) ;
-    sh:message "压力等级须为 PN10/16/25/40"@zh .
+o:sh_Valve_products_id_unique a sh:PropertyShape ;
+    sh:path o:id ;
+    sh:maxCount 1 ;
+    sh:message "Valve_products 主键 id 唯一"@zh .
 
-fac:sh_Product_modelCode_pattern a sh:PropertyShape ;
-    sh:path fac:modelCode ;
-    sh:pattern "^[A-Z]{2,4}-?[0-9]{2,6}$" ;
-    sh:message "型号编码格式: 字母+数字"@zh .
+o:sh_Valve_qc_id_unique a sh:PropertyShape ;
+    sh:path o:id ;
+    sh:maxCount 1 ;
+    sh:message "Valve_qc 主键 id 唯一"@zh .
 
-fac:sh_Equipment_powerKw_range a sh:PropertyShape ;
-    sh:path fac:powerKw ;
-    sh:minInclusive 0 ;
-    sh:maxInclusive 5000 ;
-    sh:message "装机功率 0-5000 kW"@zh .
+o:sh_Valve_raw_materials_id_unique a sh:PropertyShape ;
+    sh:path o:id ;
+    sh:maxCount 1 ;
+    sh:message "Valve_raw_materials 主键 id 唯一"@zh .
 
-fac:sh_Sale_quantity_positive a sh:PropertyShape ;
-    sh:path fac:quantity ;
-    sh:minInclusive 0 ;
-    sh:message "销售数量不能为负"@zh .
+o:sh_Valve_sales_id_unique a sh:PropertyShape ;
+    sh:path o:id ;
+    sh:maxCount 1 ;
+    sh:message "Valve_sales 主键 id 唯一"@zh .
 
-fac:sh_Batch_produceDate_datatype a sh:PropertyShape ;
-    sh:path fac:produceDate ;
-    sh:datatype xsd:date ;
-    sh:message "生产日期须为日期型"@zh .
+o:Valve_batch_ingredientShape a sh:NodeShape ;
+    sh:targetClass o:Valve_batch_ingredient ;
+    sh:property o:sh_Valve_batch_ingredient_batchId_unique .
 
-fac:BatchShape a sh:NodeShape ;
-    sh:targetClass fac:Valve_batches ;
-    sh:property fac:sh_Batch_produceDate_datatype .
+o:Valve_batchesShape a sh:NodeShape ;
+    sh:targetClass o:Valve_batches ;
+    sh:property o:sh_Valve_batches_id_unique .
 
-fac:CustomerShape a sh:NodeShape ;
-    sh:targetClass fac:Valve_customers ;
-    sh:property fac:sh_Customer_id_unique .
+o:Valve_customersShape a sh:NodeShape ;
+    sh:targetClass o:Valve_customers ;
+    sh:property o:sh_Valve_customers_id_unique .
 
-fac:EquipmentShape a sh:NodeShape ;
-    sh:targetClass fac:Valve_equipment ;
-    sh:property fac:sh_Equipment_id_unique ,
-        fac:sh_Equipment_powerKw_range .
+o:Valve_equipmentShape a sh:NodeShape ;
+    sh:targetClass o:Valve_equipment ;
+    sh:property o:sh_Valve_equipment_id_unique .
 
-fac:ProductShape a sh:NodeShape ;
-    sh:targetClass fac:Valve_products ;
-    sh:property fac:sh_Product_id_unique ,
-        fac:sh_Product_pressureGrade_in ,
-        fac:sh_Product_modelCode_pattern .
+o:Valve_productsShape a sh:NodeShape ;
+    sh:targetClass o:Valve_products ;
+    sh:property o:sh_Valve_products_id_unique .
 
-fac:RawMaterialShape a sh:NodeShape ;
-    sh:targetClass fac:Valve_raw_materials ;
-    sh:property fac:sh_RawMaterial_id_unique .
+o:Valve_qcShape a sh:NodeShape ;
+    sh:targetClass o:Valve_qc ;
+    sh:property o:sh_Valve_qc_id_unique .
 
-fac:SaleShape a sh:NodeShape ;
-    sh:targetClass fac:Valve_sales ;
-    sh:property fac:sh_Sale_quantity_positive .
+o:Valve_raw_materialsShape a sh:NodeShape ;
+    sh:targetClass o:Valve_raw_materials ;
+    sh:property o:sh_Valve_raw_materials_id_unique .
+
+o:Valve_salesShape a sh:NodeShape ;
+    sh:targetClass o:Valve_sales ;
+    sh:property o:sh_Valve_sales_id_unique .
 

@@ -114,7 +114,13 @@
     "生产中": "生产中",
     "停止": "stopped",
     "故障": "alarm",
-    "待检修": "pending_maintenance"
+    "待检修": "pending_maintenance",
+    "开启": "open",
+    "关闭": "closed",
+    "部分开启": "partially_open",
+    "维修中": "maintenance",
+    "泄漏": "leakage",
+    "试压中": "pressure_testing"
   },
   "type_cn2en": {
     "机加设备": "机加设备",
@@ -151,7 +157,20 @@
     "柱塞泵": "plunger_pump",
     "齿轮泵": "gear_pump",
     "螺杆泵": "screw_pump",
-    "隔膜泵": "diaphragm_pump"
+    "隔膜泵": "diaphragm_pump",
+    "阀门": "valve",
+    "旋塞阀": "plug_valve",
+    "隔膜阀": "diaphragm_valve",
+    "针阀": "needle_valve",
+    "控制阀": "control_valve",
+    "节流阀": "choke_valve",
+    "减压阀": "pressure_reducing_valve",
+    "电磁阀": "solenoid_valve",
+    "排气阀": "exhaust_valve",
+    "球阀零件": "ball_valve_part",
+    "停机": "停机",
+    "成型设备": "成型设备",
+    "检测设备": "检测设备"
   },
   "zone_cn2en": {
     "华北": "华北",
@@ -168,149 +187,6 @@
     "表面处理车间": "表面处理车间"
   },
   "synonym_map": {
-    "乳制品": [
-      "奶制品",
-      "酸奶类",
-      "乳品"
-    ],
-    "机加设备": [
-      "机加工设备",
-      "机械加工设备"
-    ],
-    "机加车间": [
-      "机械加工车间"
-    ],
-    "机加": [
-      "机械加工"
-    ],
-    "材质": [
-      "材料",
-      "原料"
-    ],
-    "尺寸": [
-      "尺寸(mm)"
-    ],
-    "温度": [
-      "温度(℃)"
-    ],
-    "压力": [
-      "压力等级",
-      "压力规则"
-    ],
-    "阀门": [
-      "安全阀",
-      "截止阀",
-      "止回阀",
-      "球阀",
-      "蝶阀",
-      "闸阀"
-    ],
-    "设备": [
-      "机加设备",
-      "机加车间",
-      "表面处理设备",
-      "表面处理车间",
-      "装配设备",
-      "装配车间",
-      "试压设备",
-      "设备名称",
-      "设备类型"
-    ],
-    "原料": [
-      "原料编号"
-    ],
-    "客户": [
-      "客户名称",
-      "客户编号"
-    ],
-    "产品": [
-      "产品名称",
-      "产品编号",
-      "型号代码",
-      "批次编号"
-    ],
-    "状态": [
-      "已入库",
-      "库存",
-      "待机",
-      "待质检",
-      "生产中",
-      "不合格",
-      "合格",
-      "维护中",
-      "运行中"
-    ],
-    "区域": [
-      "东北",
-      "华东",
-      "华中",
-      "华北",
-      "华南",
-      "西北",
-      "西南"
-    ],
-    "检查": [
-      "检查员",
-      "检查日期",
-      "检查项目",
-      "检测车间"
-    ],
-    "振动": [
-      "振动(mm/s)"
-    ],
-    "电流": [
-      "电流(A)"
-    ],
-    "功率": [
-      "功率(kW)"
-    ],
-    "焊接": [
-      "焊接设备"
-    ],
-    "铸造": [
-      "铸造设备",
-      "铸造车间"
-    ],
-    "表面处理": [
-      "表面处理设备",
-      "表面处理车间"
-    ],
-    "装配": [
-      "装配设备",
-      "装配车间"
-    ],
-    "试压": [
-      "试压设备"
-    ],
-    "质检": [
-      "质检结果",
-      "检测车间"
-    ],
-    "泄漏": [
-      "泄漏气泡"
-    ],
-    "类型": [
-      "类型代码"
-    ],
-    "结果": [
-      "质检结果"
-    ],
-    "维护": [
-      "维护中"
-    ],
-    "编号": [
-      "产品编号",
-      "批次编号"
-    ],
-    "部件": [
-      "部件名称"
-    ],
-    "销售": [
-      "销售日期"
-    ],
-    "标准": [
-      "标准号"
-    ],
     "不锈钢": [
       "304",
       "316",
@@ -380,6 +256,72 @@
     "维护中": [
       "维修中",
       "保养中"
+    ],
+    "原料": [
+      "原材料"
+    ],
+    "阀门": [
+      "阀",
+      "valve",
+      "闸"
+    ],
+    "球阀": [
+      "ball valve",
+      "浮动球阀",
+      "浮球阀",
+      "固定球阀"
+    ],
+    "闸阀": [
+      "gate valve",
+      "楔式闸阀",
+      "刀闸阀"
+    ],
+    "蝶阀": [
+      "butterfly valve",
+      "三偏心蝶阀",
+      "对夹蝶阀"
+    ],
+    "截止阀": [
+      "globe valve",
+      "截止"
+    ],
+    "止回阀": [
+      "check valve",
+      "单向阀",
+      "逆止阀"
+    ],
+    "安全阀": [
+      "relief valve",
+      "泄压阀"
+    ],
+    "离心泵": [
+      "centrifugal pump",
+      "涡流泵"
+    ],
+    "柱塞泵": [
+      "plunger pump",
+      "柱塞"
+    ],
+    "齿轮泵": [
+      "gear pump",
+      "齿轮油泵"
+    ],
+    "螺杆泵": [
+      "screw pump",
+      "螺旋泵"
+    ],
+    "阀杆": [
+      "stem",
+      "阀轴"
+    ],
+    "密封": [
+      "seal",
+      "密封件",
+      "填料"
+    ],
+    "叶轮": [
+      "impeller",
+      "叶轮片"
     ]
   },
   "entity_cn2en": {
@@ -424,5 +366,134 @@
     ]
   },
   "value_fields": [],
-  "_public_dict_merged": true
+  "_public_dict_merged": true,
+  "_industry": "泵阀",
+  "fault_cn2en": {
+    "内圈故障": "inner_race_fault",
+    "外圈故障": "outer_race_fault",
+    "滚动体故障": "rolling_element_fault",
+    "保持架故障": "cage_fault",
+    "轴承故障": "bearing_fault",
+    "磨损": "wear",
+    "疲劳": "fatigue",
+    "断裂": "fracture",
+    "腐蚀": "corrosion",
+    "卡滞": "sticking",
+    "泄漏": "leakage",
+    "密封失效": "seal_failure",
+    "过热": "overheating",
+    "短路": "short_circuit",
+    "绝缘失效": "insulation_failure",
+    "接触不良": "poor_contact",
+    "振动超标": "excess_vibration",
+    "压力异常": "abnormal_pressure",
+    "温度异常": "abnormal_temperature",
+    "流量异常": "abnormal_flow",
+    "阀门泄漏": "valve_leakage",
+    "阀杆卡滞": "valve_stem_sticking",
+    "阀座磨损": "valve_seat_wear",
+    "内漏": "internal_leakage",
+    "外漏": "external_leakage",
+    "阀门振动": "valve_vibration",
+    "开启不灵": "valve_operation_failure",
+    "泵汽蚀": "pump_cavitation",
+    "泵抽空": "pump_dry_run",
+    "机械密封泄漏": "mechanical_seal_leakage",
+    "叶轮磨损": "impeller_wear",
+    "泵振动超标": "pump_excess_vibration",
+    "轴承过热": "bearing_overheating"
+  },
+  "material_synonyms": {
+    "不锈钢": [
+      "304",
+      "316",
+      "cf8",
+      "cf8m",
+      "cf3",
+      "1cr18ni9ti"
+    ],
+    "碳钢": [
+      "wcb",
+      "a105",
+      "20钢",
+      "20"
+    ],
+    "球墨铸铁": [
+      "qt450",
+      "qt400"
+    ],
+    "灰铸铁": [
+      "ht200",
+      "ht250"
+    ],
+    "合金钢": [
+      "wc6",
+      "wc9",
+      "15crmo"
+    ],
+    "铜": [
+      "铜合金",
+      "h62",
+      "h59"
+    ],
+    "法兰": [
+      "flange",
+      "法兰连接"
+    ],
+    "软密封": [
+      "soft seal",
+      "弹性密封"
+    ],
+    "金属密封": [
+      "metal seat",
+      "硬密封"
+    ],
+    "橡胶": [
+      "橡胶密封",
+      "epdm",
+      "丁腈橡胶"
+    ]
+  },
+  "pump_cn2en": {
+    "泵": "pump",
+    "动力泵": "dynamic_pump",
+    "叶片泵": "vane_pump",
+    "离心泵": "centrifugal_pump",
+    "轴流泵": "axial_flow_pump",
+    "混流泵": "mixed_flow_pump",
+    "容积泵": "positive_displacement_pump",
+    "往复泵": "reciprocating_pump",
+    "活塞泵": "piston_pump",
+    "柱塞泵": "plunger_pump",
+    "回转泵": "rotary_pump",
+    "齿轮泵": "gear_pump",
+    "螺杆泵": "screw_pump",
+    "转子泵": "rotor_pump",
+    "自吸泵": "self_priming_pump",
+    "管道泵": "inline_pump",
+    "磁力泵": "magnetic_drive_pump",
+    "隔膜泵": "diaphragm_pump",
+    "潜水泵": "submersible_pump",
+    "真空泵": "vacuum_pump"
+  },
+  "part_cn2en": {
+    "阀体": "valve_body",
+    "阀盖": "valve_bonnet",
+    "阀座": "valve_seat",
+    "阀座密封": "valve_seat_seal",
+    "阀杆": "valve_stem",
+    "阀杆密封": "valve_stem_seal",
+    "阀轭": "valve_yoke",
+    "阀内件": "valve_trim",
+    "关闭件": "valve_closure_member",
+    "衬里": "valve_liner",
+    "填料函": "valve_gland",
+    "阀盖垫片": "valve_gasket",
+    "承压螺栓": "pressure_retaining_bolting",
+    "叶轮": "impeller",
+    "泵壳": "pump_casing",
+    "机械密封": "mechanical_seal",
+    "泵轴": "pump_shaft",
+    "轴承座": "bearing_house"
+  }
 }

@@ -589,6 +589,11 @@
       "nt": "output/valve9.nt",
       "lexicon": "lexicon_valve9.json",
       "data_dir": "data"
+    },
+    "food_co": {
+      "nt": "output/food_co.nt",
+      "lexicon": "lexicon_food_co.json",
+      "data_dir": "data_food_co"
     }
   }
 }
