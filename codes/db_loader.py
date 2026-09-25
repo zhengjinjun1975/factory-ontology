@@ -36,6 +36,25 @@ if ROOT not in _sys.path:
 import db_dialect as _dd
 
 
+def _current_tenant_id():
+    """当前租户 id（来自 tenant.py 的请求级上下文）；未建立任何租户上下文 → None。
+
+    None 用于触发数据访问层的 fail-closed：带租户列的表若缺上下文，宁可报错也不返回全量。
+    """
+    try:
+        import tenant as _t
+        return _t.current_id()
+    except Exception:
+        return None
+
+
+def _sqlite_table_columns(conn, table):
+    """PRAGMA table_info → 列名列表（真实探测表结构，决定是否需要行级租户过滤）。"""
+    q = _dd.dialect_for("sqlite").quote_ident(table, "表名")
+    cur = conn.execute("PRAGMA table_info(%s)" % q)
+    return [r[1] for r in cur.fetchall()]
+
+
 def _safe(name, what="表名"):
     """校验标识符合法性，非法即抛错（防 SQL 注入）。保留旧函数名供外部调用。"""
     _dd.validate_ident(name, what)
@@ -70,13 +89,17 @@ def parse_dsn(dsn):
             m.group("user") or "", m.group("password") or "", m.group("db"))
 
 
-def _read_sqlite(db_path, table, limit=None, read_only=True):
-    """读 SQLite 单表。默认只读打开 + busy_timeout 忙等（不影响返回值）。"""
+def _read_sqlite(db_path, table, limit=None, read_only=True, tenant=None, tenant_col=None):
+    """读 SQLite 单表。默认只读打开 + busy_timeout 忙等（不影响返回值）。
+
+    行级隔离（多租户，2026-09-24）：若表含租户列（默认 tenant_id），**强制**加租户条件；
+    此时缺租户上下文 → 抛 TenantContextError（fail-closed，绝不静默返回全量）。
+    不含租户列的历史表 → SQL 与改前逐字节一致（老行为不变）。
+    """
     import sqlite3
     if not os.path.exists(db_path):
         raise FileNotFoundError(f"SQLite 库不存在: {db_path}")
     db_type = "sqlite"
-    sql = _dd.select_all(table, db_type, limit=limit)
     timeout_s = _dd.busy_timeout_ms() / 1000.0
     conn = None
     if read_only:
@@ -90,7 +113,20 @@ def _read_sqlite(db_path, table, limit=None, read_only=True):
         conn = sqlite3.connect(db_path, timeout=timeout_s)
     try:
         conn.execute(f"PRAGMA busy_timeout={_dd.busy_timeout_ms()}")
-        cur = conn.execute(sql)
+        col = tenant_col or _dd.TENANT_COLUMN
+        try:
+            has_tenant = col in _sqlite_table_columns(conn, table)
+        except Exception:
+            has_tenant = False
+        if has_tenant:
+            tid = tenant if tenant is not None else _current_tenant_id()
+            # 缺租户上下文即 fail-closed（select_all_scoped 内部抛 TenantContextError）
+            sql, params = _dd.select_all_scoped(table, db_type, tid,
+                                                limit=limit, tenant_col=col)
+            cur = conn.execute(sql, params)
+        else:
+            sql = _dd.select_all(table, db_type, limit=limit)
+            cur = conn.execute(sql)
         headers = [d[0] for d in cur.description]
         rows = [dict(zip(headers, ["" if x is None else str(x) for x in row]))
                 for row in cur.fetchall()]
@@ -99,7 +135,7 @@ def _read_sqlite(db_path, table, limit=None, read_only=True):
     return table, headers, rows
 
 
-def _read_mysql(cfg, limit=None):
+def _read_mysql(cfg, limit=None, tenant=None):
     mod, hint = _dd.driver_for("mysql")
     if not _dd.is_available("mysql"):
         return {"error": f"MySQL 需安装驱动: {hint}"}
@@ -116,7 +152,15 @@ def _read_mysql(cfg, limit=None):
                            connect_timeout=int(cfg.get("connect_timeout") or 10))
     try:
         cur = conn.cursor()
-        cur.execute(dialect.select_all(cfg["table"], limit=limit))  # 单点组装, 表名已白名单
+        # 行级隔离：仅当配置显式声明 tenant_col 时加租户条件（否则视为历史非分区表）。
+        tenant_col = cfg.get("tenant_col")
+        if tenant_col:
+            tid = tenant if tenant is not None else _current_tenant_id()
+            sql, params = _dd.select_all_scoped(cfg["table"], "mysql", tid,
+                                               limit=limit, tenant_col=tenant_col)
+            cur.execute(sql, params)
+        else:
+            cur.execute(dialect.select_all(cfg["table"], limit=limit))  # 单点组装, 表名已白名单
         headers = [d[0] for d in cur.description]
         rows = [dict(zip(headers, r)) for r in cur.fetchall()]
     finally:
@@ -124,7 +168,7 @@ def _read_mysql(cfg, limit=None):
     return (cfg["table"], headers, rows)
 
 
-def _read_postgres(cfg, limit=None):
+def _read_postgres(cfg, limit=None, tenant=None):
     mod, hint = _dd.driver_for("postgres")
     if not _dd.is_available("postgres"):
         return {"error": f"PostgreSQL 需安装驱动: {hint}"}
@@ -139,7 +183,15 @@ def _read_postgres(cfg, limit=None):
                             connect_timeout=int(cfg.get("connect_timeout") or 10))
     try:
         cur = conn.cursor()
-        cur.execute(dialect.select_all(cfg["table"], limit=limit))  # 单点组装
+        # 行级隔离：同 MySQL，仅当配置显式声明 tenant_col 时加租户条件。
+        tenant_col = cfg.get("tenant_col")
+        if tenant_col:
+            tid = tenant if tenant is not None else _current_tenant_id()
+            sql, params = _dd.select_all_scoped(cfg["table"], "postgres", tid,
+                                               limit=limit, tenant_col=tenant_col)
+            cur.execute(sql, params)
+        else:
+            cur.execute(dialect.select_all(cfg["table"], limit=limit))  # 单点组装
         headers = [d[0] for d in cur.description]
         rows = [dict(zip(headers, r)) for r in cur.fetchall()]
     finally:
@@ -152,6 +204,11 @@ def load_db(cfg):
 
     返回 (表名, 列名列表, 行dict列表)；驱动缺失或类型不支持时返回 {"error": ...}。
     可选 limit: 只取前 N 行（默认 None = 全表，保持历史行为）。
+
+    多租户行级隔离（2026-09-24）：可选 cfg["tenant"] / cfg["tenant_col"]。
+    · 表含租户列（默认 tenant_id）时**强制**加租户条件；cfg 未给 tenant 则取请求级
+      租户上下文；两者都没有 → 抛 TenantContextError（fail-closed，不静默返回全量）。
+    · 不含租户列的历史表 → 行为与改前逐字段一致。
     """
     if isinstance(cfg, str):
         db_type, host, port, user, password, database = parse_dsn(cfg)
@@ -179,19 +236,23 @@ def load_db(cfg):
         except (TypeError, ValueError):
             return {"error": f"limit 必须为整数: {cfg.get('limit')!r}"}
 
+    # 多租户：显式 cfg["tenant"] 优先；缺省(None) 由数据访问层回退到请求级租户上下文。
+    tenant = cfg.get("tenant") if "tenant" in cfg else None
+    tenant_col = cfg.get("tenant_col")
+
     if db_type == "sqlite":
         # 只读 + busy_timeout；read_only 可由配置覆盖（默认 True）
         read_only = cfg.get("read_only", True)
         return _read_sqlite(cfg.get("database") or "", table, limit=limit,
-                            read_only=bool(read_only))
+                            read_only=bool(read_only), tenant=tenant, tenant_col=tenant_col)
 
     cfg["table"] = table
     if db_type == "mysql":
         cfg["database"] = _safe(cfg.get("database"), "库名")
-        return _read_mysql(cfg, limit=limit)
+        return _read_mysql(cfg, limit=limit, tenant=tenant)
     if db_type == "postgres":
         cfg["database"] = _safe(cfg.get("database"), "库名")
-        return _read_postgres(cfg, limit=limit)
+        return _read_postgres(cfg, limit=limit, tenant=tenant)
 
     return {"error": f"不支持的数据库类型: {db_type}（支持 sqlite/mysql/postgres）"}
 

@@ -74,6 +74,53 @@ except Exception:  # pragma: no cover - 降级：分层仍可用，只是冲突�
 
 DictLayerConflictError = _DictLayerConflictError
 
+# 多租户（2026-09-24）：KB 可见范围按租户过滤。租户注册表来自 tenant.py（配置驱动）。
+try:
+    import tenant as _tenant_mod
+except Exception:  # pragma: no cover - 降级：无 tenant 模块时不做租户过滤（等于老行为）
+    _tenant_mod = None
+
+
+def _owner_visible(entry, tenant_id):
+    """KB 侧声明的属主可见性：entry["tenant"] 单属主 / entry["tenants"] 多租户共享。
+
+    未声明属主的 KB 视为公共（受租户注册表的 kbs 白名单约束）。
+    """
+    owner = entry.get("tenant")
+    if owner and str(tenant_id) != str(owner):
+        return False
+    shared = entry.get("tenants")
+    if shared and str(tenant_id) not in {str(x) for x in shared}:
+        return False
+    return True
+
+
+def kb_visible_for(kb_id, tenant_id, path=None):
+    """该租户是否可见某 KB：租户注册表白名单 ∩ KB 侧属主声明。未注册 KB → False。"""
+    if _tenant_mod is None:
+        return True
+    entry = load_registry(path).get(kb_id)
+    if entry is None:
+        return False
+    try:
+        if not _tenant_mod.kb_visible(tenant_id, kb_id, path):
+            return False
+    except Exception:
+        return False
+    return _owner_visible(entry, tenant_id)
+
+
+def list_kb_ids(tenant=None, path=None, include_cleanup=True):
+    """按租户过滤的 KB id 列表（不触发真实探测，纯注册表 + 可见性）。"""
+    out = []
+    for kb_id in load_registry(path):
+        if not include_cleanup and is_cleanup_candidate(kb_id):
+            continue
+        if tenant is not None and not kb_visible_for(kb_id, tenant, path):
+            continue
+        out.append(kb_id)
+    return out
+
 
 # ── 注册表读写 ────────────────────────────────────────────────────────────────
 def registry_path(path=None):
@@ -302,12 +349,22 @@ def merge_dict_layers(kb_id=None, kb_dict=None, industry=None, path=None,
 
 
 # ── KB 详情 / 列表 ────────────────────────────────────────────────────────────
-def get_kb(kb_id, path=None):
-    """单 KB 详情（含真实探测的 data_ready）。未注册返回 None。"""
+def get_kb(kb_id, path=None, tenant=None):
+    """单 KB 详情（含真实探测的 data_ready）。
+
+    未注册 → 返回 None（老行为）。
+    带 tenant → **未知/越权一律拒**（抛 tenant.TenantDenied，绝不返回空/None 掩盖）：
+      · KB 未注册 → TenantDenied（未知 KB）
+      · KB 不在该租户可见范围 → TenantDenied（越权）
+    """
     kbs = load_registry(path)
     entry = kbs.get(kb_id)
     if entry is None:
+        if tenant is not None:
+            raise _tenant_denied("未知 KB: %r（不在注册表中）" % kb_id)
         return None
+    if tenant is not None and not kb_visible_for(kb_id, tenant, path):
+        raise _tenant_denied("越权: 租户 %r 不可见 KB %r" % (tenant, kb_id))
     probe = probe_kb(kb_id, path)
     return {
         "kb_id": kb_id,
@@ -328,11 +385,24 @@ def get_kb(kb_id, path=None):
     }
 
 
-def list_kbs(path=None, include_cleanup=True):
-    """全部 KB 详情列表。include_cleanup=False 时剔除测试/onboarding/重复项备案项。"""
+def _tenant_denied(msg):
+    """构造 TenantDenied（tenant 模块缺失时降级为 PermissionError，仍是拒绝）。"""
+    if _tenant_mod is not None and hasattr(_tenant_mod, "TenantDenied"):
+        return _tenant_mod.TenantDenied(msg)
+    return PermissionError("[多租户] " + msg)
+
+
+def list_kbs(path=None, include_cleanup=True, tenant=None):
+    """KB 详情列表。include_cleanup=False 时剔除测试/onboarding/重复项备案项。
+
+    tenant 非 None → 只返回该租户可见的 KB（按租户过滤）；越权/未知 KB 不在列表里。
+    tenant 为 None（老调用）→ 不过滤，行为与改前一致。
+    """
     out = []
     for kb_id in load_registry(path):
         if not include_cleanup and is_cleanup_candidate(kb_id):
+            continue
+        if tenant is not None and not kb_visible_for(kb_id, tenant, path):
             continue
         out.append(get_kb(kb_id, path))
     return out

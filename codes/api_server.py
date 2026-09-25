@@ -50,9 +50,10 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger("food-api")
 
 from fastapi import FastAPI, HTTPException, Query, Header, Request, Depends, UploadFile, File, Form
-from fastapi.responses import HTMLResponse, FileResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, FileResponse, PlainTextResponse, JSONResponse
 from pydantic import BaseModel
 
+import tenant  # 多租户: 租户解析/注册表/请求级上下文(纯标准库)
 import graph_rag as gr
 import ontology_qa_v3 as v3
 import multi_table as mt
@@ -92,6 +93,99 @@ _kb = KBS.get(KB_NAME, {})
 DATA = os.environ.get("FOOD_DATA_DIR", os.path.join(ROOT, _kb.get("data_dir", "data")))
 FOOD_NT = os.environ.get("FOOD_NT", os.path.join(ROOT, "output", f"{KB_NAME}.nt"))
 FOOD_LEX = os.environ.get("FOOD_LEX", os.path.join(ROOT, "config", _kb.get("lexicon", "lexicon_food_products.json")))
+
+
+# ── A1(2026-09-25): 「当前生效本体」持久化单一真相源 ──────────────────────
+# 落点选独立小文件 codes/config/active_ontology.json，而不是「复用具名配置/kbs.json」：
+#   · kbs.json 的语义是「全部 KB 的注册表」；把"哪个生效"塞进去会让注册表多携带一份
+#     会话态，日后每次切库都要改整表、与并发建库互相覆盖；
+#   · web/web_state.json 是前端(BFF)持有的展示态，后端/前端各写各的会再次分裂。
+# 一份独立文件、由「建库/切库」一处写、服务启动即读，谁都不再各存一份激活态。
+ACTIVE_FILE = os.path.join(ROOT, "config", "active_ontology.json")
+
+
+def _read_active():
+    """读持久化激活态 → dict（缺失/损坏返回 {}，绝不抛）。"""
+    try:
+        with open(ACTIVE_FILE, encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def _active_kb(fallback=None):
+    """当前激活 kb：active_ontology.json 的 kb > fallback > KB_NAME。"""
+    kb = str(_read_active().get("kb") or "").strip()
+    if kb:
+        return kb
+    return fallback if fallback is not None else KB_NAME
+
+
+def _kb_ontology_schema(kb):
+    """当前激活 kb 的**本体 schema** 路径 → (path, err)。
+
+    A2/A3 硬要求：找不到该库本体就**明确报错**，不许静默回落到全局
+    config/ontology_schema.json（那会把 A 库的合规度/导出物冒充成当前库的）。
+    解析口径：
+      ① kbs.json 里该 kb 显式声明的 schema 字段（存在即用；声明了但文件不在 → 报错）
+      ② config/ontology_schema_<kb>.json（confirm / 自助建模的落盘约定）
+      ③ 都没有 → 明确报错说明该库无对应本体。
+    """
+    kb = (kb or "").strip()
+    entry = _load_kbs().get(kb)
+    if entry is None:
+        return None, "当前激活知识库 %r 未在 kbs.json 注册，无法定位其本体" % kb
+    rel = entry.get("schema")
+    if rel:
+        p = rel if os.path.isabs(rel) else os.path.join(ROOT, rel)
+        if os.path.exists(p):
+            return p, None
+        return None, "知识库 %r 声明的 schema 不存在: %s" % (kb, rel)
+    cand = os.path.join(ROOT, "config", "ontology_schema_%s.json" % kb)
+    if os.path.exists(cand):
+        return cand, None
+    # ③ 基础库(引擎默认 KB_NAME)的规范本体 = 仓库标准本体 config/ontology_schema.json。
+    #    这是「基础库自身的本体」，不是"拿别的库的本体来冒充当前库"——**仅对基础库生效**；
+    #    其它任何库找不到自己的本体一律报错（见下方 return）。响应里带 ontology/schema
+    #    路径字段标明来源，绝不静默。
+    if kb == KB_NAME:
+        base = os.path.join(ROOT, "config", "ontology_schema.json")
+        if os.path.exists(base):
+            return base, None
+    return None, ("找不到知识库 %r 的本体：kbs.json 未声明 schema 字段，且 %s 不存在。"
+                  "请先为该库建模/确认，或为其配置 schema。"
+                  % (kb, os.path.relpath(cand, ROOT).replace("\\", "/")))
+
+
+def _dir_key(p):
+    """目录占用判定用的归一化键（绝对 realpath + 小写）。"""
+    s = str(p or "data").replace("\\", "/").rstrip("/") or "data"
+    ab = s if os.path.isabs(s) else os.path.join(ROOT, s)
+    return os.path.realpath(ab).lower()
+
+
+# 备案清理项（测试/onboarding/重复项）—— 与 kb_registry.CLEANUP_PATTERNS 同口径。
+_CLEANUP_PATTERNS = ("valve2", "valve3", "valve9", "e2ecust", "factory_multi_", "onb_")
+
+
+def _is_cleanup_kb(kb_id):
+    s = str(kb_id)
+    return any(s == p or s.startswith(p) for p in _CLEANUP_PATTERNS)
+
+
+def _data_dir_conflict(kb, data_dir):
+    """A4: 同一 data_dir 被**其它**（非本 kb、非备案清理项）KB 占用 → 返回占用者名；无冲突 None。
+
+    备案清理项(valve2/valve3/valve9/...)是已知测试残渣，不参与占用判定，避免历史脏数据误伤。
+    """
+    want = _dir_key(data_dir)
+    for other, e in _load_kbs().items():
+        if other == kb or _is_cleanup_kb(other):
+            continue
+        if _dir_key(e.get("data_dir") or "data") == want:
+            return other
+    return None
 
 
 def _find(tail_name):
@@ -166,6 +260,11 @@ D = v3.load_dict(FOOD_LEX)
 QDATA = v3.build_data(v3.parse_nt(FOOD_NT), D)
 _KB_INDEX_CACHE = {}  # 多租户: {kb} 独立的 BM25/向量索引缓存
 
+# A1(2026-09-25): 服务启动即读取持久化激活态（单一真相源），并留日志便于现场核对。
+ACTIVE_AT_START = _read_active()
+logger.info("启动读取激活态: kb=%s  (文件 %s)",
+            ACTIVE_AT_START.get("kb") or ("%s(未持久化, 回落默认)" % KB_NAME), ACTIVE_FILE)
+
 
 def _warm_embedding():
     """后台预热 embedding 模型(nomic-embed-text), 避免首次查询冷加载卡住。
@@ -202,6 +301,7 @@ def ontology_structure(kb: str = Query("", description="知识库名")):
     from ontology_qa_v3 import parse_nt
     if not kb:
         kb = "food"
+    _kb_guard(kb)  # 多租户: 越权 KB → 403(拒绝)
     kbc = KBS.get(kb) or {}
     nt_path = kbc.get("nt", f"output/{kb}.nt")
     nt_file = os.path.join(ROOT, nt_path)
@@ -417,6 +517,7 @@ def _get_kb_ctx(kb=None):
     自动失效重载(修"问答数字漂移": 词典变更后缓存仍用旧词典)。kb 无效返回 None。
     """
     kb = (kb or KB_NAME or "food").strip()
+    _kb_guard(kb)  # 多租户: 越权 KB → 403(拒绝, 不返回空)
     kbc = KBS.get(kb)
     if not kbc:
         return None
@@ -447,8 +548,25 @@ def _get_kb_ctx(kb=None):
 
 # ── 角色化鉴权(M1.2): FOOD_ADMIN_KEY 管理 / FOOD_READ_KEY 只读 ──
 # 安全加固(2026-08-12, 架构师审计 P0-1): fail-closed 默认拒绝, 不再无 key 开放。
-ADMIN_KEY = os.environ.get("FOOD_ADMIN_KEY", "").strip()
-READ_KEY = os.environ.get("FOOD_READ_KEY", "").strip()
+# C4(2026-09-25): key 来源扩展为「环境变量优先，其次可落配置文件」——
+#   环境变量 FOOD_ADMIN_KEY/FOOD_READ_KEY 仍优先（逐字节兼容老部署）；
+#   均缺失时读 codes/config/api_keys.json（{"adminKey":"...","readKey":"..."}），
+#   避免"起服务漏带环境变量 → 整站 401"这一类现场故障。
+API_KEYS_FILE = os.path.join(ROOT, "config", "api_keys.json")
+
+
+def _load_key_file():
+    try:
+        with open(API_KEYS_FILE, encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+_KEYFILE = _load_key_file()
+ADMIN_KEY = os.environ.get("FOOD_ADMIN_KEY", "").strip() or str(_KEYFILE.get("adminKey") or "").strip()
+READ_KEY = os.environ.get("FOOD_READ_KEY", "").strip() or str(_KEYFILE.get("readKey") or "").strip()
 
 # ── 商用级加固(2026-09-24): 令牌过期 + 可签发短期令牌 + 结构化鉴权审计 ──
 # 纪律: 只加不松 —— 原有静态 key 行为逐字节不变; 未配置任何 key 时仍 fail-closed。
@@ -459,10 +577,104 @@ READ_KEY = os.environ.get("FOOD_READ_KEY", "").strip()
 #   3) 审计: 鉴权事件记录 主体(subject)/时间(ts)/动作(action)/结果(result)。
 TOKEN_SECRET = os.environ.get("FOOD_TOKEN_SECRET", "").strip()
 TOKEN_PREFIX = "fotk1"
+TOKEN_PREFIX2 = "fotk2"   # 多租户: 带 tenant 声明的令牌前缀(fotk2.<role>.<tenant>.<exp>.<sig>)
+# 第3轮(2026-09-24): 可吊销令牌(带 jti, 新增标识, 附加不破坏老令牌)
+#   fotk3.<role>.<tenant|->.<exp>.<jti>.<sig>   可达销访问令牌
+#   fotkr1.<role>.<tenant|->.<exp>.<jti>.<sig>  刷新令牌(用后即废, 轮替)
+# 老令牌(fotk1/fotk2)不含 jti, 无法按 jti 吊销(见报告「不确定项」), 但默认仍逐字节可用。
+TOKEN_PREFIX3 = "fotk3"
+TOKEN_PREFIX_R = "fotkr1"
 _KEY_EXPIRES = {
     "admin": os.environ.get("FOOD_ADMIN_KEY_EXPIRES", "").strip(),
     "read": os.environ.get("FOOD_READ_KEY_EXPIRES", "").strip(),
 }
+
+
+def _auth_configured():
+    """是否配置了任何鉴权凭据（决定"未配置"时给清晰自检提示，而非含糊 401）。"""
+    return bool(ADMIN_KEY or READ_KEY or TOKEN_SECRET or _KEYFILE)
+
+
+# C4 自检：一处都没有配置任何 key 时，启动即打醒目提示；受保护端点改回 503 + 明确指引，
+# 仍 fail-closed（不开放访问），但不再让运维对着满屏 401 猜原因。
+if not (ADMIN_KEY or READ_KEY):
+    logger.warning(
+        "鉴权自检: 未配置任何 API Key —— 环境变量 FOOD_ADMIN_KEY/FOOD_READ_KEY 与 %s 均缺失；"
+        "受保护端点将返回 503 明确提示(fail-closed，不开放访问)。"
+        "配法: 设置环境变量，或写入 %s 形如 {\"adminKey\":\"...\",\"readKey\":\"...\"} 后重启。",
+        API_KEYS_FILE, API_KEYS_FILE)
+
+# ── 第2轮(2026-09-24): 严格鉴权灰度开关 + 上传体积上限 ──
+# FOOD_STRICT_AUTH: 1/true/yes/on → 开。默认关 = 现状不变(兼容前端面板)。
+#   开: 本体结构与图端点 + 其它匿名可读的业务端点也必须带凭据(无凭据 401 / 角色不足 403)。
+#   /health 保持匿名(运维探活/负载均衡健康检查必须无凭据)；/metrics 严格模式下要凭据。
+def _env_flag(name):
+    """环境变量真值解析: 1/true/yes/on(大小写不敏感) 视为真; 其余/未设 → 假。"""
+    return (os.environ.get(name, "") or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+STRICT_AUTH = _env_flag("FOOD_STRICT_AUTH")
+
+# 严格模式下需"任一带凭据主体(read/admin)"的路径(原本匿名可读的业务数据端点)
+_STRICT_READ_PATHS = {
+    "/api/ontology/structure",
+    "/api/ontology/graph",
+    "/api/ontology/graph-svg",
+    "/api/app-config",
+    "/api/flows",
+    "/api/flows/presets",
+    "/metrics",          # 运营/监控指标: 严格模式下要凭据(read 即可)
+}
+# 严格模式下需 admin 角色的路径(/admin 是管理后台 HTML 外壳)
+_STRICT_ADMIN_PATHS = {"/admin"}
+# 上传体积上限(可配, MB): 默认 50 —— 与既有文档接入端点的审计上限(P1-5, 50MB)一致,
+# 使文档接收入口不因本改动回归, 同时给原本无界的 CSV 上传补上同一上限。
+MAX_UPLOAD_MB = float(os.environ.get("FOOD_MAX_UPLOAD_MB", "50") or 50)
+MAX_UPLOAD_BYTES = int(MAX_UPLOAD_MB * 1024 * 1024)
+_UPLOAD_CHUNK = 1024 * 1024   # 分块读入粒度 1MB
+
+
+class UploadTooLarge(Exception):
+    """上传体超过体积上限(分块读入中途触发, 此时尚未落盘)。"""
+
+    def __init__(self, limit_bytes):
+        self.limit_bytes = int(limit_bytes)
+        super().__init__("上传体超过上限 %d 字节" % self.limit_bytes)
+
+
+async def _read_upload_capped(file, limit_bytes=None, chunk_size=_UPLOAD_CHUNK):
+    """分块读取上传体并累计, 超过 limit_bytes 立即中止(抛 UploadTooLarge)。
+
+    禁止 `await file.read()` 一次性全读: 逐块读取, 一旦累计超限马上停,
+    内存占用被限制在 limit_bytes + chunk_size 量级, 且超限路径不写任何磁盘文件。
+    """
+    limit = MAX_UPLOAD_BYTES if limit_bytes is None else int(limit_bytes)
+    buf = bytearray()
+    while True:
+        chunk = await file.read(chunk_size)
+        if not chunk:
+            break
+        buf.extend(chunk)
+        if len(buf) > limit:
+            raise UploadTooLarge(limit)
+    return bytes(buf)
+
+
+def _strict_auth_check(path, principal):
+    """严格鉴权(FOOD_STRICT_AUTH=1)下的路径级放行判断。返回 (status, reason)。
+
+    status=0 → 放行; 401 → 缺/无效凭据; 403 → 有凭据但角色不足。
+    """
+    p = (path or "").rstrip("/") or "/"
+    need_admin = p in _STRICT_ADMIN_PATHS
+    need_read = p in _STRICT_READ_PATHS
+    if not (need_admin or need_read):
+        return 0, ""
+    if not principal or principal.get("denied_reason"):
+        return 401, (principal.get("denied_reason") if principal else "") or "无效或缺失 API Key"
+    if need_admin and principal.get("role") != "admin":
+        return 403, "需要管理权限 (admin API Key)"
+    return 0, ""
 
 
 def _parse_expires(v):
@@ -506,38 +718,98 @@ def _sign_token(role, exp):
     return hmac.new(TOKEN_SECRET.encode("utf-8"), msg, hashlib.sha256).hexdigest()[:32]
 
 
-def make_token(role, ttl_seconds=3600):
-    """签发带过期时间的令牌(需 TOKEN_SECRET)。返回 (token, exp_epoch)。"""
+def _sign_token2(role, tenant_id, exp):
+    """fotk2.<role>.<tenant>.<exp>.<sig> 的签名(带租户声明)。"""
+    import hmac
+    msg = f"{TOKEN_PREFIX2}.{role}.{tenant_id}.{int(exp)}".encode("utf-8")
+    return hmac.new(TOKEN_SECRET.encode("utf-8"), msg, hashlib.sha256).hexdigest()[:32]
+
+
+def _sign_token3(prefix, role, tenant_id, exp, jti):
+    """fotk3/fotkr1 的签名: HMAC-SHA256(secret, "<prefix>.<role>.<tenant|->.<exp>.<jti>")[:32]。
+
+    tenant 为空时用占位符 "-"，保证令牌段数固定（6 段）不歧义。
+    """
+    import hmac
+    msg = f"{prefix}.{role}.{tenant_id or '-'}.{int(exp)}.{jti}".encode("utf-8")
+    return hmac.new(TOKEN_SECRET.encode("utf-8"), msg, hashlib.sha256).hexdigest()[:32]
+
+
+def make_token(role, ttl_seconds=3600, tenant_id=None, jti=None, kind="access"):
+    """签发带过期时间的令牌(需 TOKEN_SECRET)。返回 (token, exp_epoch)。
+
+    多租户: 传 tenant_id → 签发 fotk2.<role>.<tenant>.<exp>.<sig>(凭据携带租户声明);
+    不传 → 保持 fotk1.<role>.<exp>.<sig>(老格式逐字节不变, 落到默认租户)。
+
+    第3轮(附加, 不改变上面两种老格式): 传 jti → 签发带 jti 的可吊销令牌
+      · kind="access"  → fotk3.<role>.<tenant|->.<exp>.<jti>.<sig>
+      · kind="refresh" → fotkr1.<role>.<tenant|->.<exp>.<jti>.<sig>
+    老客户端不传 jti 时输出与旧版逐字节一致(兼容底线)。
+    """
     if not TOKEN_SECRET:
         raise ValueError("未配置 FOOD_TOKEN_SECRET, 无法签发令牌")
     role = (role or "read").strip().lower()
     if role not in ("read", "admin"):
         raise ValueError("role 仅支持 read/admin")
     exp = int(time.time()) + int(ttl_seconds)
+    if jti:
+        prefix = TOKEN_PREFIX_R if str(kind or "access") == "refresh" else TOKEN_PREFIX3
+        tid = str(tenant_id).strip() if tenant_id else ""
+        sig = _sign_token3(prefix, role, tid, exp, jti)
+        return f"{prefix}.{role}.{tid or '-'}.{exp}.{jti}.{sig}", exp
+    if tenant_id:
+        tid = str(tenant_id).strip()
+        return f"{TOKEN_PREFIX2}.{role}.{tid}.{exp}.{_sign_token2(role, tid, exp)}", exp
     return f"{TOKEN_PREFIX}.{role}.{exp}.{_sign_token(role, exp)}", exp
 
 
 def _verify_token(tok):
-    """校验令牌签名与有效期。返回 {"role":..., "exp":...} 或 None。"""
+    """校验令牌签名与有效期。返回 {"role","exp","tenant","jti","kind","expired"} 或 None。
+
+    兼容四种格式:
+      fotk1.<role>.<exp>.<sig>                        (老, tenant=None, 无 jti)
+      fotk2.<role>.<tenant>.<exp>.<sig>               (多租户)
+      fotk3.<role>.<tenant|->.<exp>.<jti>.<sig>       (第3轮, 可达销访问令牌)
+      fotkr1.<role>.<tenant|->.<exp>.<jti>.<sig>      (第3轮, 刷新令牌)
+    """
     if not TOKEN_SECRET or not isinstance(tok, str):
         return None
+    import hmac
     parts = tok.split(".")
-    if len(parts) != 4 or parts[0] != TOKEN_PREFIX:
+    tenant_id = None
+    jti = None
+    kind = "access"
+    if len(parts) == 6 and parts[0] in (TOKEN_PREFIX3, TOKEN_PREFIX_R):
+        prefix, role, tenant_s, exp_s, jti, sig = parts
+        tenant_id = None if tenant_s in ("", "-") else tenant_s
+        kind = "refresh" if prefix == TOKEN_PREFIX_R else "access"
+    elif len(parts) == 5 and parts[0] == TOKEN_PREFIX2:
+        _, role, tenant_id, exp_s, sig = parts
+        if not tenant_id:
+            return None
+    elif len(parts) == 4 and parts[0] == TOKEN_PREFIX:
+        _, role, exp_s, sig = parts
+    else:
         return None
-    _, role, exp_s, sig = parts
     if role not in ("read", "admin"):
         return None
     try:
         exp = int(exp_s)
     except (TypeError, ValueError):
         return None
-    expect = _sign_token(role, exp)
-    import hmac
+    if jti is not None:
+        expect = _sign_token3(parts[0], role, tenant_id, exp, jti)
+    elif tenant_id:
+        expect = _sign_token2(role, tenant_id, exp)
+    else:
+        expect = _sign_token(role, exp)
     if not hmac.compare_digest(sig, expect):  # 常量时间, 签名错/被篡改
         return None
     if time.time() > exp:                      # 已过期
-        return {"role": role, "exp": exp, "expired": True}
-    return {"role": role, "exp": exp, "expired": False}
+        return {"role": role, "tenant": tenant_id, "exp": exp, "jti": jti,
+                "kind": kind, "expired": True}
+    return {"role": role, "tenant": tenant_id, "exp": exp, "jti": jti,
+            "kind": kind, "expired": False}
 
 
 def _extract_key(x_api_key, authorization):
@@ -554,55 +826,217 @@ def _extract_key(x_api_key, authorization):
 def _principal(key):
     """请求凭据 → 主体身份 dict, 或 None(拒绝)。
 
-    返回 {"subject","role","exp","auth"}; auth ∈ static|token。逐请求计算, 无全局态。
+    返回 {"subject","role","exp","auth","tenant"}; auth ∈ static|token|tenant-key。
+    逐请求计算, 无全局态。
+
+    多租户: "tenant" 为该凭据携带的租户声明(令牌 fotk2 的 tenant 字段, 或租户注册表
+    keys→tenant 映射), 无声明则 None(由 tenant.resolve 落到 X-Tenant-Id / 默认租户)。
     """
     if not key:
         return None
     if _valid(key, ADMIN_KEY):
         if _key_expired("admin"):
             return {"denied_reason": "admin key 已过期"}
-        return {"subject": "static-admin", "role": "admin", "exp": None, "auth": "static"}
+        return {"subject": "static-admin", "role": "admin", "exp": None, "auth": "static",
+                "tenant": None}
     if _valid(key, READ_KEY):
         if _key_expired("read"):
             return {"denied_reason": "read key 已过期"}
-        return {"subject": "static-read", "role": "read", "exp": None, "auth": "static"}
+        return {"subject": "static-read", "role": "read", "exp": None, "auth": "static",
+                "tenant": None}
+    # 租户自带凭据(配置驱动): 注册表 tenants[*].keys → 该租户 + 角色。未配置则不影响老行为。
+    try:
+        tk = tenant.tenant_for_key(key)
+    except Exception:
+        tk = None
+    if tk:
+        return {"subject": f"tenant-{tk['tenant_id']}", "role": tk.get("role") or "read",
+                "exp": None, "auth": "tenant-key", "tenant": tk["tenant_id"]}
     tok = _verify_token(key)
     if tok:
         if tok.get("expired"):
             return {"denied_reason": "令牌已过期"}
+        if tok.get("kind") == "refresh":
+            # 刷新令牌不是访问凭据（只能用于 /api/auth/refresh）→ 当访问凭据用即拒。
+            return {"denied_reason": "刷新令牌不可用作访问凭据"}
+        if tok.get("jti"):
+            g = _token_guard()
+            if g and g.is_revoked(tok["jti"]):
+                return {"denied_reason": "令牌已被吊销"}
         return {"subject": f"token-{tok['role']}", "role": tok["role"],
-                "exp": tok["exp"], "auth": "token"}
+                "exp": tok["exp"], "auth": "token", "tenant": tok.get("tenant"),
+                "jti": tok.get("jti")}
+    # ── 第4轮(2026-09-24): SSO / OIDC 可选适配器 ──
+    # 纪律: 只加不松 ——
+    #   · 本地静态 key / 租户 key / 本地令牌(上面) 永远优先, SSO **只作附加入口**,
+    #     绝不成为唯一入口(离线私有化部署仍可只用本地凭据)。
+    #   · 默认未配置 → _sso() 为空 registry, authenticate 恒 None → 行为逐字段不变。
+    #   · 已识别但被拒(签名篡改/过期/iss/aud 不匹配/缺声明) → 返回 denied_reason → 401。
+    try:
+        _sr = _sso()
+        if _sr is not None:
+            _sp = _sr.authenticate(key)
+            if _sp is not None:
+                return _sp
+    except Exception as e:
+        logger.warning("SSO 校验异常(拒绝该凭据, 不影响本地凭据): %s", e)
     return None
 
 
-def _deny(reason, action="authenticate"):
-    """鉴权失败: 审计(主体/时间/动作/结果) + 401。"""
-    _audit_event("login", subject="anonymous", action=action, result="deny",
+def _client_ip(request):
+    try:
+        return (request.client.host if request and request.client else "") or ""
+    except Exception:
+        return ""
+
+
+def _ratelimit_keys(request, subject=""):
+    """限速计数键: 按主体(subj:) 与 来源 IP(ip:) 两路。"""
+    ip = _client_ip(request)
+    return ("subj:%s" % (subject or "anon"), "ip:%s" % (ip or "unknown"))
+
+
+def _auth_limited(reason, action="authenticate", request=None, key="", subject="", count=True):
+    """限速/防爆破判定。**仅对「无法识别的凭据」计数**（count=True）：
+
+    · 未提交凭据 / 空凭据 → 不计数（不是爆破）；
+    · 已识别但被拒（令牌已吊销/已过期、刷新令牌当访问凭据、角色不足）→ count=False，不计数
+      （这是"客户端状态过时/误用"，不是猜口令；否则会把正常客户端误封）；
+    · 无法识别的凭据（签名错/未知 key）→ count=True，计一次失败。
+
+    返回 None(未触发) 或 (status, retry_after_seconds, detail)。status 恒为 429。
+    命中已封禁 / 滑窗内失败累计 ≥ 阈值 → 短时封禁；封禁与解除均写审计(JSONL+哈希链)。
+    """
+    g = _token_guard()
+    if g is None or request is None or not key or not count:
+        return None
+    s_key, ip_key = _ratelimit_keys(request, subject)
+    for bk in (s_key, ip_key):
+        st = g.is_banned(bk)
+        if st.get("just_expired"):
+            _audit_event("login", subject=subject or "anonymous", action="unban",
+                         result="grant", role="guard", detail="封禁到期自动解除 %s" % bk)
+            _audit_access_chain(subject or "anonymous", "unban", "grant", detail=bk)
+        if st.get("banned"):
+            left = max(1, int((st.get("until") or time.time()) - time.time()))
+            _audit_event("login", subject=subject or "anonymous", action="throttle",
+                         result="deny", role="guard", reason=reason, ban_key=bk,
+                         until=st.get("until"))
+            _audit_access_chain(subject or "anonymous", "throttle", "deny",
+                                detail="已封禁 %s 剩余%ds" % (bk, left))
+            return (429, left, "尝试过于频繁, 已临时封禁")
+    thr = g.cfg["fail_threshold"]
+    n1 = g.record_failure(s_key)
+    n2 = g.record_failure(ip_key)
+    if n1 >= thr or n2 >= thr:
+        until = g.ban(s_key, reason="auth_bruteforce") if n1 >= thr else None
+        until2 = g.ban(ip_key, reason="auth_bruteforce") if n2 >= thr else None
+        _audit_event("login", subject=subject or "anonymous", action="ban", result="deny",
+                     role="guard", reason=reason, fail_subject=n1, fail_ip=n2,
+                     threshold=thr, window=g.cfg["fail_window"], until=(until or until2))
+        _audit_access_chain(subject or "anonymous", "ban", "deny",
+                            detail="失败累计 subj=%d ip=%d ≥ 阈值%d, 封禁%ds"
+                                   % (n1, n2, thr, g.cfg["ban_seconds"]))
+        return (429, g.cfg["ban_seconds"], "失败次数超阈值, 已临时封禁")
+    return None
+
+
+def _auth_ok(request, subject=""):
+    """鉴权成功 → 清该主体/来源的失败计数（防零星失败累积误伤正常用户）。"""
+    g = _token_guard()
+    if g is None or request is None:
+        return
+    s_key, ip_key = _ratelimit_keys(request, subject)
+    g.clear_failures(s_key)
+    g.clear_failures(ip_key)
+
+
+def _deny(reason, action="authenticate", request=None, key="", subject="", count=True):
+    """鉴权失败: 限速判定(可能 429) + 审计(主体/时间/动作/结果) + 401。
+
+    count=True 才把本次记为"失败计数"(仅用于无法识别的凭据, 防爆破)；已识别但被拒
+    (令牌吊销/过期/角色不足) 走 count=False, 只 401 不计数。
+    """
+    lim = _auth_limited(reason, action=action, request=request, key=key, subject=subject, count=count)
+    if lim:
+        raise HTTPException(lim[0], lim[2], headers={"Retry-After": str(lim[1])})
+    _audit_event("login", subject=subject or "anonymous", action=action, result="deny",
                  role="deny", granted=False, reason=reason)
-    _audit_access_chain("anonymous", action, "deny", detail=reason)
+    _audit_access_chain(subject or "anonymous", action, "deny", detail=reason)
     raise HTTPException(401, reason)
 
 
-def require_key(x_api_key: str = Header(default=""),
-                authorization: str = Header(default="")):
-    """只读端点鉴权(fail-closed): read/admin key 或有效令牌; 未配置或未匹配一律 401。"""
+def _establish_tenant(principal, x_tenant_id=""):
+    """解析并写入请求级租户上下文(多租户)。
+
+    优先级: 凭据携带的租户声明 > X-Tenant-Id 头 > 默认租户(默认 id='default')。
+    声明的租户不存在 / 与凭据声明冲突 → 403 拒绝(fail-closed, 不静默落默认租户)。
+    """
+    try:
+        ctx = tenant.resolve(principal=principal, header=x_tenant_id)
+    except tenant.TenantError as e:
+        raise HTTPException(403, str(e))
+    tenant.set_current(ctx)
+    return ctx
+
+
+def _kb_guard(kb):
+    """KB 级越权守卫: 已建立租户上下文且该 KB 不可见 → 403 拒绝(不返回空/不静默放过)。
+
+    无租户上下文(库内直调等) → 保持老行为, 不拦(向后兼容)。
+    """
+    kb = (kb or "").strip()
+    if not kb:
+        return
+    ctx = tenant.current()
+    if ctx is None:
+        return
+    if not tenant.kb_visible(ctx.tenant_id, kb):
+        raise HTTPException(403, "越权: 租户 %r 不可见 KB %r" % (ctx.tenant_id, kb))
+
+
+def require_key(request: Request,
+                x_api_key: str = Header(default=""),
+                authorization: str = Header(default=""),
+                x_tenant_id: str = Header(default="")):
+    """只读端点鉴权(fail-closed): read/admin key 或有效令牌; 未配置或未匹配一律拒绝。"""
+    if not _auth_configured():
+        # C4: 一处 key 都没配 → 不是"你凭据错"，而是"服务没配"。给明确自检指引(仍 fail-closed)。
+        raise HTTPException(503, (
+            "服务未配置任何鉴权凭据：请设置环境变量 FOOD_ADMIN_KEY / FOOD_READ_KEY，"
+            "或写入 %s 形如 {\"adminKey\":\"...\",\"readKey\":\"...\"} 后重启。" % API_KEYS_FILE))
     key = _extract_key(x_api_key, authorization)
     p = _principal(key)
     if not p or p.get("denied_reason"):
-        _deny(p.get("denied_reason") if p else "无效或缺失 API Key")
+        # 仅"无法识别的凭据"(p is None) 计入防爆破失败计数; 已识别但被拒(吊销/过期等)不计数
+        _deny(p.get("denied_reason") if p else "无效或缺失 API Key", request=request, key=key,
+              count=(p is None))
+    _establish_tenant(p, x_tenant_id)
+    _auth_ok(request, p["subject"])
     _audit_event("login", subject=p["subject"], action="authenticate", result="grant",
                  role=p["role"], granted=True, scope="read", auth=p["auth"])
 
 
-def require_admin(x_api_key: str = Header(default=""),
-                  authorization: str = Header(default="")):
+def require_admin(request: Request,
+                  x_api_key: str = Header(default=""),
+                  authorization: str = Header(default=""),
+                  x_tenant_id: str = Header(default="")):
     """管理端点鉴权(fail-closed): 需 admin key 或 admin 令牌。"""
+    if not _auth_configured():
+        # C4: 同上 —— 未配置凭据时给清晰自检提示（仍 fail-closed），不冒充"权限不足"。
+        raise HTTPException(503, (
+            "服务未配置任何鉴权凭据：请设置环境变量 FOOD_ADMIN_KEY / FOOD_READ_KEY，"
+            "或写入 %s 形如 {\"adminKey\":\"...\",\"readKey\":\"...\"} 后重启。" % API_KEYS_FILE))
     key = _extract_key(x_api_key, authorization)
     p = _principal(key)
     if not p or p.get("denied_reason"):
-        _deny(p.get("denied_reason") if p else "需要管理权限 (admin API Key)")
+        _deny(p.get("denied_reason") if p else "需要管理权限 (admin API Key)", request=request,
+              key=key, count=(p is None))
     if p["role"] != "admin":
-        _deny("需要管理权限 (admin API Key)")
+        _deny("需要管理权限 (admin API Key)", request=request, key=key, subject=p["subject"],
+              count=False)
+    _establish_tenant(p, x_tenant_id)
+    _auth_ok(request, p["subject"])
     _audit_event("login", subject=p["subject"], action="authenticate", result="grant",
                  role="admin", granted=True, scope="admin", auth=p["auth"])
 
@@ -653,23 +1087,29 @@ def _audit(record):
 
 
 def _audit_event(kind, **fields):
-    """结构化审计事件(kind=access/login/qa/delivery...)。统一带时间戳, 便于检索/分类。"""
-    rec = {"ts": datetime.now().isoformat(), "kind": kind}
+    """结构化审计事件(kind=access/login/qa/delivery...)。
+
+    统一带时间戳 + **租户**(多租户: JSONL 与账本口径一致, 每条审计记录都能按租户检索)。
+    租户取值: 显式字段 > 请求级租户上下文 > 默认租户。
+    """
+    t = fields.pop("tenant", None) or tenant.current_id() or tenant.DEFAULT_TENANT
+    rec = {"ts": datetime.now().isoformat(), "kind": kind, "tenant": str(t)}
     rec.update(fields)
     _audit(rec)
 
 
-def _audit_access_chain(subject, action, result, role="", detail=""):
+def _audit_access_chain(subject, action, result, role="", detail="", tenant_id=None):
     """把鉴权事件额外写入哈希链审计账本(防事后删改)。失败静默, 不阻断请求。
 
     只记安全相关事件(deny / issue_token / whoami), 不给每个成功请求都写链(避免热路径 IO)。
+    多租户: 账本每条记录都带 tenant 字段。
     """
     try:
         ac = _audit_chain()
         if not ac:
             return
         ac.record_access(subject=subject, action=action, result=result,
-                         role=role, detail=detail)
+                         role=role, detail=detail, tenant=tenant_id)
     except Exception:
         pass
 
@@ -678,12 +1118,41 @@ def _audit_access_chain(subject, action, result, role="", detail=""):
 async def audit_and_count(request: Request, call_next):
     REQ_COUNT[request.url.path] += 1
     start = time.time()
-    response = await call_next(request)
+    # 多租户: 逐请求解析租户上下文(凭据声明 > X-Tenant-Id > 默认租户), 随请求生命周期, 用完即还原。
+    ctx, tok = None, None
+    try:
+        _p = _principal(_extract_key(request.headers.get("x-api-key", ""),
+                                     request.headers.get("authorization", "")))
+        _princ = _p if (_p and not _p.get("denied_reason")) else None
+        # 严格鉴权灰度开关(第2轮): 默认关 → 完全放行(现状不变); 开 → 受保护路径要凭据。
+        if STRICT_AUTH:
+            _st, _rs = _strict_auth_check(request.url.path, _p)
+            if _st:
+                _audit_event("login", subject="anonymous", action="authenticate", result="deny",
+                             role="deny", granted=False, reason=_rs,
+                             scope=("admin" if _st == 403 else "read"))
+                _audit_access_chain("anonymous", "authenticate", "deny", detail=_rs)
+                return JSONResponse({"ok": False, "error": _rs}, status_code=_st)
+        ctx = tenant.resolve(principal=_princ, header=request.headers.get("x-tenant-id", ""))
+        tok = tenant.set_current(ctx)
+    except tenant.TenantError as e:
+        # 声明了未知/冲突的租户 → fail-closed 拒绝, 不静默落到默认租户
+        _audit_event("access", method=request.method, path=request.url.path, status=403,
+                     client=request.client.host if request.client else "",
+                     ms=int((time.time() - start) * 1000), reason=str(e))
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=403)
+    try:
+        response = await call_next(request)
+    finally:
+        if tok is not None:
+            tenant.reset(tok)
     # access 审计: 记录请求角色(admin/read/anon), 供登录/访问审计
+    # (tenant 显式带上: 上面已还原上下文, 不显式传会丢成 default)
     _audit_event("access", method=request.method, path=request.url.path,
                  status=response.status_code,
                  client=request.client.host if request.client else "",
-                 ms=int((time.time() - start) * 1000))
+                 ms=int((time.time() - start) * 1000),
+                 tenant=(ctx.tenant_id if ctx else None))
     return response
 
 
@@ -691,13 +1160,59 @@ async def audit_and_count(request: Request, call_next):
 class TokenReq(BaseModel):
     role: str = "read"
     ttl_seconds: int = 3600
+    tenant: str = ""   # 多租户: 可选租户声明(签进 fotk2 令牌); 空 → fotk1 老格式+默认租户
+    # 第3轮(附加, 默认关 → 输出与旧版逐字节一致):
+    revocable: bool = False        # true → 签发带 jti 的可吊销令牌(fotk3)
+    with_refresh: bool = False     # true → 同时签发刷新令牌(fotkr1), 并令访问令牌可吊销
+    refresh_ttl_seconds: int = 30 * 86400   # 刷新令牌有效期(默认 30 天, ≤90 天)
+
+
+class RefreshReq(BaseModel):
+    refresh_token: str = ""
+    ttl_seconds: int = 3600        # 轮替后新访问令牌的有效期
+
+
+class RevokeReq(BaseModel):
+    jti: str = ""                  # 按 jti 吊销单个令牌
+    subject: str = ""              # 按主体批量吊销
+    reason: str = ""
+
+
+class BanReq(BaseModel):
+    subject: str = ""              # 按主体封禁(计数键 subj:<subject>)
+    ip: str = ""                   # 按来源 IP 封禁(计数键 ip:<ip>)
+    seconds: int = 0               # 0 → 用默认封禁时长
+    reason: str = ""
+
+
+def _issue_revocable(role, ttl, tid, with_refresh, refresh_ttl):
+    """签发可吊销访问令牌(带 jti), 可选同时签发刷新令牌(轮替用)。返回 dict(附加字段)。"""
+    g = _token_guard()
+    out = {}
+    jti = _jti()
+    tok, exp = make_token(role, ttl, tenant_id=tid or None, jti=jti, kind="access")
+    if g:
+        g.register_token(jti, subject=f"token-{role}", role=role, tenant=tid or None,
+                         kind="access", exp=exp)
+    out.update({"token": tok, "exp": exp, "jti": jti, "revocable": True})
+    if with_refresh:
+        rjti = _jti()
+        rtok, rexp = make_token(role, refresh_ttl, tenant_id=tid or None, jti=rjti, kind="refresh")
+        if g:
+            g.register_token(rjti, subject=f"token-{role}", role=role, tenant=tid or None,
+                             kind="refresh", exp=rexp)
+        out.update({"refresh_token": rtok, "refresh_exp": rexp, "refresh_jti": rjti})
+    return out
 
 
 @app.post("/api/auth/token", dependencies=[Depends(require_admin)])
 def auth_token(req: TokenReq):
     """签发带过期时间的短期令牌(需 admin 凭据 + 已配 FOOD_TOKEN_SECRET)。
 
-    令牌格式 fotk1.<role>.<exp>.<sig>; 用法: X-API-Key: <token> 或 Authorization: Bearer <token>。
+    令牌格式 fotk1.<role>.<exp>.<sig>; 用法: X-API-Key: *** 或 Authorization: Bearer ***
+    多租户: 传 tenant 时签发 fotk2.<role>.<tenant>.<exp>.<sig>(凭据携带租户声明);
+    该 tenant 必须在租户注册表里存在, 否则 400。
+    第3轮: 传 revocable/with_refresh → 签发带 jti 的 fotk3(可吊销) + fotkr1(刷新令牌)。
     """
     if not TOKEN_SECRET:
         raise HTTPException(503, "未配置 FOOD_TOKEN_SECRET, 无法签发令牌")
@@ -707,13 +1222,171 @@ def auth_token(req: TokenReq):
     ttl = int(req.ttl_seconds)
     if ttl <= 0 or ttl > 90 * 86400:  # 最长 90 天, 防长期令牌
         raise HTTPException(400, "ttl_seconds 需在 1..7776000(90 天)之间")
-    tok, exp = make_token(role, ttl)
+    rttl = int(req.refresh_ttl_seconds or 30 * 86400)
+    if rttl <= 0 or rttl > 90 * 86400:
+        raise HTTPException(400, "refresh_ttl_seconds 需在 1..7776000(90 天)之间")
+    tid = (req.tenant or "").strip()
+    if tid and tenant.get_tenant(tid) is None:
+        raise HTTPException(400, "未知租户: %r（不在租户注册表中）" % tid)
+    body = {"ok": True, "role": role, "tenant": tid or None}
+    if req.revocable or req.with_refresh:
+        extra = _issue_revocable(role, ttl, tid, bool(req.with_refresh), rttl)
+        body.update(extra)
+        body["expires_at"] = datetime.fromtimestamp(extra["exp"]).isoformat()
+        _audit_event("login", subject=f"token-{role}", action="issue_token", result="grant",
+                     role=role, ttl_seconds=ttl, exp=extra["exp"], tenant=tid or None,
+                     revocable=True, jti=extra["jti"], with_refresh=bool(req.with_refresh))
+        _audit_access_chain(f"token-{role}", "issue_token", "grant", role=role,
+                            detail=f"ttl={ttl}s exp={extra['exp']} jti={extra['jti']} "
+                                   f"refresh={bool(req.with_refresh)} tenant={tid or '-'}",
+                            tenant_id=tid or None)
+        return body
+    tok, exp = make_token(role, ttl, tenant_id=tid or None)
     _audit_event("login", subject=f"token-{role}", action="issue_token", result="grant",
-                 role=role, ttl_seconds=ttl, exp=exp)
+                 role=role, ttl_seconds=ttl, exp=exp, tenant=tid or None)
     _audit_access_chain(f"token-{role}", "issue_token", "grant", role=role,
-                        detail=f"ttl={ttl}s exp={exp}")
-    return {"ok": True, "token": tok, "role": role, "exp": exp,
-            "expires_at": datetime.fromtimestamp(exp).isoformat()}
+                        detail=f"ttl={ttl}s exp={exp} tenant={tid or '-'}",
+                        tenant_id=tid or None)
+    body.update({"token": tok, "exp": exp,
+                 "expires_at": datetime.fromtimestamp(exp).isoformat()})
+    return body
+
+
+@app.post("/api/auth/refresh")
+def auth_refresh(req: RefreshReq, request: Request):
+    """用刷新令牌换取新令牌（轮替：旧刷新令牌用后即废，复用即拒并审计）。
+
+    轮替策略：每次刷新返回**新的访问令牌 + 新的刷新令牌**；被换掉的旧刷新令牌立即作废
+    （consumed=1）。若检测到已作废的刷新令牌再次出现 → 记审计 refresh_reuse 并 401。
+    """
+    rt = (req.refresh_token or "").strip()
+    tok = _verify_token(rt)
+    if not tok:
+        _deny("无效或非刷新令牌", action="refresh", request=request, key=rt, count=True)
+    if tok.get("expired") or tok.get("kind") != "refresh":
+        _deny("过期或非刷新令牌", action="refresh", request=request, key=rt, count=False)
+    g = _token_guard()
+    if g is None:
+        raise HTTPException(503, "刷新/吊销状态不可用")
+    jti = tok.get("jti")
+    if g.is_revoked(jti):
+        _deny("刷新令牌已被吊销", action="refresh", request=request, key=rt, count=False)
+    if not g.consume_refresh(jti):
+        # 复用检测: 该刷新令牌此前已被消费（或未登记）→ 留审计 + 拒绝; 复用属可疑, 计入失败
+        _deny("刷新令牌复用检测: 该刷新令牌已使用过（轮替后旧令牌即废）",
+              action="refresh_reuse", request=request, key=rt,
+              subject=("token-%s" % tok.get("role")), count=True)
+    role, tid = tok["role"], tok.get("tenant")
+    ttl = int(req.ttl_seconds or 3600)
+    if ttl <= 0 or ttl > 90 * 86400:
+        raise HTTPException(400, "ttl_seconds 需在 1..7776000(90 天)之间")
+    extra = _issue_revocable(role, ttl, tid, True, 30 * 86400)
+    _auth_ok(request, "token-%s" % role)
+    _audit_event("login", subject=f"token-{role}", action="refresh", result="grant",
+                 role=role, tenant=tid or None, jti=extra["jti"],
+                 rotated_from=jti, refresh_jti=extra.get("refresh_jti"))
+    _audit_access_chain(f"token-{role}", "refresh", "grant", role=role,
+                        detail="轮替 from=%s to=%s" % (jti, extra["jti"]),
+                        tenant_id=tid or None)
+    return {"ok": True, "role": role, "tenant": tid or None,
+            "token": extra["token"], "exp": extra["exp"], "jti": extra["jti"],
+            "refresh_token": extra.get("refresh_token"), "refresh_exp": extra.get("refresh_exp"),
+            "rotated_from": jti, "expires_at": datetime.fromtimestamp(extra["exp"]).isoformat()}
+
+
+@app.post("/api/auth/revoke", dependencies=[Depends(require_admin)])
+def auth_revoke(req: RevokeReq):
+    """吊销指定令牌(jti) 或 按主体批量吊销。吊销后该令牌立即失效(后续请求 401)。"""
+    g = _token_guard()
+    if g is None:
+        raise HTTPException(503, "吊销状态不可用")
+    if not req.jti and not req.subject:
+        raise HTTPException(400, "需提供 jti 或 subject 之一")
+    n_j = g.revoke_jti(req.jti, req.reason) if req.jti else 0
+    n_s = g.revoke_subject(req.subject, req.reason) if req.subject else 0
+    _audit_event("login", subject="operator", action="revoke", result="grant",
+                 jti=(req.jti or None), subject_target=(req.subject or None),
+                 revoked_by_jti=n_j, revoked_by_subject=n_s, reason=req.reason)
+    _audit_access_chain("operator", "revoke", "grant",
+                        detail="jti=%s subj=%s -> %d/%d" % (req.jti or "-", req.subject or "-", n_j, n_s))
+    return {"ok": True, "revoked_by_jti": n_j, "revoked_by_subject": n_s}
+
+
+@app.post("/api/auth/ban", dependencies=[Depends(require_admin)])
+def auth_ban(req: BanReq):
+    """手动短时封禁(按主体/来源)。自动防爆破封禁由失败累计触发(见 _auth_limited)。"""
+    g = _token_guard()
+    if g is None:
+        raise HTTPException(503, "限速状态不可用")
+    keys = []
+    if req.subject:
+        keys.append("subj:%s" % req.subject.strip())
+    if req.ip:
+        keys.append("ip:%s" % req.ip.strip())
+    if not keys:
+        raise HTTPException(400, "需提供 subject 或 ip 之一")
+    until = None
+    for k in keys:
+        until = g.ban(k, req.seconds or None, req.reason or "manual_ban")
+    _audit_event("login", subject="operator", action="ban", result="grant",
+                 ban_keys=keys, seconds=(req.seconds or None), reason=req.reason)
+    _audit_access_chain("operator", "ban", "grant", detail="keys=%s reason=%s" % (keys, req.reason))
+    return {"ok": True, "banned": keys, "until": until}
+
+
+@app.post("/api/auth/unban", dependencies=[Depends(require_admin)])
+def auth_unban(req: BanReq):
+    """手动解除封禁(按主体/来源)。封禁与解除均留审计。"""
+    g = _token_guard()
+    if g is None:
+        raise HTTPException(503, "限速状态不可用")
+    keys = []
+    if req.subject:
+        keys.append("subj:%s" % req.subject.strip())
+    if req.ip:
+        keys.append("ip:%s" % req.ip.strip())
+    if not keys:
+        raise HTTPException(400, "需提供 subject 或 ip 之一")
+    cleared = [k for k in keys if g.unban(k)]
+    for k in keys:            # 解除时一并清计数，避免"刚解锁又立刻按旧计数再封"
+        g.clear_failures(k)
+    _audit_event("login", subject="operator", action="unban", result="grant",
+                 unban_keys=keys, cleared=cleared, reason=req.reason)
+    _audit_access_chain("operator", "unban", "grant", detail="keys=%s cleared=%s" % (keys, cleared))
+    return {"ok": True, "unban": keys, "cleared": cleared}
+
+
+@app.get("/api/auth/state", dependencies=[Depends(require_admin)])
+def auth_state():
+    """运营观测: 吊销/刷新/限速状态目录、体积、条数、配置(阈值/窗口/封禁时长)。"""
+    g = _token_guard()
+    if g is None:
+        return {"ok": False, "error": "吊销/限速状态不可用"}
+    st = g.stats()
+    st["ok"] = True
+    st["active_bans"] = g.active_bans()
+    return st
+
+
+@app.get("/api/auth/sso/status", dependencies=[Depends(require_admin)])
+def auth_sso_status():
+    """SSO/OIDC 适配器观测(第4轮, 纯新增, admin)。
+
+    只报「是否启用 / 有哪些适配器 / 各适配器的非敏感配置」——**绝不返回密钥明文**。
+    LDAP 占位适配器会显式标注 implemented=false。
+    """
+    sr = _sso()
+    if sr is None:
+        return {"ok": True, "enabled": False, "providers": [],
+                "note": "SSO 适配器未加载或不可用(仅本地凭据生效)"}
+    st = sr.status()
+    st["ok"] = True
+    try:
+        import sso as _sso_mod
+        st["config_path"] = _sso_mod.config_path()
+    except Exception:
+        pass
+    return st
 
 
 @app.get("/api/auth/whoami")
@@ -722,7 +1395,9 @@ def auth_whoami(request: Request):
     key = _extract_key(request.headers.get("x-api-key", ""), request.headers.get("authorization", ""))
     p = _principal(key)
     if not p or p.get("denied_reason"):
-        _deny(p.get("denied_reason") if p else "无效或缺失 API Key", action="whoami")
+        _deny(p.get("denied_reason") if p else "无效或缺失 API Key", action="whoami",
+              request=request, key=key, count=(p is None))
+    _auth_ok(request, p["subject"])
     _audit_event("login", subject=p["subject"], action="whoami", result="grant",
                  role=p["role"], auth=p["auth"])
     return {"ok": True, "subject": p["subject"], "role": p["role"],
@@ -761,8 +1436,13 @@ async def admin_upload(file: UploadFile = File(...), table: str = Query("product
     _prefix = (KBS.get(KB_NAME) or {}).get("table_prefix", "")
     target = table if not _prefix or table.startswith(_prefix) else f"{_prefix}{table}"
     dest = os.path.join(DATA, f"{target}.csv")
+    # 体积上限(第2轮, 可配 FOOD_MAX_UPLOAD_MB): 先分块读入(超限抛 UploadTooLarge),
+    # 通过后才落盘 —— 超限路径 DATA 目录不留半截文件。
+    try:
+        content = await _read_upload_capped(file)
+    except UploadTooLarge:
+        raise HTTPException(413, "文件过大: 超过上限 %.0fMB" % MAX_UPLOAD_MB)
     os.makedirs(DATA, exist_ok=True)
-    content = await file.read()
     with open(dest, "wb") as f:
         f.write(content)
     # 重建(强制, 让新数据生效) —— 通用路径: 按 kb 配置重载, 不写死文件名
@@ -775,8 +1455,26 @@ async def admin_upload(file: UploadFile = File(...), table: str = Query("product
 
 @app.get("/api/admin/kbs", dependencies=[Depends(require_admin)])
 def admin_kbs():
-    """管理操作: 列出所有已注册知识库 + 当前激活的。"""
-    return {"ok": True, "active": KB_NAME, "kbs": list(KBS.keys())}
+    """管理操作: 列出**当前租户可见**的知识库 + 当前激活的。
+
+    多租户: 按租户可见范围过滤。不带租户信息(默认租户) → 全部, 与改前逐字段一致。
+    """
+    ctx = tenant.current()
+    tid = ctx.tenant_id if ctx else tenant.DEFAULT_TENANT
+    kbs = [k for k in KBS if tenant.kb_visible(tid, k)]
+    return {"ok": True, "active": KB_NAME, "kbs": kbs, "tenant": tid, "total": len(kbs)}
+
+
+@app.get("/api/kbs", dependencies=[Depends(require_key)])
+def list_kbs_scoped():
+    """列出**当前租户可见**的知识库 id(只读端点)。
+
+    租户来源: 凭据携带的声明 > X-Tenant-Id > 默认租户。A 租户拿不到 B 租户的 KB。
+    """
+    ctx = tenant.current()
+    tid = ctx.tenant_id if ctx else tenant.DEFAULT_TENANT
+    kbs = [k for k in KBS if tenant.kb_visible(tid, k)]
+    return {"ok": True, "tenant": tid, "active": KB_NAME, "kbs": kbs, "total": len(kbs)}
 
 
 @app.get("/api/admin/audit", dependencies=[Depends(require_admin)])
@@ -827,6 +1525,53 @@ def _audit_chain():
             logger.warning(f"审计链不可用(降级跳过): {e}")
             _AUDIT = False
     return _AUDIT if _AUDIT else None
+
+
+_TOKEN_GUARD = None
+
+
+def _token_guard():
+    """惰性初始化令牌吊销/限速状态(token_guard)。状态落 FOOD_AUTH_STATE_DIR(默认 <repo>/var/auth_state)。
+
+    失败静默降级为 None → 吊销/限速关闭, 但鉴权主流程不受影响(只加不松)。
+    """
+    global _TOKEN_GUARD
+    if _TOKEN_GUARD is None:
+        try:
+            import token_guard as _tg
+            _TOKEN_GUARD = _tg.TokenGuard()
+            logger.info("令牌吊销/限速状态就绪: %s" % _TOKEN_GUARD.db)
+        except Exception as e:
+            logger.warning(f"令牌吊销/限速不可用(降级跳过): {e}")
+            _TOKEN_GUARD = False
+    return _TOKEN_GUARD if _TOKEN_GUARD else None
+
+
+def _jti():
+    """生成令牌唯一标识(24 hex)。"""
+    import secrets
+    return secrets.token_hex(12)
+
+
+_SSO = None
+
+
+def _sso():
+    """惰性初始化 SSO/OIDC 适配器注册表(第4轮)。
+
+    未配置/加载失败 → None(即 authenticate 恒 None) → _principal 行为逐字段不变。
+    适配器按 codes/config/sso.json 或 FOOD_SSO_* 环境变量装载(见 codes/sso.py)。
+    """
+    global _SSO
+    if _SSO is None:
+        try:
+            import sso as _sso_mod
+            _SSO = _sso_mod.from_env()
+            logger.info("SSO 适配器: %s" % ("已启用" if _SSO.is_enabled() else "未启用/未配置"))
+        except Exception as e:
+            logger.warning(f"SSO 适配器不可用(降级跳过, 仅本地凭据生效): {e}")
+            _SSO = False
+    return _SSO if _SSO else None
 
 
 def _audit_trace(direction, query, result):
@@ -1231,6 +1976,13 @@ def ask(req: AskReq):
     融合链每步命中即记录 engines; 全部答不上时 LLM 兜底, evidence 空数组 + no_basis=True。
     """
     start = time.time()
+    # A4(2026-09-25): 未显式指定 kb 时，问答默认跟随**当前激活 kb**（单一真相源），
+    # 而不是写死的 KB_NAME —— 与 /api/standard/* 同口径，避免"建了库问的还是旧库"。
+    if not (getattr(req, "kb", "") or "").strip():
+        try:
+            req.kb = _active_kb()
+        except Exception:
+            pass
     result = _ask_impl(req)
     # 统一出口净化: 任何引擎的 LLM 出口都可能把推理独白当答案(见 _strip_reasoning_leak)。
     # 放在这里一次判完, 不必逐个引擎去堵。
@@ -1408,14 +2160,22 @@ _EXPORT_ALLOW = {"ontology.ttl", "shapes.ttl", "ontology.jsonld"}
 def standard_compliance():
     """本体标准合规度（GB/T 48000.3 描述项齐备率 + 命名空间 + SHACL + 类层次 + 导出物）。
 
-    与 ontology_check 的 F 类别同源（一处口径），供前端/验收展示。
+    A2(2026-09-25): 按**当前激活 KB 的本体**计算；找不到该库本体时明确报错，
+    绝不静默回落到全局 config/ontology_schema.json。
     """
+    kb = _active_kb()
+    schema_path, err = _kb_ontology_schema(kb)
+    if err:
+        return {"ok": False, "kb": kb, "error": f"按当前激活库计算合规度失败: {err}"}
     try:
         import ontology_check as oc
-        r = oc._check_standard(os.path.dirname(os.path.abspath(__file__)))
+        root = os.path.dirname(os.path.abspath(__file__))
+        r = oc._check_standard(root, schema_path=schema_path)
         st = r.get("state") or {}
         return {
             "ok": True,
+            "kb": kb,
+            "ontology": os.path.relpath(schema_path, root).replace("\\", "/"),
             "standard_rate": st.get("standard_rate"),
             "ent_core_rate": st.get("ent_core_rate"),
             "ent_rate": st.get("ent_rate"),
@@ -1428,21 +2188,30 @@ def standard_compliance():
                           "ISO/IEC 21838", "IEEE 知识图谱评估标准"],
         }
     except Exception as e:
-        return {"ok": False, "error": f"合规度计算失败: {e}"}
+        return {"ok": False, "kb": kb, "error": f"合规度计算失败: {e}"}
 
 
 @app.post("/api/standard/export", dependencies=[Depends(require_key)])
 def standard_export():
-    """生成标准导出物（ontology.ttl / shapes.ttl / ontology.jsonld），返回文件名与大小。"""
+    """生成标准导出物（ontology.ttl / shapes.ttl / ontology.jsonld），返回文件名与大小。
+
+    A3(2026-09-25): 按**当前激活 KB 的本体**导出；找不到该库本体时明确报错，
+    绝不静默回落到全局 config/ontology_schema.json。
+    """
+    kb = _active_kb()
+    schema_path, err = _kb_ontology_schema(kb)
+    if err:
+        return {"ok": False, "kb": kb, "error": f"按当前激活库导出失败: {err}"}
     try:
         import ontology_export as ox
         root = os.path.dirname(os.path.abspath(__file__))
-        outs = ox.export(os.path.join(root, "config", "ontology_schema.json"),
-                         os.path.join(root, "export"))
-        return {"ok": True, "files": [{"name": k, "size": os.path.getsize(v)}
-                                      for k, v in sorted(outs.items())]}
+        outs = ox.export(schema_path, os.path.join(root, "export"))
+        return {"ok": True, "kb": kb,
+                "schema": os.path.relpath(schema_path, root).replace("\\", "/"),
+                "files": [{"name": k, "size": os.path.getsize(v)}
+                          for k, v in sorted(outs.items())]}
     except Exception as e:
-        return {"ok": False, "error": f"导出失败: {e}"}
+        return {"ok": False, "kb": kb, "error": f"导出失败: {e}"}
 
 
 @app.get("/api/standard/export/{fname}", dependencies=[Depends(require_key)])
@@ -1465,11 +2234,14 @@ def standard_quality(kb: str = Query("")):
     kb 配了 schema 就用配置的；没配则从该 kb 数据自动推断(FDE 现场主场景：
     CSV 丢进来就能体检, 不用先手写 schema)。
     """
+    kb = (kb or "").strip() or _active_kb()   # A2 同口径: 缺省跟随当前激活 kb
+    _kb_guard(kb)  # 多租户: 越权 KB → 403(拒绝)
     try:
         import ontology_quality as oq
-        kbc = KBS.get((kb or KB_NAME).strip()) or {}
+        kbc = KBS.get(kb) or {}
         root = os.path.dirname(os.path.abspath(__file__))
-        data_dir = os.path.join(root, kbc.get("data_dir", "data"))
+        data_dir = kbc.get("data_dir", "data")
+        data_dir = data_dir if os.path.isabs(data_dir) else os.path.join(root, data_dir)
         data = so.load_all(data_dir) if os.path.isdir(data_dir) else {}
         schema_rel = kbc.get("schema")
         if schema_rel and os.path.exists(os.path.join(root, schema_rel)):
@@ -1478,7 +2250,7 @@ def standard_quality(kb: str = Query("")):
             # 快速模式: 质量门只需结构体检, 不调 LLM(否则每次 19s)
             schema, source = so.suggest_schema(data, use_llm=False), "auto-inferred"
         rep = oq.inspect(schema, data)
-        return {"ok": True, "source": source, **rep, "verdict": oq.judge(rep)}
+        return {"ok": True, "kb": kb, "source": source, **rep, "verdict": oq.judge(rep)}
     except Exception as e:
         return {"ok": False, "error": f"质量门执行失败: {e}"}
 
@@ -1494,13 +2266,18 @@ def standard_roundtrip():
     try:
         import ontology_import as oim
         root = os.path.dirname(os.path.abspath(__file__))
+        # A3 同口径: 往返自检对的是**当前激活 kb** 导出的 ttl ↔ 该 kb 的 schema
+        kb = _active_kb()
+        schema_path, _err = _kb_ontology_schema(kb)
+        if _err:
+            return {"ok": False, "kb": kb, "error": "按当前激活库往返自检失败: " + _err}
         ttl = os.path.join(root, "export", "ontology.ttl")
         if not os.path.exists(ttl):
             return {"ok": False, "error": "导出物不存在，请先生成标准导出物"}
         fmt, data = oim.parse_input(ttl)
         model = oim.graph_to_model(data[1])
-        rt = oim.roundtrip(model, os.path.join(root, "config", "ontology_schema.json"))
-        return {"ok": bool(rt.get("ok")), **rt,
+        rt = oim.roundtrip(model, schema_path)
+        return {"ok": bool(rt.get("ok")), "kb": kb, **rt,
                 "classes_note": f"{rt.get('classes_imported')}/{rt.get('classes_expected')}",
                 "props_note": f"{rt.get('dataprops_imported')}/{rt.get('props_expected')}"}
     except Exception as e:
@@ -1604,7 +2381,7 @@ CONTRACT_VERSION = "1.0"
 FEATURES = ["knowledge", "eval", "assets", "version", "trace", "qa", "ontology", "stats"]
 
 # 文档知识库存储根 + 临时上传目录(每 kb 一个隔离子目录)
-_TMP_UPLOAD = os.path.join(ROOT, "output", "_tmp_uploads")
+_TMP_UPLOAD = os.environ.get("FOOD_TMP_UPLOAD_DIR") or os.path.join(ROOT, "output", "_tmp_uploads")
 _ASSET_DIR = os.path.join(ROOT, "output", "asset_versions")
 _ASSET_MANIFEST = os.path.join(_ASSET_DIR, "manifest.json")
 
@@ -1795,6 +2572,7 @@ async def knowledge_ingest(file: UploadFile = File(...),
                            doc_id: str = Form("")):
     """上传文档(PDF/Word/TXT) → 解析+切块+向量化+入库。同 doc_id 幂等覆盖。"""
     start = time.time()
+    _kb_guard(kb)  # 多租户: 越权 KB → 403(拒绝)
     try:
         from knowledge.ingest import extract_text
         from knowledge.chunk import chunk_text
@@ -1807,14 +2585,13 @@ async def knowledge_ingest(file: UploadFile = File(...),
     ext = os.path.splitext(fname)[1].lower()
     if ext not in (".pdf", ".doc", ".docx", ".txt"):
         return _err_env(4001, f"仅支持 PDF/Word/TXT, 收到: {ext or '未知扩展名'}", start)
-    # 安全加固(架构师审计 P1-5): 上传大小上限 50MB, 防 DoS。
-    MAX_UPLOAD = 50 * 1024 * 1024
+    # 体积上限(第2轮, 可配 FOOD_MAX_UPLOAD_MB): 分块读入, 超限 413 且不落盘
+    # (在创建临时文件之前就中止, 临时目录不留残留)。读入方式不得无界。
     try:
-        _size = file.size if hasattr(file, "size") else None
-        if _size is not None and _size > MAX_UPLOAD:
-            return _err_env(4001, f"文件过大: >50MB", start)
-    except Exception:
-        pass
+        _body = await _read_upload_capped(file)
+    except UploadTooLarge:
+        return JSONResponse(_err_env(4001, "文件过大: 超过上限 %.0fMB" % MAX_UPLOAD_MB, start),
+                            status_code=413)
     kbdir = _kb_dir(kb)
     if kbdir is None:
         return _err_env(4001, "非法 kb 名", start)
@@ -1823,7 +2600,7 @@ async def knowledge_ingest(file: UploadFile = File(...),
         try:
             os.makedirs(_TMP_UPLOAD, exist_ok=True)
             with open(tmp, "wb") as f:
-                f.write(await file.read())
+                f.write(_body)
             doc = extract_text(tmp)
             if not doc:
                 return _err_env(4001, "文档解析失败(缺解析库或内容为空), 未入库", start)
@@ -1858,6 +2635,7 @@ async def knowledge_ingest(file: UploadFile = File(...),
 def knowledge_query(req: KnowledgeQueryReq):
     """文档 RAG 检索。body {kb, q, top_k?} → {answer, evidence}。"""
     start = time.time()
+    _kb_guard(req.kb)  # 多租户: 越权 KB → 403(拒绝)
     try:
         from knowledge.rag import answer as rag_answer
         from knowledge.store import KnowledgeStore
@@ -1885,6 +2663,7 @@ def knowledge_query(req: KnowledgeQueryReq):
 def knowledge_list(kb: str = Query("food")):
     """列出某 kb 的已入库文档。"""
     start = time.time()
+    _kb_guard(kb)  # 多租户: 越权 KB → 403(拒绝)
     try:
         from knowledge.store import KnowledgeStore
     except Exception as e:
@@ -1905,6 +2684,7 @@ def knowledge_list(kb: str = Query("food")):
 def knowledge_delete(req: KnowledgeDeleteReq):
     """删除某 kb 下的一篇文档。幂等: 重复删除已不存在文档返回 4041。"""
     start = time.time()
+    _kb_guard(req.kb)  # 多租户: 越权 KB → 403(拒绝)
     try:
         from knowledge.store import KnowledgeStore
     except Exception as e:
@@ -1997,6 +2777,7 @@ def assets_snapshot(req: AssetSnapshotReq):
     """快照语义资产(lexicon + ontology + knowledge) → {version, hash}。多租户按 kb 隔离。"""
     start = time.time()
     kb = req.kb or KB_NAME
+    _kb_guard(kb)  # 多租户: 越权 KB → 403(拒绝)
     try:
         version, h = _asset_snapshot(kb)
     except Exception as e:
@@ -2014,6 +2795,7 @@ def assets_rollback(req: AssetRollbackReq):
     """按版本回滚语义资产并重载内存本体 → {active_version}。多租户按 kb 隔离。"""
     start = time.time()
     kb = req.kb or KB_NAME
+    _kb_guard(kb)  # 多租户: 越权 KB → 403(拒绝)
     try:
         v = _asset_rollback(req.version, kb)
     except Exception as e:
@@ -2029,6 +2811,7 @@ def assets_rollback(req: AssetRollbackReq):
 def assets_list(kb: str = Query("food")):
     """列出某 kb 的语义资产版本。多租户按 kb 隔离。"""
     start = time.time()
+    _kb_guard(kb)  # 多租户: 越权 KB → 403(拒绝)
     man = _asset_manifest(kb)
     versions = [{"version": v, "hash": e.get("hash"), "created": e.get("created"),
                  "assets": e.get("assets", {})} for v, e in sorted(man.items())]
@@ -2068,6 +2851,7 @@ def ontology_build(req: OntologyBuildReq):
     kb = (req.kb or "").strip()
     if not kb or kb.startswith(".") or any(c in kb for c in ("/", "\\", "..")):
         return _err_env(4001, "非法 kb 名", start)
+    _kb_guard(kb)  # 多租户: 越权 KB → 403(拒绝)
     # 数据源分流：data_dir(多文件目录) 优先，其次 csv_path(单文件)。
     # 修复: 此前用 `src = req.csv_path or req.data_dir` 把目录当单文件传 run.setup → 报"不支持的数据格式"。
     if req.data_dir:
@@ -2137,29 +2921,52 @@ class OntologySuggestReq(BaseModel):
     csv_path: str = None
 
 
+def _is_dangerous_path(p: str) -> bool:
+    """危险路径：盘符根 / 文件系统根 / 系统目录（大小写不敏感，反斜杠归一为 /）。
+
+    与 BFF 侧 web/server/ontology.js 的 isDangerousPath 同口径 —— 盘符根与系统目录
+    禁止被选作数据目录。
+    """
+    n = str(p or "").replace("\\", "/").rstrip("/").lower()
+    if not n or (len(n) == 2 and n[1] == ":"):
+        return True
+    _bad = ("c:/windows", "c:/program files", "c:/program files (x86)", "c:/programdata",
+            "c:/perflogs", "c:/$recycle.bin", "c:/system volume information",
+            "/etc", "/usr", "/bin", "/sbin", "/boot", "/dev", "/proc", "/sys", "/var", "/root",
+            "/system", "/library", "/applications")
+    return any(n == pre or n.startswith(pre + "/") for pre in _bad)
+
+
 def _resolve_src(kb: str, data_dir: str, csv_path: str):
-    """校验 kb 名 + 数据源白名单（与 /api/ontology/build 同规则）。
+    """校验 kb 名 + 数据源白名单。
 
     返回 (src_abs, err)：err 非空表示校验失败，调用方直接返回该错误。
+
+    - 相对路径：仍限定在 data*/ 或 output/ 内（防路径穿越）。
+    - 绝对路径：允许仓库外数据目录（自助建模要能选外部数据），但拦截危险路径
+      （盘符根 / 系统目录如 C:/Windows 等）。
     """
     if not kb or kb.startswith(".") or any(c in kb for c in ("/", "\\", "..")):
         return None, "非法 kb 名"
     src = data_dir or csv_path
     if not src:
         return None, "需提供 csv_path(单表) 或 data_dir(多表)"
-    data_root = os.path.realpath(os.path.join(ROOT, "data"))
-    out_root = os.path.realpath(os.path.join(ROOT, "output"))
-    src_abs = src if os.path.isabs(src) else os.path.realpath(os.path.join(ROOT, src))
-    _rp = os.path.realpath(src_abs)
-    try:
-        _rel = os.path.relpath(_rp, ROOT)
-        _top = _rel.split(os.sep)[0]
-        _ok = _rp.startswith(out_root + os.sep) or (
-            not _rel.startswith("..") and (_top == "data" or _top.startswith("data") or _top == "output"))
-    except Exception:
-        _ok = False
-    if not _ok:
-        return None, f"数据源必须在 data*/ 或 output/ 内(防路径穿越): {src}"
+    if os.path.isabs(src):
+        src_abs = os.path.realpath(src)
+        if _is_dangerous_path(src_abs):
+            return None, f"危险路径已拦截(盘符根/系统目录): {src}"
+    else:
+        src_abs = os.path.realpath(os.path.join(ROOT, src))
+        out_root = os.path.realpath(os.path.join(ROOT, "output"))
+        try:
+            _rel = os.path.relpath(src_abs, ROOT)
+            _top = _rel.split(os.sep)[0]
+            _ok = src_abs.startswith(out_root + os.sep) or (
+                not _rel.startswith("..") and (_top == "data" or _top.startswith("data") or _top == "output"))
+        except Exception:
+            _ok = False
+        if not _ok:
+            return None, f"相对数据源必须在 data*/ 或 output/ 内(防路径穿越): {src}"
     if not os.path.exists(src_abs):
         return None, f"数据源不存在: {src}"
     return src_abs, None
@@ -2210,15 +3017,31 @@ def ontology_suggest(req: OntologySuggestReq):
                              "role": a.get("role"), "required": a.get("required", False)}
                             for a in e.get("attributes", [])]}
             for e in schema.get("entities", [])]
+    # ① 类层次派生建议 + ② 实体 Definition 建议 —— 均**只读预览**、逐条带依据、
+    #    确定性可复算；是否写入本体由人在「层次与定义确认」中拍板（不确认不落库）。
+    hier = so.derive_class_hierarchy(schema, data)
+    defs = so.derive_definitions(schema, data)
+    # ③ 扩展描述项建议：具名子类（HasSubclass）—— 同样只读预览、逐条带依据、确定性可复算；
+    #    是否写本体由人在「扩展描述项确认」中拍板（不确认不落库）。
+    subs = so.derive_named_subclasses(schema, data)
     return _ok_env({"kb": req.kb.strip(), "source": "auto-inferred",
-                    "entities": ents,
-                    "relations": schema.get("relations", []),
-                    "constraints": schema.get("constraints", []),
-                    "stats": {"entities": len(ents),
-                              "relations": len(schema.get("relations", [])),
-                              "constraints": len(schema.get("constraints", [])),
-                              "domains": sorted({e["domain"] for e in ents if e.get("domain")})},
-                    "note": "预览结果未落盘；确认后调 /api/ontology/confirm 生效"}, start)
+                "entities": ents,
+                "relations": schema.get("relations", []),
+                "constraints": schema.get("constraints", []),
+                "hierarchy": hier["nodes"],
+                "hierarchy_ready": True,
+                "definitions": defs,
+                "subclasses": subs,
+                "stats": {"entities": len(ents),
+                          "relations": len(schema.get("relations", [])),
+                          "constraints": len(schema.get("constraints", [])),
+                          "hierarchy_edges": len(hier["nodes"]),
+                          "definitions": len(defs),
+                          "subclasses": len(subs),
+                          "domains": sorted({e["domain"] for e in ents if e.get("domain")})},
+                "note": "预览结果未落盘；类层次、定义为**建议**，具名子类为**扩展描述项建议**，"
+                        "须在「层次与定义确认」/「扩展描述项确认」中人工确认，"
+                        "确认后调 /api/ontology/confirm 才生效"}, start)
 
 
 class OntologyConfirmReq(BaseModel):
@@ -2226,6 +3049,11 @@ class OntologyConfirmReq(BaseModel):
     kb: str
     schema: dict
     data_dir: str = None      # 数据源目录（缺省从 kbs.json 该 kb 的 data_dir 取）
+    # ③ 人在环：类层次与 Definition 必须在「层次与定义确认」里显式拍板后才允许落库。
+    #    未确认 → confirm 直接拒绝（不静默通过），避免模型/规则建议瞒过人写进本体。
+    hierarchy_confirmed: bool = False
+    # ③ 扩展描述项（具名子类 HasSubclass）同样人在环：传了 subclasses 但未显式确认 → 拒绝。
+    extensions_confirmed: bool = False
 
 
 @app.post("/api/ontology/confirm", dependencies=[Depends(require_key)])
@@ -2242,6 +3070,72 @@ def ontology_confirm(req: OntologyConfirmReq):
     sch = req.schema or {}
     if not sch.get("entities"):
         return _err_env(4001, "schema 缺少 entities", start)
+    # A4(2026-09-25): data_dir 占用冲突校验 —— 同一数据目录已被别的(非本 kb、非备案清理项)
+    # KB 占用则**拒绝**（不静默通过），避免两个库抢同一份数据互相污染。
+    _dd_pre = req.data_dir or (_load_kbs().get(kb, {}) or {}).get("data_dir") or f"data_{kb}"
+    _conf = _data_dir_conflict(kb, _dd_pre)
+    if _conf:
+        return _err_env(4091, f"数据目录冲突: {_dd_pre!r} 已被知识库 {_conf!r} 占用，"
+                              f"请换一个数据目录(不静默通过)", start)
+    # ── ③ 人在环硬校验：类层次 + Definition 必须先经「层次与定义确认」才许落库 ──
+    # 依据 GB/T 48000.3 §5.3(派生层次) + 表1(Definition)。三条都拦住，绝不静默通过：
+    #   (a) 未显式勾选确认 → 拒绝；
+    #   (b) 任一实体缺 parent → 拒绝（否则本体仍是"实体平铺"）；
+    #   (c) 任一实体缺 definition / 无任何类节点 → 拒绝。
+    if not req.hierarchy_confirmed:
+        return _err_env(4001, "层次与定义未确认：请在自助建模「层次与定义确认」中确认建议的"
+                              "类层次与实体定义后再落库(不静默通过)", start)
+    hier_nodes = [n for n in (sch.get("hierarchy") or []) if n.get("name")]
+    if not hier_nodes:
+        return _err_env(4001, "确认内容缺少类层次(hierarchy)：未确认完整，不许落库", start)
+    # 以「人确认的层次边」为准，回写各实体的 parent（模型/规则的 parent 不算数），
+    # 并把该边的**依据**(evidence/rule)一并落盘 —— 本体里每条层次都能溯源到派生证据。
+    ent_by_id = {e["id"]: e for e in sch.get("entities", [])}
+    for n in hier_nodes:
+        if n.get("kind") == "entity" and n["name"] in ent_by_id:
+            ent_by_id[n["name"]]["parent"] = n.get("parent")
+            ent_by_id[n["name"]]["parent_evidence"] = n.get("evidence", "")
+            if n.get("rule"):
+                ent_by_id[n["name"]]["parent_rule"] = n["rule"]
+    miss_parent = [e["id"] for e in sch.get("entities", []) if not str(e.get("parent") or "").strip()]
+    if miss_parent:
+        return _err_env(4001, "以下实体缺类层次(parent)，未确认完整，不许落库: %s" % miss_parent, start)
+    # Definition：以人确认的定义列表为准（前端逐条可改；后端再校验一遍，两条路都通）
+    for d in (sch.get("definitions") or []):
+        _e = ent_by_id.get(d.get("entity"))
+        if _e and str(d.get("definition") or "").strip():
+            _e["definition"] = d["definition"]
+            _e["definition_evidence"] = d.get("evidence", "")
+    miss_def = [e["id"] for e in sch.get("entities", []) if not str(e.get("definition") or "").strip()]
+    if miss_def:
+        return _err_env(4001, "以下实体缺 Definition，未确认完整，不许落库: %s" % miss_def, start)
+    # ── ③ 扩展描述项（具名子类 HasSubclass）：人在环硬校验后再落库 ──
+    #    (a) 传了 subclasses 但未显式确认 → 拒绝；
+    #    (b) 每条子类必须带**依据**(evidence)、且父实体真实存在 → 否则拒绝（不编造关系）。
+    _subs = sch.get("subclasses") or []
+    if _subs and not req.extensions_confirmed:
+        return _err_env(4001, "扩展描述项(具名子类)未确认：请在「扩展描述项确认」中确认后再落库"
+                              "(不静默通过)", start)
+    for _s in _subs:
+        if not str(_s.get("evidence") or "").strip():
+            return _err_env(4001, "扩展描述项缺依据(evidence)，不许落库: %s" % _s.get("name"), start)
+        if _s.get("parent") not in ent_by_id:
+            return _err_env(4001, "扩展描述项的父实体不存在: %s" % _s.get("parent"), start)
+    if _subs:
+        import schema_ontology as _so_sub
+        _so_sub.apply_named_subclasses(sch, _subs)
+    _miss_sub_parent = [e["id"] for e in sch.get("entities", [])
+                        if str(e.get("kind") or "") == "subclass"
+                        and not str(e.get("parent") or "").strip()]
+    if _miss_sub_parent:
+        return _err_env(4001, "以下具名子类缺父类，不许落库: %s" % _miss_sub_parent, start)
+    # 非实体类节点（根/业务域/命名词干子类）落进 schema.class_hierarchy，供 to_nt 声明派生链
+    _ch = [{"name": n["name"], "parent": n.get("parent"), "label": n.get("label") or n["name"],
+            "kind": n.get("kind"), "rule": n.get("rule", ""), "evidence": n.get("evidence", "")}
+           for n in hier_nodes if n.get("kind") != "entity"]
+    if not _ch:
+        return _err_env(4001, "确认的层次里没有任何类节点(根/业务域)，不许落库", start)
+    sch["class_hierarchy"] = _ch
     sp = os.path.join(ROOT, "config", f"ontology_schema_{kb}.json")
     try:
         with open(sp, "w", encoding="utf-8") as f:
@@ -2258,6 +3152,8 @@ def ontology_confirm(req: OntologyConfirmReq):
             entry = _load_kbs().get(kb, {})
             dd = entry.get("data_dir") or f"data_{kb}"
         dd_abs = dd if os.path.isabs(dd) else os.path.join(ROOT, dd)
+        if _is_dangerous_path(dd_abs):
+            return _err_env(4001, f"危险路径已拦截(盘符根/系统目录): {dd}", start)
         if not os.path.isdir(dd_abs):
             _ok = False
             for cand in (f"data_{kb}", "data"):
@@ -2285,7 +3181,7 @@ def ontology_confirm(req: OntologyConfirmReq):
     nt_rel = os.path.relpath(nt, ROOT).replace("\\", "/")
     lex_rel = os.path.relpath(lex, ROOT).replace("\\", "/")
     try:
-        _update_kbs(kb, nt_rel, lex_rel)
+        _update_kbs(kb, nt_rel, lex_rel, data_dir=dd)
         _set_active_kb(kb, nt_rel, lex_rel)
     except Exception as e:
         logger.warning(f"kbs.json/web_state 更新失败: {e}")
@@ -2295,14 +3191,103 @@ def ontology_confirm(req: OntologyConfirmReq):
                     "ask_ready": True}, start)
 
 
-def _update_kbs(kb, nt_rel, lex_rel):
-    """把 kb 的 nt/lexicon 写回 kbs.json(幂等)。"""
+@app.post("/api/ontology/self-onboard", dependencies=[Depends(require_key)])
+async def ontology_self_onboard(request: Request):
+    """甲方自助接入（自服务上架）：上传数据文件 → 落盘 codes/data_<kb>/ → 自动建模
+    (nt + lexicon) → 注册 kb → 返回可用 kb。
+
+    这是 BFF(web/server/ontology.js selfOnboard) 透传 multipart 的目标端点。此前只有
+    BFF 侧转发函数、后端从未实现该路由（反向断链），本次补齐使其成为真实能力：
+    与 /api/ontology/build 的差别在于「数据由甲方上传」而非服务器已有目录 —— 上传的
+    .csv/.json/.xlsx 落到该 kb 的专属数据目录，再复用多表建模产出本体与词典。
+    """
+    start = time.time()
+    try:
+        form = await request.form()
+    except Exception:
+        return _err_env(4001, "需 multipart/form-data 上传", start)
+    kb = str(form.get("kb") or "").strip()
+    if not kb or kb.startswith(".") or any(c in kb for c in ("/", "\\", "..")):
+        return _err_env(4001, "非法 kb 名", start)
+    _kb_guard(kb)  # 多租户: 越权 KB → 403(拒绝)
+    # A4: 专属数据目录 data_<kb> 若已被别的 KB 占用 → 拒绝（不静默通过）
+    _conf = _data_dir_conflict(kb, f"data_{kb}")
+    if _conf:
+        return _err_env(4091, f"数据目录冲突: data_{kb} 已被知识库 {_conf!r} 占用(不静默通过)", start)
+    files = [v for (_k, v) in form.multi_items() if hasattr(v, "filename")]
+    if not files:
+        return _err_env(4001, "需上传至少一个数据文件(.csv/.json/.xlsx)", start)
+    dest = os.path.join(ROOT, f"data_{kb}")
+    try:
+        os.makedirs(dest, exist_ok=True)
+    except Exception as e:
+        logger.warning(f"API内部错误[自助接入 建目录失败]: {e}")
+        return _err_env(5001, "创建数据目录失败(内部错误已记录)", start)
+    saved = []
+    for f in files:
+        fname = os.path.basename(str(getattr(f, "filename", "") or ""))
+        ext = os.path.splitext(fname)[1].lower()
+        if not fname or ext not in (".csv", ".json", ".xlsx"):
+            continue  # 只接受表格/文本类数据文件
+        try:
+            data = await f.read()
+        except Exception:
+            continue
+        try:
+            with open(os.path.join(dest, fname), "wb") as fh:
+                fh.write(data)
+            saved.append(fname)
+        except Exception as e:
+            logger.warning(f"API内部错误[自助接入 落盘失败 {fname}]: {e}")
+    if not saved:
+        return _err_env(4001, "无受支持的数据文件(.csv/.json/.xlsx)，未落盘", start)
+    try:
+        import multi_model as mm_mod
+        mm_mod.build(dest, table=kb)
+        nt = os.path.join(ROOT, "output", f"{kb}.nt")
+        lex = os.path.join(ROOT, "config", f"lexicon_{kb}.json")
+    except Exception as e:
+        logger.warning(f"API内部错误[自助接入 建模失败]: {e}")
+        return _err_env(5001, "自助建模失败(内部错误已记录)", start)
+    if not (nt and os.path.exists(nt) and lex and os.path.exists(lex)):
+        return _err_env(5001, "自助建模失败: 未产出 nt 或 lexicon", start)
+    nt_rel = os.path.relpath(nt, ROOT).replace("\\", "/")
+    lex_rel = os.path.relpath(lex, ROOT).replace("\\", "/")
+    try:
+        _update_kbs(kb, nt_rel, lex_rel, data_dir=f"data_{kb}")
+        _set_active_kb(kb, nt_rel, lex_rel)
+    except Exception as e:
+        logger.warning(f"kbs.json/web_state 更新失败: {e}")
+    _invalidate_kb(kb)
+    return _ok_env({"kb": kb, "data_dir": f"data_{kb}", "files": saved,
+                    "nt": nt_rel, "lexicon": lex_rel,
+                    "status": "onboarded", "ask_ready": True}, start)
+
+
+def _update_kbs(kb, nt_rel, lex_rel, data_dir=None):
+    """把 kb 的 nt/lexicon 写回 kbs.json(幂等)。
+
+    data_dir 传入时一并写回，并在「仓库外绝对路径」时标注 external=true
+    （交付清单可据此列出外部数据目录）。
+    """
     data = json.load(open(KBS_FILE, encoding="utf-8"))
     kbs = data.setdefault("kbs", {})
     entry = kbs.get(kb, {})
     entry["nt"] = nt_rel
     entry["lexicon"] = os.path.basename(lex_rel)
+    if data_dir:
+        entry["data_dir"] = data_dir
     entry.setdefault("data_dir", "data")
+    dd = str(entry.get("data_dir") or "")
+    # 外部数据目录：绝对路径或不在仓库内 → 标注 external=true（交付清单可列出）
+    try:
+        dd_abs = dd if os.path.isabs(dd) else os.path.join(ROOT, dd)
+        _rel = os.path.relpath(os.path.realpath(dd_abs), ROOT)
+        entry["external"] = bool(os.path.isabs(dd) or _rel.startswith(".."))
+    except Exception:
+        entry["external"] = bool(os.path.isabs(dd))
+    if not entry["external"]:
+        entry.pop("external", None)  # 仓库内目录不写冗余字段
     kbs[kb] = entry
     with open(KBS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
@@ -2326,6 +3311,7 @@ def kbs_update_examples(kb: str, req: KbsExamplesReq):
     kb = _safe_doc_id(kb or "")
     if not kb:
         return _err_env(4001, "非法 kb 名", start)
+    _kb_guard(kb)  # 多租户: 越权 KB → 403(拒绝)
     try:
         data = json.load(open(KBS_FILE, encoding="utf-8"))
         kbs = data.setdefault("kbs", {})
@@ -2341,32 +3327,72 @@ def kbs_update_examples(kb: str, req: KbsExamplesReq):
     return _ok_env({"kb": kb, "examples": entry.get("examples", [])}, start)
 
 
-def _set_active_kb(kb, nt_rel, lex_rel):
-    """把 kb 设为当前激活, 持久化到 web/web_state.json(前端 getCurrentKb 优先读取该文件)。
+def _set_active_kb(kb, nt_rel=None, lex_rel=None, source="build"):
+    """A1: 把 kb 设为当前激活 —— 写**单一真相源** codes/config/active_ontology.json。
 
-    '建哪个激活哪个': 建模成功后把激活 kb 同步到前端状态, 使界面/查询/看板跟随新本体。
-    保留原 web_state 其他字段(table/nt/lexicon), 仅更新 kb 字段; 文件缺失则新建。
+    '建哪个激活哪个': 建库成功后把激活 kb 落到这份持久态，服务重启后仍是该库。
+    同时更新 web/web_state.json 的展示字段(nt/lexicon/table)保持前端兼容（kb 字段以
+    active_ontology.json 为准，BFF getCurrentKb 读同一文件，不再各存一份激活态）。
     """
-    web_state_path = os.path.join(os.path.dirname(ROOT), "web", "web_state.json")
-    state = {}
-    if os.path.exists(web_state_path):
-        try:
-            state = json.load(open(web_state_path, encoding="utf-8")) or {}
-        except Exception:
-            state = {}
-    state["kb"] = kb
+    rec = {"kb": kb, "updated": datetime.now().isoformat(timespec="seconds"), "source": source}
     if nt_rel:
-        state["nt"] = nt_rel
+        rec["nt"] = nt_rel
     if lex_rel:
-        state["lexicon"] = lex_rel
-    state.setdefault("table", kb)
-    # 不再覆盖 state["kb"]：kb 的唯一真相是 users.json 的 user.kb（前端 index.js 每请求按 user.kb 设激活）。
-    # 后端若写全局 kb，会在多用户/与前端并发时互相覆盖，导致 A 企业本体被 B 企业污染。
-    # '建哪个激活哪个' 由前端按 user.kb 跟随实现（单企业收敛，user.kb 即刚建的 kb）。
-    os.makedirs(os.path.dirname(web_state_path), exist_ok=True)
-    with open(web_state_path, "w", encoding="utf-8") as f:
-        json.dump(state, f, ensure_ascii=False, indent=2)
-    logger.info("已持久化激活 kb 信息(nt/lexicon) -> %s (kb 由 user.kb 决定)", web_state_path)
+        rec["lexicon"] = lex_rel
+    try:
+        sp, _err = _kb_ontology_schema(kb)
+        if sp:
+            rec["schema"] = os.path.relpath(sp, ROOT).replace("\\", "/")
+    except Exception:
+        pass
+    try:
+        os.makedirs(os.path.dirname(ACTIVE_FILE), exist_ok=True)
+        with open(ACTIVE_FILE, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(rec, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.warning("active_ontology.json 写入失败: %s", e)
+    # 兼容: 保留 web_state.json 的展示字段（前端读 nt/lexicon/table）
+    web_state_path = os.path.join(os.path.dirname(ROOT), "web", "web_state.json")
+    try:
+        state = {}
+        if os.path.exists(web_state_path):
+            state = json.load(open(web_state_path, encoding="utf-8")) or {}
+        state["kb"] = kb
+        if nt_rel:
+            state["nt"] = nt_rel
+        if lex_rel:
+            state["lexicon"] = lex_rel
+        state.setdefault("table", kb)
+        os.makedirs(os.path.dirname(web_state_path), exist_ok=True)
+        with open(web_state_path, "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.warning("web_state.json 更新失败: %s", e)
+    logger.info("激活本体已落盘(单一真相源): kb=%s -> %s", kb, ACTIVE_FILE)
+
+
+class ActiveKbReq(BaseModel):
+    kb: str
+
+
+@app.get("/api/kb/active", dependencies=[Depends(require_key)])
+def kb_active_get():
+    """A1: 读当前激活 kb（单一真相源）+ 完整持久态，供 BFF/前端/自检对齐。"""
+    root = os.path.dirname(os.path.abspath(__file__))
+    return {"ok": True, "kb": _active_kb(), "state": _read_active(),
+            "file": os.path.relpath(ACTIVE_FILE, root).replace("\\", "/")}
+
+
+@app.post("/api/kb/active", dependencies=[Depends(require_key)])
+def kb_active_set(req: ActiveKbReq):
+    """A1: 切库即更新持久态。非法 kb 名 / 越权 → 拒绝（不静默通过）。"""
+    kb = (req.kb or "").strip()
+    if not kb or kb.startswith(".") or any(c in kb for c in ("/", "\\", "..")):
+        return {"ok": False, "error": "非法 kb 名"}
+    _kb_guard(kb)
+    _set_active_kb(kb, source="switch")
+    _invalidate_kb(kb)
+    return {"ok": True, "kb": kb, "switched": True, "file": ACTIVE_FILE}
 
 
 @app.get("/api/industry/list", dependencies=[Depends(require_key)])
@@ -2476,6 +3502,7 @@ def kb_lexicon_export(kb: str, download: bool = Query(True), bundle: bool = Quer
     bundle=true 时额外把 schema / nt 一起打成 zip（企业结束时的整包交付）。
     download=false 只返回 JSON（含路径与词数统计）。
     """
+    _kb_guard(kb)  # 多租户: 越权 KB → 403(在 try 之外, 不被错误通道吞掉)
     try:
         import dict_asset
         if bundle:
@@ -2501,6 +3528,7 @@ async def kb_lexicon_import(kb: str, req: Request):
           mode: "merge"(默认, 目标现有词优先只补缺) | "replace", dry_run: bool
     dry_run=true 只回差异报告，不落盘。
     """
+    _kb_guard(kb)  # 多租户: 越权 KB → 403(拒绝)
     try:
         body = await req.json()
     except Exception:

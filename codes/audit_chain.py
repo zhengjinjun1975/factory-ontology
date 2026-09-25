@@ -50,6 +50,21 @@ CREATE TABLE IF NOT EXISTS ledger (
 """
 
 
+def _current_tenant(default=None):
+    """当前请求的租户 id（来自 tenant.py 的上下文）；取不到则 default（可指定）。
+
+    审计必须带租户（多租户合规留档）：账本每条记录都写 tenant 字段。
+    """
+    try:
+        import tenant as _t
+        cid = _t.current_id()
+        if cid:
+            return cid
+        return default if default is not None else _t.DEFAULT_TENANT
+    except Exception:
+        return default if default is not None else "default"
+
+
 class AuditChainError(Exception):
     """链完整性异常。"""
 
@@ -66,7 +81,9 @@ class AuditChain:
     # 忙等超时(毫秒): 并发写时等锁而非立刻 "database is locked"
     _BUSY_TIMEOUT_MS = 5000
 
-    def __init__(self, db_path=None):
+    def __init__(self, db_path=None, tenant=None):
+        # 多租户：该账本的兜底租户（未显式传 tenant 且无请求级上下文时用）。
+        self.default_tenant = tenant
         # 默认放 temp(不污染仓库); 显式传路径则持久化到指定文件
         self.db_path = db_path or os.path.join(tempfile.gettempdir(), "factory_audit_chain.db")
         # 无已知数据库扩展名时才补 .db(避免 "chain.sqlite3"→"chain.sqlite3.db")
@@ -103,6 +120,12 @@ class AuditChain:
     def _checksum(payload: str) -> str:
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
+    def _tenant(self, explicit=None):
+        """本条记录的租户 id：显式参数 > 请求级上下文 > 账本兜底租户 > 'default'。"""
+        if explicit:
+            return str(explicit)
+        return _current_tenant(default=self.default_tenant)
+
     def _last_row(self):
         """返回最后一条 (id, checksum) 或 None。"""
         with self._conn() as c:
@@ -116,7 +139,9 @@ class AuditChain:
             return cur.fetchone()[0]
 
     # ── 记录 ──────────────────────────────────
-    def _append(self, kind: str, payload: dict) -> int:
+    def _append(self, kind: str, payload: dict, tenant=None) -> int:
+        # 多租户合规留档：每条记录必带 tenant（账本与 JSONL 口径一致）。
+        payload.setdefault("tenant", self._tenant(tenant))
         data = json.dumps(payload, ensure_ascii=False, sort_keys=True)
         cs = self._checksum(data)
         ts = datetime.now().astimezone().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + \
@@ -187,12 +212,15 @@ class AuditChain:
         return self._append("note", {"op": "note", "note": note[:2000]})
 
     def record_access(self, *, subject: str, action: str, result: str,
-                      role: str = "", detail: str = "", metadata=None) -> int:
+                      role: str = "", detail: str = "", metadata=None,
+                      tenant=None) -> int:
         """记录一次鉴权/访问事件(商用级加固 2026-09-24)。
 
         主体(subject) + 动作(action, 如 authenticate/issue_token/whoami) +
         结果(result ∈ grant|deny) + 角色(role)。时间由 _append 统一盖 ts,
         并进入哈希链(防事后删改鉴权记录)。返回 ledger id。
+
+        多租户(2026-09-24): tenant 显式传入则用该值, 否则取请求级租户上下文/账本兜底。
         """
         payload = {
             "op": "access",
@@ -204,7 +232,7 @@ class AuditChain:
         }
         if metadata:
             payload["metadata"] = metadata
-        return self._append("access", payload)
+        return self._append("access", payload, tenant=tenant)
 
     # ── 留存 ─────────────────────────────────────
     def retention(self) -> dict:

@@ -33,11 +33,17 @@ __all__ = [
     "normalize_type", "dialect_for", "quote_ident", "select_all",
     "driver_for", "driver_hint", "is_available", "default_port", "busy_timeout_ms",
     "validate_ident",
+    # 多租户行级隔离（2026-09-24）
+    "TENANT_COLUMN", "select_all_scoped", "tenant_clause",
 ]
 
 # 默认库型 = SQLite（本地/单机场景，零依赖零部署）
 DEFAULT_TYPE = "sqlite"
 SUPPORTED = ("sqlite", "mysql", "postgres")
+
+# 多租户行级隔离：租户条件列的默认名（SQLite 无原生 RLS，就在这一层把 WHERE 拼进去）。
+# 可用环境变量 FOOD_TENANT_COLUMN 覆盖；仅当表里真有该列时才加条件（见 db_loader）。
+TENANT_COLUMN = os.environ.get("FOOD_TENANT_COLUMN", "tenant_id")
 
 # 库型别名 → 规范名（单点：任何地方要认库型都走这里）
 _TYPE_ALIASES = {
@@ -85,9 +91,17 @@ class Dialect:
         return f"{self.quote}{n}{self.quote}"
 
     # ── SQL 组装 ──
-    def select_all(self, table, limit=None):
-        """SELECT * FROM <quoted table> [LIMIT n]。limit=None → 不加限制（历史行为）。"""
+    def select_all(self, table, limit=None, tenant=None, tenant_col=None):
+        """SELECT * FROM <quoted table> [WHERE <tenant_col> = <placeholder>] [LIMIT n]。
+
+        limit=None → 不加限制（历史行为）。
+        tenant=None → 不加租户条件（与历史 SQL 逐字节一致，保证老行为不变）；
+        tenant 非空 → 追加 WHERE 租户条件（值走占位符，由调用方以参数传入，防注入）。
+        """
         sql = f"SELECT * FROM {self.quote_ident(table, '表名')}"
+        if tenant is not None:
+            col = self.quote_ident(tenant_col or TENANT_COLUMN, '租户列')
+            sql += f" WHERE {col} = {self.placeholder}"
         if limit is not None:
             if not self.limit_supported:
                 raise ValueError(f"{self.name} 不支持 LIMIT（方言声明）")
@@ -151,9 +165,35 @@ def quote_ident(name, db_type, what="标识符"):
     return dialect_for(db_type).quote_ident(name, what)
 
 
-def select_all(table, db_type, limit=None):
+def select_all(table, db_type, limit=None, tenant=None, tenant_col=None):
     """按库型组装 SELECT * 语句（单点，替代散落的 f-string）。"""
-    return dialect_for(db_type).select_all(table, limit=limit)
+    return dialect_for(db_type).select_all(table, limit=limit, tenant=tenant,
+                                           tenant_col=tenant_col)
+
+
+def tenant_clause(db_type, tenant, tenant_col=None):
+    """按库型组装租户条件片段 → (sql_fragment, params)。
+
+    tenant 为空 → 抛 TenantContextError（fail-closed，绝不静默放行全量）。
+    """
+    if tenant is None or str(tenant).strip() == "":
+        from tenant import TenantContextError
+        raise TenantContextError(
+            "缺少租户上下文(fail-closed)：拒绝组装无租户条件的 SQL（不得静默返回全量）")
+    d = dialect_for(db_type)
+    col = d.quote_ident(tenant_col or TENANT_COLUMN, '租户列')
+    return (f" WHERE {col} = {d.placeholder}", (str(tenant),))
+
+
+def select_all_scoped(table, db_type, tenant, limit=None, tenant_col=None):
+    """组装**带租户条件**的 SELECT * 语句（行级隔离单点）。
+
+    tenant 为空 → 抛 TenantContextError（fail-closed）。
+    返回 (sql, params)：params 必须原样传给 cursor.execute(sql, params)。
+    """
+    frag, params = tenant_clause(db_type, tenant, tenant_col=tenant_col)
+    sql = select_all(table, db_type, limit=limit, tenant=tenant, tenant_col=tenant_col)
+    return sql, params
 
 
 def driver_for(db_type):

@@ -1,0 +1,22 @@
+{
+  "_comment": "多租户注册表（单一真相源，配置驱动）。文件缺失/损坏时 tenant.py 退化为内置默认（仅 default 租户，kbs='*'），老部署行为不变。新增租户只动这份 JSON，无需改代码/重启。",
+  "_schema": {
+    "default_tenant": "不带租户信息时落到的租户 id（老部署行为一致的锚点，勿改名）",
+    "tenant_column": "行级隔离用的租户列名（可选，默认 tenant_id；仅带该列的表才受行级过滤）",
+    "tenants": {
+      "<tenant_id>": {
+        "name": "展示名",
+        "kbs": "'*' = 全部 KB；或 KB 白名单列表",
+        "keys": "该租户自带 API 凭据列表（凭据→租户声明）",
+        "role": "该租户凭据的默认角色 read/admin（可选，默认 read）"
+      }
+    }
+  },
+  "default_tenant": "default",
+  "tenants": {
+    "default": {
+      "name": "默认租户(未启用多租户的既有部署)",
+      "kbs": "*"
+    }
+  }
+}
