@@ -617,9 +617,7 @@ STRICT_AUTH = _env_flag("FOOD_STRICT_AUTH")
 
 # 严格模式下需"任一带凭据主体(read/admin)"的路径(原本匿名可读的业务数据端点)
 _STRICT_READ_PATHS = {
-    "/api/ontology/structure",
-    "/api/ontology/graph",
-    "/api/ontology/graph-svg",
+    # 注: 本体三条(structure/graph/graph-svg)已移入 _ALWAYS_READ_PATHS(默认即受保护)。
     "/api/app-config",
     "/api/flows",
     "/api/flows/presets",
@@ -627,6 +625,17 @@ _STRICT_READ_PATHS = {
 }
 # 严格模式下需 admin 角色的路径(/admin 是管理后台 HTML 外壳)
 _STRICT_ADMIN_PATHS = {"/admin"}
+# 默认受保护(第4轮 2026-09-28): 本体数据端点**不依赖灰度开关**, 任何配置下都要凭据。
+# 背景: CWE-862 —— /api/ontology/structure|graph|graph-svg 暴露完整类层次/对象属性/实例关系图,
+#   而严格档默认关 ⇒ 对外匿名可读。修法走**既有路径级机制**(同一个 _strict_auth_check),
+#   不另加 per-endpoint 依赖(那样会绕过审计链, 也拿不到"未配凭据"的清晰提示)。
+# 影响面: 前端 Svelte(带 Authorization: Bearer) 与 BFF(带 X-API-Key) 不受影响;
+#   匿名调用方(例: 旧 web/admin.html 的裸 fetch)会得到 401。
+_ALWAYS_READ_PATHS = {
+    "/api/ontology/structure",
+    "/api/ontology/graph",
+    "/api/ontology/graph-svg",
+}
 # 上传体积上限(可配, MB): 默认 50 —— 与既有文档接入端点的审计上限(P1-5, 50MB)一致,
 # 使文档接收入口不因本改动回归, 同时给原本无界的 CSV 上传补上同一上限。
 MAX_UPLOAD_MB = float(os.environ.get("FOOD_MAX_UPLOAD_MB", "50") or 50)
@@ -660,14 +669,22 @@ async def _read_upload_capped(file, limit_bytes=None, chunk_size=_UPLOAD_CHUNK):
     return bytes(buf)
 
 
+def _norm_path(path):
+    """路径归一化(去尾斜杠): 路径集匹配与中间件预判必须同一口径。"""
+    return (path or "").rstrip("/") or "/"
+
+
 def _strict_auth_check(path, principal):
-    """严格鉴权(FOOD_STRICT_AUTH=1)下的路径级放行判断。返回 (status, reason)。
+    """路径级鉴权放行判断。返回 (status, reason)。
+
+    覆盖两类: _ALWAYS_READ_PATHS(默认受保护, 与开关无关) 与
+    _STRICT_READ_PATHS / _STRICT_ADMIN_PATHS(仅 FOOD_STRICT_AUTH=1 时生效)。
 
     status=0 → 放行; 401 → 缺/无效凭据; 403 → 有凭据但角色不足。
     """
-    p = (path or "").rstrip("/") or "/"
+    p = _norm_path(path)
     need_admin = p in _STRICT_ADMIN_PATHS
-    need_read = p in _STRICT_READ_PATHS
+    need_read = p in _STRICT_READ_PATHS or p in _ALWAYS_READ_PATHS
     if not (need_admin or need_read):
         return 0, ""
     if not principal or principal.get("denied_reason"):
@@ -1125,7 +1142,9 @@ async def audit_and_count(request: Request, call_next):
                                      request.headers.get("authorization", "")))
         _princ = _p if (_p and not _p.get("denied_reason")) else None
         # 严格鉴权灰度开关(第2轮): 默认关 → 完全放行(现状不变); 开 → 受保护路径要凭据。
-        if STRICT_AUTH:
+        # 鉴权判定入口: 严格档打开时全量生效; 未打开时**仍**判默认受保护路径
+        # (第4轮: 本体数据端点默认受保护, 不受灰度开关影响)。
+        if STRICT_AUTH or _norm_path(request.url.path) in _ALWAYS_READ_PATHS:
             _st, _rs = _strict_auth_check(request.url.path, _p)
             if _st:
                 _audit_event("login", subject="anonymous", action="authenticate", result="deny",

@@ -23,6 +23,16 @@
 <h1>⚙️ 知识库管理后台</h1>
 
 <div class="card">
+  <h3>🔑 API Key（接入鉴权）</h3>
+  <label>Key（admin Key 可看审计日志；read Key 可看统计/本体）</label>
+  <div class="row">
+    <input type="text" id="apikey" placeholder="粘贴 FOOD_ADMIN_KEY 或 FOOD_READ_KEY">
+    <button onclick="saveKey()" style="margin-top:0;white-space:nowrap">保存并刷新</button>
+  </div>
+  <div id="key-status" class="status"></div>
+</div>
+
+<div class="card">
   <h3>📊 知识库统计</h3>
   <div id="stats"></div>
 </div>
@@ -67,7 +77,23 @@
 <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
 <script>
 const BASE='';
-async function j(u){const r=await fetch(BASE+u);const d=await r.json();if(!r.ok)throw new Error(d.detail||d.error||('HTTP '+r.status));return d;}
+// 第4轮(2026-09-28): 本体数据端点已默认受保护 ⇒ 面板必须带凭据。
+// key 存 localStorage，请求统一走 authHeaders()（后端 x-api-key / Authorization 都认）。
+const KEY_STORE='factory_admin_key';
+function getKey(){try{return localStorage.getItem(KEY_STORE)||''}catch(e){return ''}}
+function authHeaders(){const k=getKey();return k?{'X-API-Key':k}:{};}
+async function saveKey(){
+  try{localStorage.setItem(KEY_STORE,(el('apikey').value||'').trim())}catch(e){}
+  el('key-status').textContent='已保存，重新加载中…';
+  await load();
+  refreshKeyUI();   // 加载完回真实状态，不留"重新加载中"的假文案
+}
+function refreshKeyUI(){
+  const k=getKey();
+  el('apikey').value=k;
+  el('key-status').textContent = k ? '已配置 key' : '未配置 key：统计、本体、审计面板会 401';
+}
+async function j(u){const r=await fetch(BASE+u,{headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.detail||d.error||('HTTP '+r.status));return d;}
 async function load(){
   try{
     const s=await j('/api/stats');
@@ -118,13 +144,14 @@ async function upload(){
   const fd=new FormData(); fd.append('file',f);
   const table=el('table').value;
   try{
-    const r=await fetch(BASE+'/api/admin/upload?table='+table,{method:'POST',body:fd});
+    const r=await fetch(BASE+'/api/admin/upload?table='+table,{method:'POST',body:fd,headers:authHeaders()});
     const d=await r.json();
     el('up-status').textContent = r.ok ? `✅ 上传 ${d.file} → ${d.table}, 本体节点 ${d.nodes}` : ('❌ '+ (d.detail||d.error));
     if(r.ok) load();
   }catch(e){el('up-status').textContent='❌ '+e.message;}
 }
 function el(id){return document.getElementById(id);}
+refreshKeyUI();
 load();
 </script>
 </body>

@@ -200,9 +200,8 @@ def part_1_flag_semantics():
 # ─────────────────────────────────────────────────────────────
 _COMPARE_ANON = [
     ("GET", "/health"),
-    ("GET", "/api/ontology/structure?kb=valve"),
-    ("GET", "/api/ontology/graph?kb=valve"),
-    ("GET", "/api/ontology/graph-svg"),
+    # 第4轮(2026-09-28): 本体三条已改为**默认受保护**, 严格关下不再匿名可读 ⇒ 从本清单移出,
+    # 改由 part_2b_default_protected() 正向断言"严格关也必须带凭据"。
     ("GET", "/api/app-config"),
     ("GET", "/admin"),
     ("GET", "/api/flows"),
@@ -417,9 +416,32 @@ def part_5_bounded_read(api):
 
 
 # ─────────────────────────────────────────────────────────────
+# 2b. 默认受保护（第4轮 2026-09-28, CWE-862）: 严格档**未设**时, 本体数据端点也要凭据
+# ─────────────────────────────────────────────────────────────
+_ALWAYS_PROTECTED = ["/api/ontology/structure?kb=valve",
+                     "/api/ontology/graph?kb=valve",
+                     "/api/ontology/graph-svg"]
+
+
+def part_2b_default_protected(off_p):
+    section("2b 严格档默认关下, 本体数据端点仍受保护（CWE-862 修法）")
+    for p in _ALWAYS_PROTECTED:
+        st, _ = http("GET", p, None, None, port=OFF_PORT)
+        ck("严格关 + 匿名访问 %s → 401" % p, st == 401, "status=%s" % st)
+        st, _ = http("GET", p, {"X-API-Key": READ_KEY}, None, port=OFF_PORT)
+        ck("严格关 + read 凭据访问 %s → 200" % p, st == 200, "status=%s" % st)
+    st, _ = http("GET", "/api/ontology/structure?kb=valve",
+                 {"X-API-Key": "wrong-key"}, None, port=OFF_PORT)
+    ck("严格关 + 错误凭据访问 → 401", st == 401, "status=%s" % st)
+    # 未在默认受保护集内的既有端点不受牵连（严格关下仍匿名 200）
+    for p in ("/api/app-config", "/api/flows", "/api/flows/presets", "/health"):
+        st, _ = http("GET", p, None, None, port=OFF_PORT)
+        ck("严格关 + 匿名访问 %s 仍 200（未被误伤）" % p, st == 200, "status=%s" % st)
+
+
 def main():
     print("=" * 74)
-    print("第2轮自检：严格鉴权灰度开关 + 上传体积上限   仓库: %s" % REPO)
+    print("第2轮自检(第4轮已并入: 本体端点默认受保护)：严格鉴权灰度开关 + 上传体积上限   仓库: %s" % REPO)
     print("临时工作目录: %s" % TMP)
     print("=" * 74)
     api = part_1_flag_semantics()
@@ -428,6 +450,7 @@ def main():
     try:
         old_p, off_p = part_2_off_vs_head()
         if off_p is not None:
+            part_2b_default_protected(off_p)
             part_4_upload(off_p)
         on_p, on_log = start_server("api_server.py", ON_PORT, {
             "FOOD_STRICT_AUTH": "yes", "FOOD_MAX_UPLOAD_MB": "1",

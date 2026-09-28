@@ -548,7 +548,9 @@ def _old_token_still_works():
 COMPARE_CASES = [
     ("GET", "/health", None, None, "精确"),
     ("GET", "/api/stats?kb=valve", {"X-API-Key": "@READ@"}, None, "精确"),
-    ("GET", "/api/ontology/structure?kb=valve", None, None, "精确"),
+    # 第4轮(2026-09-28): 该端点已默认受保护 → 带回 read 凭据做"新旧逐字段一致"对照
+    # (匿名侧的行为改由 scripts/verify_strict_auth.py 的 part_2b 正向断言)。
+    ("GET", "/api/ontology/structure?kb=valve", {"X-API-Key": "@READ@"}, None, "精确"),
     ("GET", "/api/auth/whoami", {"X-API-Key": "@READ@"}, None, "精确"),
     ("GET", "/api/admin/kbs", {"X-API-Key": "@ADMIN@"}, None, "超集"),
 ]
