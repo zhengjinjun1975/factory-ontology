@@ -11,6 +11,7 @@
   import AssetPanel from './components/AssetPanel.svelte';
   import SelfModelPanel from './components/SelfModelPanel.svelte';
   import LexiconAssetPanel from './components/LexiconAssetPanel.svelte';
+  import EvolvePanel from './components/EvolvePanel.svelte';
 
   // ─── 企业用户登录态 ───
   let user = $state(null);        // {username, enterpriseName, logo, industry, kb, onboarded}
@@ -1054,6 +1055,9 @@
     <button class="tab" class:active={activeTab === 'lexasset'} onclick={() => switchTab('lexasset')}>
       <span class="tab-icon">📖</span> 词典资产
     </button>
+    <button class="tab" class:active={activeTab === 'evolve'} onclick={() => switchTab('evolve')}>
+      <span class="tab-icon">🌱</span> 本体自演进
+    </button>
   </nav>
 
   <!-- ═══ 主区域 ═══ -->
@@ -1539,6 +1543,14 @@
       <div class="pane-title">词典资产<span class="pane-sub">导出/导入工厂词典；同行业复用积累，独立来源达标才沉淀进行业词典</span></div>
       <div class="dashboard-body">
         <LexiconAssetPanel kb={currentKb} />
+      </div>
+    </section>
+    {:else if activeTab === 'evolve'}
+    <!-- ─── 本体自演进（数据变更后自动提候选 → 人拍板 → 并入词典）─── -->
+    <section class="pane pane-full">
+      <div class="pane-title">本体自演进<span class="pane-sub">数据变更后自动抽取新实体候选；人确认才并入词典（可回退）</span></div>
+      <div class="dashboard-body">
+        <EvolvePanel kb={currentKb} />
       </div>
     </section>
     {/if}

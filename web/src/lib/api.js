@@ -404,3 +404,45 @@ export async function switchIndustry(industry) {
     body: JSON.stringify({ industry }),
   });
 }
+
+// ── 本体自演进（增量：新实体候选 → 待确认 → 人拍板 → 并入词典）──
+// 数据变更（admin/sync）后后端会自动跑一次 propose；这里给面板用的读写口。
+export async function evolvePending() {
+  return fetchRetry('/api/ontology/evolve/pending', { cache: 'no-store' });
+}
+
+export async function evolveConfirm(name, node, aliases) {
+  return fetchRetry('/api/ontology/evolve/confirm', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ name, node, aliases }),
+  });
+}
+
+export async function evolveReject(name) {
+  return fetchRetry('/api/ontology/evolve/reject', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function evolveRollback(targetVersion) {
+  return fetchRetry('/api/ontology/evolve/rollback', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(targetVersion == null ? {} : { target_version: targetVersion }),
+  });
+}
+
+export async function evolveHistory() {
+  return fetchRetry('/api/ontology/evolve/history', { cache: 'no-store' });
+}
+
+export async function evolveTrigger() {
+  return fetchRetry('/api/ontology/evolve/trigger', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({}),
+  });
+}

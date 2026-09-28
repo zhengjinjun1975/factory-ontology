@@ -4,7 +4,7 @@ import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, graphOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, listIndustries, buildIndustry, evalBenchmark, evalIsolate, knowledgeList, assetsList, assetsSnapshot, assetsRollback, suggestOntologySchema, confirmOntologySchema, knowledgeIngest, knowledgeDelete, knowledgeQuery, getEnterprise, saveEnterprise, resetKb, standardCompliance, standardExport, standardDownload, standardRoundtrip, standardImportAlign, standardQuality, lexiconExportRaw, lexiconImport, industryList, industryCandidates, industryAbsorb, listDrives, listDirs, selfmodelCandidates, validateDataDir, selfOnboard, backendConfig } from './ontology.js';
+import { setupOntology, askOntology, statsOntology, lineInfo, schemaOntology, graphOntology, analyzeOntology, getModel, setModel, getModels, saveModels, listExamples, readExample, setupOntologyMulti, dbSetup, browse, readDataFile, getCurrentKb, setCurrentKb, listKbs, listIndustries, buildIndustry, evalBenchmark, evalIsolate, knowledgeList, assetsList, assetsSnapshot, assetsRollback, suggestOntologySchema, confirmOntologySchema, knowledgeIngest, knowledgeDelete, knowledgeQuery, getEnterprise, saveEnterprise, resetKb, standardCompliance, standardExport, standardDownload, standardRoundtrip, standardImportAlign, standardQuality, lexiconExportRaw, lexiconImport, industryList, industryCandidates, industryAbsorb, listDrives, listDirs, selfmodelCandidates, validateDataDir, selfOnboard, backendConfig, evolvePending, evolveConfirm, evolveReject, evolveRollback, evolveHistory, evolveTrigger } from './ontology.js';
 import { login as authLogin, logout as authLogout, me as authMe, createUser, updateUser, seedUsersIfEmpty, restoreSessions } from './auth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -469,6 +469,47 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // ── 本体自演进（增量：数据变更后提候选 → 人拍板 → 并入词典）──
+  if (url === '/api/ontology/evolve/pending') {
+    if (!requireAuth()) return;
+    const r = await evolvePending();
+    res.writeHead(r.ok ? 200 : 502, { 'Content-Type': 'application/json;charset=utf-8' });
+    return res.end(JSON.stringify(r));
+  }
+  if (url === '/api/ontology/evolve/history') {
+    if (!requireAuth()) return;
+    const r = await evolveHistory();
+    res.writeHead(r.ok ? 200 : 502, { 'Content-Type': 'application/json;charset=utf-8' });
+    return res.end(JSON.stringify(r));
+  }
+  if (req.method === 'POST' && url === '/api/ontology/evolve/confirm') {
+    if (!requireAuth()) return;
+    const b = JSON.parse((await readBody(req)) || '{}');
+    const r = await evolveConfirm({ name: b.name, node: b.node, aliases: b.aliases, cls: b.cls });
+    res.writeHead(r.ok ? 200 : 502, { 'Content-Type': 'application/json;charset=utf-8' });
+    return res.end(JSON.stringify(r));
+  }
+  if (req.method === 'POST' && url === '/api/ontology/evolve/reject') {
+    if (!requireAuth()) return;
+    const b = JSON.parse((await readBody(req)) || '{}');
+    const r = await evolveReject({ name: b.name });
+    res.writeHead(r.ok ? 200 : 502, { 'Content-Type': 'application/json;charset=utf-8' });
+    return res.end(JSON.stringify(r));
+  }
+  if (req.method === 'POST' && url === '/api/ontology/evolve/rollback') {
+    if (!requireAuth()) return;
+    const b = JSON.parse((await readBody(req)) || '{}');
+    const r = await evolveRollback(b.target_version == null ? {} : { target_version: b.target_version });
+    res.writeHead(r.ok ? 200 : 502, { 'Content-Type': 'application/json;charset=utf-8' });
+    return res.end(JSON.stringify(r));
+  }
+  if (req.method === 'POST' && url === '/api/ontology/evolve/trigger') {
+    if (!requireAuth()) return;
+    const r = await evolveTrigger();
+    res.writeHead(r.ok ? 200 : 502, { 'Content-Type': 'application/json;charset=utf-8' });
+    return res.end(JSON.stringify(r));
+  }
+
   // ── API: 企业设置（读）—— 按当前登录企业用户返回（单企业唯一性）──
   if (req.method === 'GET' && url === '/api/ontology/enterprise') {
     const user = req.user;
@@ -620,7 +661,7 @@ const server = createServer(async (req, res) => {
 
   // ── API: 代码版本（读 codes/run.py 的 __version__，单一事实源）──
   if (url === '/api/ontology/version') {
-    let version = '0.4.0';
+    let version = '0.5.0';
     try {
       const runSrc = readFileSync(join(__dirname, '..', '..', 'codes', 'run.py'), 'utf-8');
       const m = runSrc.match(/__version__\s*=\s*["']([^"']+)["']/);
@@ -721,7 +762,7 @@ const server = createServer(async (req, res) => {
       const kb = new URL(req.url, 'http://x').searchParams.get('kb') || '';
       const result = await graphOntology(kb);
       res.writeHead(result.ok ? 200 : 500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
-      res.end(JSON.stringify(result.ok ? { ok: true, nodes: result.graph.nodes, edges: result.graph.edges } : result));
+      res.end(JSON.stringify(result.ok ? { ok: true, nodes: result.graph.nodes, edges: result.graph.edges, classes: result.classes || [] } : result));
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
       res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
