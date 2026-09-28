@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.5.0] - 2026-09-28
+
+### 本体自定义与本体自演进（人在环：候选自动提 → 人拍板并入 → 版本化 → 可回退）
+> 本版为一次功能级发布。新增自检门一道（自检门 8 → **9 道**），全部门 `python scripts/run_all_gates.py --fast` 全绿。
+
+**新增 · 本体自演进**（`codes/ontology_evolve.py` + 前端「本体自演进」面板 + `web/server/ontology.js`）
+- 增量闭环：数据变更后**自动提候选**（`_auto_evolve_after_sync`，fail-open，**只写「待确认区」**）；人拍板 `confirm` 才**并入词典 `synonym_map` + 在本体里新增一个演化节点**（`config/evolve_nodes_<kb>.json`，由 `_get_kb_ctx` 合并进本体图，`/api/ontology/graph` 立即可见）。
+- **自动不碰词典**：写 `lexicon_<kb>.json` 的代码路径只有 `confirm()` / `rollback()` 两条（人确认 / 人回退）；写演化节点的唯一入口也在 `confirm` 里。自检门逐字节验证：跑一次自动提候选，词典 md5 与字节数完全不变。
+- **每次变更留痕**：版本号单调 +1，`confirm` / `reject` / `rollback` 全写 `config/evolve_audit.jsonl`（带 `actor_kind`）；重复 `confirm` 幂等（被拒且不写审计）。
+- **回退与词典对称**：变更前快照同时保存**词典 + 演化节点**，`rollback` 一并回退，不留「词典里已无该名、图谱里还挂着」的孤儿节点；恢复为空集时删掉节点文件。
+- 端点（均需凭据）：`GET /api/ontology/evolve/pending`、`POST .../confirm`、`POST .../reject`、`POST .../rollback`、`GET .../history`、`POST .../trigger`。
+- 自检门 `scripts/verify_ontology_evolve.py`：**PASS 23 / FAIL 0**（真起服务跑「提候选 → 人拍板并入 → 图上可见 → 幂等 → 回退对称」，并逐字节还原现场）。
+
+**新增 · 本体自定义（归属类）**
+- 确认候选时的「归属类」从 `.nt` 读出的**真实类**（含中文标签）里选，不再手敲 URI；与 0.4.0 的「自动派生类层次/实体定义/具名子类（规则 + 人确认）」连成一条链。
+
+**工程**
+- `scripts/run_all_gates.py` 新增门「本体自演进（人在环）」（`--fast` 亦覆盖，自检门 8 → 9 道）。
+- `.gitignore` 新增：本体自演进运行态（`codes/config/evolve_*.json`、`evolve_audit.jsonl`、`evolve_snapshots/`）——运行产物不入库。
+- 版本号统一 0.5.0（`codes/run.py` 为唯一事实源）。
+
+**诚实边界（本版新增说明）**
+- 自演进候选质量取决于提取器：LLM 不可用时降级为 n-gram 滑窗，会切出「已入库」「华北」这类碎片，必须人工筛。
+- 仓库内该能力目前**只经自检门验证**，尚未沉淀真实并入成果（现有别名来自正常建库与人工维护）。
+
 ## [0.4.0] - 2026-09-25
 
 ### 商业化鉴权加固 + 自助建模与建模质量（多租户 / 严格鉴权 / 令牌 / SSO / 向导 / 类层次）
