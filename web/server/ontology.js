@@ -1326,9 +1326,9 @@ export async function graphOntology(kb) {
     kb = kb || getCurrentKb();
     const q = new URLSearchParams({ kb }).toString();
     const r = await apiFetch(`/api/ontology/graph?${q}`);
-    // 后端返回统一信封 {ok, nodes, edges, counts}（本体实例图）
+    // 后端返回统一信封 {ok, nodes, edges, counts, classes}（本体实例图）
     if (r && r.ok && Array.isArray(r.nodes)) {
-      return { ok: true, graph: { nodes: r.nodes, edges: r.edges || [] } };
+      return { ok: true, graph: { nodes: r.nodes, edges: r.edges || [] }, classes: r.classes || [] };
     }
     if (r && r.offline) {
       // 降级：后端不可达，由本地 schema 组装最小图（类节点 + 类间对象关系），
@@ -1639,5 +1639,59 @@ export async function standardQuality(kb) {
     return { ok: false, error: (r && r.error) || '质量门执行失败' };
   } catch (e) {
     return { ok: false, error: String((e && e.message) || e) };
+  }
+}
+
+export async function evolvePending() {
+  try {
+    const r = await apiFetch('/api/ontology/evolve/pending');
+    return r && typeof r.ok === 'boolean' ? r : { ok: false, error: (r && r.error) || '待确认候选读取失败' };
+  } catch (e) {
+    return { ok: false, error: netErr(e, '读取待确认候选') };
+  }
+}
+
+export async function evolveConfirm(payload = {}) {
+  try {
+    const r = await apiFetch('/api/ontology/evolve/confirm', { method: 'POST', body: payload, timeout: 60000 });
+    return r && typeof r.ok === 'boolean' ? r : { ok: false, error: (r && r.error) || '确认失败' };
+  } catch (e) {
+    return { ok: false, error: netErr(e, '确认候选') };
+  }
+}
+
+export async function evolveReject(payload = {}) {
+  try {
+    const r = await apiFetch('/api/ontology/evolve/reject', { method: 'POST', body: payload, timeout: 30000 });
+    return r && typeof r.ok === 'boolean' ? r : { ok: false, error: (r && r.error) || '拒绝失败' };
+  } catch (e) {
+    return { ok: false, error: netErr(e, '拒绝候选') };
+  }
+}
+
+export async function evolveRollback(payload = {}) {
+  try {
+    const r = await apiFetch('/api/ontology/evolve/rollback', { method: 'POST', body: payload, timeout: 60000 });
+    return r && typeof r.ok === 'boolean' ? r : { ok: false, error: (r && r.error) || '回退失败' };
+  } catch (e) {
+    return { ok: false, error: netErr(e, '回退词典') };
+  }
+}
+
+export async function evolveHistory() {
+  try {
+    const r = await apiFetch('/api/ontology/evolve/history');
+    return r && typeof r.ok === 'boolean' ? r : { ok: false, error: (r && r.error) || '演进历史读取失败' };
+  } catch (e) {
+    return { ok: false, error: netErr(e, '读取演进历史') };
+  }
+}
+
+export async function evolveTrigger() {
+  try {
+    const r = await apiFetch('/api/ontology/evolve/trigger', { method: 'POST', body: {}, timeout: 300000 });
+    return r && typeof r.ok === 'boolean' ? r : { ok: false, error: (r && r.error) || '触发失败' };
+  } catch (e) {
+    return { ok: false, error: netErr(e, '触发本体自演进') };
   }
 }

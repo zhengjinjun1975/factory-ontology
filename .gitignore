@@ -80,3 +80,11 @@ codes/config/api_keys.json
 
 # 本地微调编译缓存（与本项目无关）
 unsloth_compiled_cache/
+
+# 本体自演进运行态(第5轮: 待确认/版本/审计/快照/演化节点 —— 运行产物, 不入库)
+codes/config/evolve_*.json
+codes/config/evolve_audit.jsonl
+codes/config/evolve_snapshots/
+
+# 内部商业化调研(含内部判断, 不发布)
+docs/商品化调研/

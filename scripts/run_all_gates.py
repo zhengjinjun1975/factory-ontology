@@ -20,6 +20,7 @@ GATES = [
     ("编排上半截（流程/控制流/预设）", ["scripts/verify_flows.py"]),
     ("问答信封与未命中", ["scripts/verify_qa_envelope.py"]),
     ("模型建议层", ["scripts/verify_advisory.py"]),
+    ("本体自演进（人在环）", ["scripts/verify_ontology_evolve.py"]),
     ("边界自检（甲方痕迹/依赖）", ["scripts/check_boundary.py"]),
     ("仓库单测", ["-m", "pytest", "codes/tests", "-q"]),
 ]

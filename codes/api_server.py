@@ -437,7 +437,34 @@ def ontology_graph(kb: str = Query("")):
     except Exception as _e:
         logger.warning(f"类级关系边解析跳过: {_e}")
     return {"ok": True, "nodes": nodes, "edges": edges,
-            "counts": {"nodes": len(nodes), "edges": len(edges)}}
+            "counts": {"nodes": len(nodes), "edges": len(edges)},
+            "classes": _kb_class_list(ctx.get("nt_file"), lb)}
+
+
+def _kb_class_list(nt_file, lb):
+    """从 .nt 里取 owl:Class 声明 → [{cls, label}]（下拉选「归属类」用）。
+
+    只认 .nt 里显式声明为 owl:Class 的，不从实例名硬切 —— 否则会切出
+    Valve/Valve_batch 这种残项，还丢掉本体里的中文 label。
+    """
+    RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
+    OWL_CLASS = "http://www.w3.org/2002/07/owl#Class"
+    out, seen = [], set()
+    try:
+        with open(nt_file, encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                if OWL_CLASS not in line or RDF_TYPE not in line:
+                    continue
+                uri = line.split(">", 1)[0].strip().lstrip("<")
+                local = uri.split("#")[-1].split("/")[-1]
+                if not local or local in seen:
+                    continue
+                seen.add(local)
+                out.append({"cls": local, "label": lb.get(uri) or local})
+    except Exception as e:
+        logger.warning("class list 读取失败(不影响图): %s" % e)
+    out.sort(key=lambda x: x["cls"])
+    return out
 
 
 @app.get("/", include_in_schema=False)
@@ -536,6 +563,26 @@ def _get_kb_ctx(kb=None):
         g, lb, v, rv = gr.build_graph(nt_file)
         D = v3.load_dict(lex_file)
         QD = v3.build_data(v3.parse_nt(nt_file), D)
+        # 本体自演进：把人工确认的「演化节点」合并进本体图（.nt 是 build 产物，重建会覆盖，故独立存盘）
+        try:
+            import ontology_evolve as _oe
+            _ns = 'https://ontology.example.com/industry/%s#' % kb
+            for _nd in (_oe.load_evolve_nodes(kb).get('nodes') or []):
+                _uri = _ns + str(_nd.get('uri') or '')
+                if _uri == _ns:
+                    continue
+                _name = str(_nd.get('name') or '')
+                _cls = str(_nd.get('cls') or 'Evolved')
+                _e = g.setdefault(_uri, {})
+                _e.setdefault('type', [_ns + _cls])
+                _e.setdefault('label', [_name])
+                _e['evolved'] = [True]
+                for _a in (_nd.get('aliases') or []):
+                    _e.setdefault('alias', []).append(str(_a))
+                lb[_uri] = _name or _cls
+                lb.setdefault(_ns + _cls, _cls)
+        except Exception as _ex:
+            logger.warning('evolve nodes merge skipped: %s' % _ex)
     except Exception as e:
         logger.warning(f"kb '{kb}' 加载失败: {e}")
         return None
@@ -1649,7 +1696,9 @@ def admin_sync():
             logger.warning("data_import 失败(用现有数据): %s", e)
     graph, labels, vi, rev = _reload()
     QDATA = v3.build_data(v3.parse_nt(_nt_path_for(KB_NAME)), D)
-    return {"ok": True, "kb": KB_NAME, "imported": imported, "nodes": len(graph), "message": "已实时同步"}
+    evolve = _auto_evolve_after_sync()
+    return {"ok": True, "kb": KB_NAME, "imported": imported, "nodes": len(graph),
+            "message": "已实时同步", "evolve": evolve}
 
 
 @app.get("/metrics", include_in_schema=False)
@@ -3641,6 +3690,137 @@ def flows_run(flow_id: str, req: FlowRunReq = None):
                 "error": f"流程执行异常: {type(e).__name__}: {e}"}
 
 
+class EvolveConfirmReq(BaseModel):
+    name: str
+    node: str | None = None
+    aliases: list | None = None
+    cls: str | None = None
+
+
+class EvolveRejectReq(BaseModel):
+    name: str
+
+
+class EvolveRollbackReq(BaseModel):
+    target_version: int | None = None
+
+
+@app.get("/api/ontology/evolve/pending", dependencies=[Depends(require_key)])
+def evolve_pending():
+    """本体自演进：列出待确认候选（只读，不改词典）。"""
+    from ontology_evolve import pending as _ev_pending, alias_version as _ev_alias_version
+    kb = _active_kb()
+    return {"ok": True, "kb": kb, "version": _ev_alias_version(kb), "pending": _ev_pending(kb)}
+
+
+@app.post("/api/ontology/evolve/confirm", dependencies=[Depends(require_key)])
+def evolve_confirm(req: EvolveConfirmReq):
+    """本体自演进：人拍板 —— 候选并入词典 synonym_map + 在本体里长出一个节点（版本+1 + 审计 + 快照）。"""
+    from ontology_evolve import (confirm as _ev_confirm, alias_version as _ev_alias_version,
+                                add_evolve_node as _ev_add_node)
+    kb = _active_kb()
+    ok, msg = _ev_confirm(req.name, req.node, kb=kb, aliases=req.aliases)
+    node_uri = ""
+    if ok:
+        # 本体自演进：除词典别名外，再往「演化节点」里长一个真节点（图谱里可见）。
+        try:
+            _n_ok, _n_msg = _ev_add_node(req.name, req.cls or "Evolved", kb, aliases=req.aliases)
+            if _n_ok:
+                node_uri = "%s_%s" % (req.cls or "Evolved", req.name)
+            else:
+                logger.info("evolve 节点未新增(可能已存在): %s" % _n_msg)
+        except Exception as _e:
+            logger.warning("evolve 节点写入失败(词典已并入,不影响): %s" % _e)
+    _invalidate_kb(kb)
+    return {"ok": ok, "message": msg, "version": _ev_alias_version(kb), "node": node_uri}
+
+
+@app.post("/api/ontology/evolve/reject", dependencies=[Depends(require_key)])
+def evolve_reject(req: EvolveRejectReq):
+    """本体自演进：拒绝候选（记住不再提，不进词典）。"""
+    from ontology_evolve import reject as _ev_reject
+    _kb2 = _active_kb()
+    ok, msg = _ev_reject(req.name, kb=_kb2)
+    _invalidate_kb(_kb2)
+    return {"ok": ok, "message": msg}
+
+
+@app.post("/api/ontology/evolve/rollback", dependencies=[Depends(require_key)])
+def evolve_rollback(req: EvolveRollbackReq):
+    """本体自演进：回退词典到某版本（默认上一版）。"""
+    from ontology_evolve import rollback as _ev_rollback, alias_version as _ev_alias_version
+    kb = _active_kb()
+    ok, msg = _ev_rollback(req.target_version, kb=kb)
+    _invalidate_kb(kb)
+    return {"ok": ok, "message": msg, "version": _ev_alias_version(kb)}
+
+
+@app.get("/api/ontology/evolve/history", dependencies=[Depends(require_key)])
+def evolve_history():
+    """本体自演进：版本/快照/待确认/已拒绝 概览。"""
+    from ontology_evolve import history as _ev_history
+    return {"ok": True, **_ev_history(kb=_active_kb())}
+
+
+_SKIP_COL = ('id', 'code', 'no', 'num', 'key', 'batch', 'raw', 'uuid', 'guid', 'sn', 'hash', 'ts', 'time', 'date', 'created', 'updated', 'index', 'idx', 'pk', 'fk')
+_ZH = re.compile('[一-鿿]')
+
+def _pick_text_values(header, rows, max_each=60):
+    """只取中文文本列的值（跳过 ID/编号/日期列）。"""
+    keep = []
+    for i, col in enumerate(header):
+        name = str(col or '').strip().lower()
+        if any(k in name for k in _SKIP_COL):
+            continue
+        vals = [(r[i] or '').strip() for r in rows if i < len(r)]
+        zh = [v for v in vals if len(v) >= 2 and _ZH.search(v)]
+        if len(zh) >= 3:
+            keep.extend(zh)
+    seen, out = set(), []
+    for v in keep:
+        if v not in seen:
+            seen.add(v)
+            out.append(v)
+        if len(out) >= max_each:
+            break
+    return out
+
+def _auto_evolve_after_sync():
+    """数据变更后自动跑本体自演进（提候选）。只取中文文本列，fail-open。"""
+    try:
+        import os as _os, io as _io, csv as _csv
+        from ontology_evolve import propose as _ev_propose
+        kb = _active_kb(KB_NAME)
+        meta = (KBS.get(kb) or {})
+        data_dir = _os.path.join(ROOT, meta.get("data_dir") or ("data_%s" % kb))
+        texts = []
+        if _os.path.isdir(data_dir):
+            for fn in sorted(_os.listdir(data_dir)):
+                if not fn.lower().endswith(".csv"):
+                    continue
+                try:
+                    with _io.open(_os.path.join(data_dir, fn), encoding="utf-8", errors="ignore", newline="") as fp:
+                        rows = [r for r in _csv.reader(fp)][:200]
+                    if len(rows) < 2:
+                        continue
+                    texts.extend(_pick_text_values(rows[0], rows[1:60]))
+                except Exception:
+                    continue
+        texts = [t for t in texts if len(t) >= 2 and _ZH.search(t)][:300]
+        if not texts:
+            return {"ok": True, "candidates": 0, "note": "数据目录无中文文本列，跳过"}
+        cands = _ev_propose(texts, kb=kb, min_count=1)
+        return {"ok": True, "kb": kb, "candidates": len(cands), "names": [c["name"] for c in cands][:10]}
+    except Exception as e:
+        logger.warning("自动本体自演进失败(不影响同步): %s", e)
+        return {"ok": False, "error": str(e)}
+
+
+@app.post("/api/ontology/evolve/trigger", dependencies=[Depends(require_key)])
+def evolve_trigger():
+    """手动触发一次本体自演化（重读数据目录 → 提候选 → 待确认区）。"""
+    return _auto_evolve_after_sync()
+
 if __name__ == "__main__":
     import uvicorn
     # 安全加固(架构师审计 P0-1): fail-closed 鉴权 + 默认仅本机可访问。
@@ -3661,3 +3841,7 @@ if __name__ == "__main__":
     # 后台预热 embedding 模型(不阻塞服务启动)
     threading.Thread(target=_warm_embedding, daemon=True).start()
     uvicorn.run(app, host=host, port=port)
+
+
+
+
