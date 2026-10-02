@@ -1443,27 +1443,6 @@ def auth_whoami(request: Request):
             "expires_at": datetime.fromtimestamp(p["exp"]).isoformat() if p["exp"] else None}
 
 
-@app.get("/api/export/reverse", dependencies=[Depends(require_key)])
-def export_reverse(raw: str = Query(..., description="原料编号，如 RM008"), fmt: str = Query("csv", pattern="^(csv|txt)$")):
-    """溯源报告导出: 原料 → 受影响批次 → 产品(食品召回/合规)。"""
-    data = _reverse_trace(raw)
-    raw_name = _resolve_readable(data["raw_material"])
-    lines = [["原料", raw_name], [], ["受影响批次", "产品", "生产日期"]]
-    for ab in data["affected_batches"]:
-        prod = _resolve_readable(ab["product"]) if ab.get("product") else ""
-        lines.append([ab["batch"], prod, ab.get("produce_date", "")])
-    if fmt == "txt":
-        body = "\n".join("\t".join(map(str, r)) for r in lines)
-        return PlainTextResponse(body, media_type="text/plain",
-                                 headers={"Content-Disposition": f"attachment; filename=trace_{raw}.txt"})
-    import io, csv as _csv
-    buf = io.StringIO()
-    w = _csv.writer(buf)
-    w.writerows(lines)
-    return PlainTextResponse(buf.getvalue(), media_type="text/csv",
-                             headers={"Content-Disposition": f"attachment; filename=trace_{raw}.csv"})
-
-
 @app.post("/api/admin/upload", dependencies=[Depends(require_admin)])
 async def admin_upload(file: UploadFile = File(...), table: str = Query("products", description="目标表,如 products/raw_materials/batches/ingredient/qc/equipment")):
     """管理操作: 上传 CSV 到指定表 + 重建本体。"""
@@ -2079,20 +2058,6 @@ def ask(req: AskReq):
     return result
 
 
-@app.get("/api/trace/forward", dependencies=[Depends(require_key)])
-def trace_forward(batch: str = Query(..., description="生产批次号，如 B001")):
-    res = _forward_trace(batch)
-    _audit_trace("forward", batch, res)
-    return {"ok": True, "direction": "forward", **res}
-
-
-@app.get("/api/trace/reverse", dependencies=[Depends(require_key)])
-def trace_reverse(raw: str = Query(..., description="原料编号，如 RM008")):
-    res = _reverse_trace(raw)
-    _audit_trace("reverse", raw, res)
-    return {"ok": True, "direction": "reverse", **res}
-
-
 @app.get("/api/scan", dependencies=[Depends(require_key)])
 def scan(code: str = Query(..., description="溯源码，如 P003-B005 或 B001")):
     """扫码溯源：识别产品批次或批次号。"""
@@ -2103,147 +2068,11 @@ def scan(code: str = Query(..., description="溯源码，如 P003-B005 或 B001"
     return {"ok": True, "code": code, **res}
 
 
-@app.get("/api/stats", dependencies=[Depends(require_key)])
-def stats(kb: str = Query("", description="知识库名")):
-    """知识库统计（按 kb 隔离，不串台）。"""
-    if not kb:
-        kb = KBS.get("_default", "") or "food"
-    ctx = _get_kb_ctx(kb)
-    if not ctx:
-        return {"ok": False, "error": f"kb '{kb}' 未建模或加载失败"}
-    g = ctx["graph"]
-    # 用 QDATA(实例字典)统计实例：key 形如 <Entity>_<field>_<ID>
-    qd = ctx.get("QDATA") or {}
-    inst_count = {}
-    for k in qd:
-        local = str(k).split("/")[-1]
-        m = re.match(r"^([A-Za-z_]+?)_[A-Za-z0-9_]+$", local)
-        if m:
-            cls = m.group(1)
-            inst_count[cls] = inst_count.get(cls, 0) + 1
-    # ── 看板聚合(前端 DashboardPanel 契约): 设备类型/状态分布 + 产线(车间)统计 ──
-    # 各行业设备表名不同(equipment / valve_equipment / ...)，由词典 entity_cn2en['设备'] 解析；
-    # 无设备表的 kb(如纯产品库)返回空数组 → 前端显示空态而非报错。
-    D = ctx.get("D") or {}
-    aliases = D.get("field_aliases", {}) or {}
-    dev_table = str((D.get("entity_cn2en", {}) or {}).get("设备", "") or "").strip()
-
-    def _field(rec, en):
-        for a in ([en] + list(aliases.get(en, []) or [])):
-            v = rec.get(a)
-            if v not in (None, ""):
-                return str(v).strip()
-        return ""
-
-    def _num(rec, en):
-        try:
-            return float(_field(rec, en) or 0)
-        except (TypeError, ValueError):
-            return 0.0
-
-    RUNNING = {"running", "run", "normal", "working", "active", "online",
-               "运行中", "运行", "正常", "工作中", "在线", "生产中"}
-    FAULT = {"alarm", "maintenance", "offline", "fault", "fail", "failed", "error",
-             "报警", "维护", "离线", "故障", "停机", "异常", "检修"}
-    # 用"包含"而非精确相等: 数据里是"维护中/运行中"这类带后缀的词, 精确匹配会漏。
-    def _hit(val, words):
-        t = (val or "").strip().lower()
-        return any(w in t for w in words) if t else False
-    devs = []
-    if dev_table:
-        pre = dev_table.lower() + "_"
-        for k, rec in qd.items():
-            local = str(k).split("/")[-1].lower()
-            # 只取该表的一级实例(key 形如 <ent>_<table>_<id>，排除 _<n> 的关联实例)
-            if local.startswith(pre) and len(local.split("_")) == len(dev_table.split("_")) + 1:
-                if isinstance(rec, dict):
-                    devs.append(rec)
-    type_cnt, status_cnt, line_map = {}, {}, {}
-    for rec in devs:
-        t = _field(rec, "deviceType")
-        if t:
-            type_cnt[t] = type_cnt.get(t, 0) + 1
-        s = _field(rec, "status")
-        if s:
-            status_cnt[s] = status_cnt.get(s, 0) + 1
-        ln = _field(rec, "workshop") or _field(rec, "location") or _field(rec, "zone") or "未分组"
-        e = line_map.setdefault(ln, {"device_count": 0, "running": 0, "alarm": 0, "total_power_kw": 0.0})
-        e["device_count"] += 1
-        if _hit(s, RUNNING):
-            e["running"] += 1
-        if _hit(s, FAULT):
-            e["alarm"] += 1
-        e["total_power_kw"] += _num(rec, "powerKw")
-    line_stats = [{"line": ln, "name": ln, "area": ln, "supervisor": "",
-                   "device_count": v["device_count"], "running": v["running"],
-                   "alarm": v["alarm"], "total_power_kw": round(v["total_power_kw"], 2)}
-                  for ln, v in sorted(line_map.items(), key=lambda x: -x[1]["device_count"])]
-    fault_cnt = sum(v["alarm"] for v in line_map.values())
-    total_dev = len(devs)
-    return {
-        "ok": True,
-        "entities": inst_count, "entity_count": sum(inst_count.values()),
-        "nodes": len(g), "edges": sum(len(v) for v in g.values()),
-        "stats": {
-            "total_devices": total_dev,
-            "device_type_dist": [{"type": t, "count": c}
-                                 for t, c in sorted(type_cnt.items(), key=lambda x: -x[1])],
-            "status_dist": [{"status": s, "count": c}
-                            for s, c in sorted(status_cnt.items(), key=lambda x: -x[1])],
-            "line_stats": line_stats,
-            "fault_rate": round(fault_cnt / total_dev, 4) if total_dev else 0.0,
-        },
-    }
-
-
 # ── 标准合规 API（GB/T 48000.3：合规度 + 标准导出物）──────────────
 _EXPORT_ALLOW = {"ontology.ttl", "shapes.ttl", "ontology.jsonld"}
 
 
 # ── 溯源审计链 API(可选, 审核可追责) ──────────────
-@app.get("/api/audit/chain", dependencies=[Depends(require_key)])
-def audit_chain_status():
-    """校验溯源审计链完整性(防篡改/防删行)。"""
-    ac = _audit_chain()
-    if not ac:
-        return {"ok": False, "error": "审计链未启用(需 audit_chain.py 可用)"}
-    try:
-        ok, issues = ac.verify_chain()
-        return {"ok": True, "chain_integrity": "PASS" if ok else "FAIL",
-                "integrity_issues": issues, **ac.audit_report()}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
-@app.get("/api/audit/decisions", dependencies=[Depends(require_key)])
-def audit_decisions(category: str = Query("", description="决策类别过滤")):
-    """列出审计链中的决策记录(可选 category 过滤)。"""
-    ac = _audit_chain()
-    if not ac:
-        return {"ok": False, "error": "审计链未启用"}
-    try:
-        decs = ac.decisions(category=category or None, limit=200)
-        return {"ok": True, "count": len(decs), "decisions": decs}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
-@app.get("/api/audit/export", dependencies=[Depends(require_key)])
-def audit_export(fmt: str = Query("json", description="json/csv/prov-o")):
-    """导出审计报告到 temp, 返回文件路径与校验状态。"""
-    ac = _audit_chain()
-    if not ac:
-        return {"ok": False, "error": "审计链未启用"}
-    try:
-        import tempfile
-        out = os.path.join(tempfile.gettempdir(), f"factory_audit.{fmt}"
-                           if fmt != "prov-o" else "factory_audit.prov-o.json")
-        r = ac.export_audit(out, fmt=fmt)
-        return {"ok": True, **r}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
 # ════════════════════════════════════════════════════════════════════════
 # 契约端点 v1.0 — knowledge / eval / assets / version（增量，不影响既有接口）
 # 统一响应信封: {ok, data?, error?, elapsed_s}
@@ -2447,210 +2276,7 @@ class AssetRollbackReq(BaseModel):
 
 # ── 1. knowledge ──
 
-@app.post("/api/knowledge/ingest", dependencies=[Depends(require_key)])
-async def knowledge_ingest(file: UploadFile = File(...),
-                           kb: str = Form("food"),
-                           doc_id: str = Form("")):
-    """上传文档(PDF/Word/TXT) → 解析+切块+向量化+入库。同 doc_id 幂等覆盖。"""
-    start = time.time()
-    _kb_guard(kb)  # 多租户: 越权 KB → 403(拒绝)
-    try:
-        from knowledge.ingest import extract_text
-        from knowledge.chunk import chunk_text
-        from knowledge.embed import embed_chunks
-        from knowledge.store import KnowledgeStore
-    except Exception as e:
-        logger.warning(f"API内部错误[知识引擎不可用]: {e}")
-        return _err_env(5001, "知识引擎不可用(内部错误已记录)", start)
-    fname = file.filename or "upload.txt"
-    ext = os.path.splitext(fname)[1].lower()
-    if ext not in (".pdf", ".doc", ".docx", ".txt"):
-        return _err_env(4001, f"仅支持 PDF/Word/TXT, 收到: {ext or '未知扩展名'}", start)
-    # 体积上限(第2轮, 可配 FOOD_MAX_UPLOAD_MB): 分块读入, 超限 413 且不落盘
-    # (在创建临时文件之前就中止, 临时目录不留残留)。读入方式不得无界。
-    try:
-        _body = await _read_upload_capped(file)
-    except UploadTooLarge:
-        return JSONResponse(_err_env(4001, "文件过大: 超过上限 %.0fMB" % MAX_UPLOAD_MB, start),
-                            status_code=413)
-    kbdir = _kb_dir(kb)
-    if kbdir is None:
-        return _err_env(4001, "非法 kb 名", start)
-    tmp = os.path.join(_TMP_UPLOAD, f"{time.time_ns()}{ext}")
-    try:
-        try:
-            os.makedirs(_TMP_UPLOAD, exist_ok=True)
-            with open(tmp, "wb") as f:
-                f.write(_body)
-            doc = extract_text(tmp)
-            if not doc:
-                return _err_env(4001, "文档解析失败(缺解析库或内容为空), 未入库", start)
-            # 用用户上传的原始文件名(去扩展名)作为标题, 便于辨识/删除,
-            # 避免 extract_text 默认用时间戳临时文件名(如 {time_ns()})做 title。
-            doc["title"] = os.path.splitext(fname)[0]
-            chunks = chunk_text(doc["raw_text"])
-            if not chunks:
-                return _err_env(4001, "文档切块为空, 未入库", start)
-            vectors = embed_chunks(chunks)
-            if not vectors:
-                return _err_env(5031, "embedding 服务不可用(未产出向量), 文档未入库", start)
-            did = _safe_doc_id(doc_id.strip()) or "%s_%s" % (
-                doc["title"], hashlib.md5(doc["raw_text"].encode("utf-8")).hexdigest()[:8])
-            store = KnowledgeStore(kbdir)
-            if not store.add_doc(did, doc["title"], chunks, vectors):
-                return _err_env(5001, "文档入库失败", start)
-            return _ok_env({"kb": kb, "doc_id": did, "title": doc["title"],
-                            "chunks": len(chunks), "status": "stored"}, start)
-        finally:
-            if os.path.exists(tmp):
-                try:
-                    os.remove(tmp)
-                except Exception as e:
-                    note_swallow("knowledge_ingest", e)
-                    pass
-    except Exception as e:
-        logger.warning(f"API内部错误[文档接入失败]: {e}")
-        return _err_env(5001, "文档接入失败(内部错误已记录)", start)
-
-
-@app.post("/api/knowledge/query", dependencies=[Depends(require_key)])
-def knowledge_query(req: KnowledgeQueryReq):
-    """文档 RAG 检索。body {kb, q, top_k?} → {answer, evidence}。"""
-    start = time.time()
-    _kb_guard(req.kb)  # 多租户: 越权 KB → 403(拒绝)
-    try:
-        from knowledge.rag import answer as rag_answer
-        from knowledge.store import KnowledgeStore
-    except Exception as e:
-        logger.warning(f"API内部错误[知识引擎不可用]: {e}")
-        return _err_env(5001, "知识引擎不可用(内部错误已记录)", start)
-    if not (req.q or "").strip():
-        return _err_env(4001, "缺少 q", start)
-    kbdir = _kb_dir(req.kb)
-    if kbdir is None:
-        return _err_env(4001, "非法 kb 名", start)
-    try:
-        store = KnowledgeStore(kbdir)
-        res = rag_answer(None, req.q, store, top_k=max(1, min(req.top_k, 20)))
-    except Exception as e:
-        logger.warning(f"API内部错误[检索失败]: {e}")
-        return _err_env(5001, "检索失败(内部错误已记录)", start)
-    ans = res.get("answer", "")
-    if ans.startswith("[模型未配置]"):
-        return _err_env(5031, "模型未配置", start)
-    return _ok_env({"kb": req.kb, "answer": ans, "evidence": res.get("evidence", [])}, start)
-
-
-@app.get("/api/knowledge/list", dependencies=[Depends(require_key)])
-def knowledge_list(kb: str = Query("food")):
-    """列出某 kb 的已入库文档。"""
-    start = time.time()
-    _kb_guard(kb)  # 多租户: 越权 KB → 403(拒绝)
-    try:
-        from knowledge.store import KnowledgeStore
-    except Exception as e:
-        logger.warning(f"API内部错误[知识引擎不可用]: {e}")
-        return _err_env(5001, "知识引擎不可用(内部错误已记录)", start)
-    kbdir = _kb_dir(kb)
-    if kbdir is None:
-        return _err_env(4001, "非法 kb 名", start)
-    try:
-        docs = KnowledgeStore(kbdir).list_docs()
-    except Exception as e:
-        logger.warning(f"API内部错误[读取失败]: {e}")
-        return _err_env(5001, "读取失败(内部错误已记录)", start)
-    return _ok_env({"kb": kb, "docs": docs}, start)
-
-
-@app.post("/api/knowledge/delete", dependencies=[Depends(require_key)])
-def knowledge_delete(req: KnowledgeDeleteReq):
-    """删除某 kb 下的一篇文档。幂等: 重复删除已不存在文档返回 4041。"""
-    start = time.time()
-    _kb_guard(req.kb)  # 多租户: 越权 KB → 403(拒绝)
-    try:
-        from knowledge.store import KnowledgeStore
-    except Exception as e:
-        logger.warning(f"API内部错误[知识引擎不可用]: {e}")
-        return _err_env(5001, "知识引擎不可用(内部错误已记录)", start)
-    kbdir = _kb_dir(req.kb)
-    if kbdir is None:
-        return _err_env(4001, "非法 kb 名", start)
-    try:
-        ok = KnowledgeStore(kbdir).delete(req.doc_id)
-    except Exception as e:
-        logger.warning(f"API内部错误[删除失败]: {e}")
-        return _err_env(5001, "删除失败(内部错误已记录)", start)
-    if not ok:
-        return _err_env(4041, f"文档不存在: {req.doc_id}", start)
-    return _ok_env({"kb": req.kb, "deleted": req.doc_id}, start)
-
-
 # ── 2. eval ──
-
-@app.get("/api/eval/benchmark", dependencies=[Depends(require_key)])
-def eval_benchmark(kb: str = Query("food")):
-    """评测基线: 用 kb 配置的示例题目跑 EvalAgent baseline, 返回命中率。"""
-    start = time.time()
-    kbc = KBS.get(kb, {})
-    questions = kbc.get("examples") or _kb.get("examples", [])
-    if not questions:
-        return _err_env(4001, f"kb '{kb}' 无评测题目(未配置 examples)", start)
-    ctx = _get_kb_ctx(kb)  # 多租户: 按 kb 取本体/词典, 与 /api/ask 对齐
-    if ctx is None:
-        return _err_env(4001, f"知识库 '{kb}' 无效或数据缺失", start)
-    try:
-        from agents.eval_agent import EvalAgent
-        r = EvalAgent().run({"questions": questions, "nt_file": ctx["nt_file"],
-                             "lexicon": ctx["lex_file"], "mode": "baseline"})
-    except Exception as e:
-        logger.warning(f"API内部错误[评测引擎不可用]: {e}")
-        return _err_env(5001, "评测引擎不可用(内部错误已记录)", start)
-    if not r.ok:
-        return _err_env(5001, r.error, start)
-    data = r.data or {}
-    per = data.get("per_question", [])
-    hits = sum(1 for p in per if p.get("hit"))
-    return _ok_env({"kb": kb, "questions_n": data.get("questions_n", len(per)),
-                    "hits": hits, "score": data.get("score")}, start)
-
-
-@app.post("/api/eval/isolate", dependencies=[Depends(require_key)])
-async def eval_isolate(request: Request):
-    """评测隔离: 只问答不打分。字段白名单 {kb, questions}; 出现 gold/rubric/score 返回 4001。"""
-    start = time.time()
-    try:
-        body = await request.json()
-    except Exception:
-        return _err_env(4001, "请求体不是合法 JSON", start)
-    if not isinstance(body, dict):
-        return _err_env(4001, "请求体应为 JSON 对象", start)
-    allowed = {"kb", "questions"}
-    extra = set(body.keys()) - allowed
-    if extra:
-        return _err_env(4001, f"isolate 模式禁止字段: {sorted(extra)} (白名单: {sorted(allowed)})", start)
-    questions = body.get("questions")
-    if not isinstance(questions, list) or not questions:
-        return _err_env(4001, "缺少非空 questions 列表", start)
-    if any(not isinstance(q, str) or not q.strip() for q in questions):
-        return _err_env(4001, "questions 必须全为非空字符串", start)
-    kb = body.get("kb", "food")
-    ctx = _get_kb_ctx(kb)  # 多租户: 按 kb 取本体/词典, 与 /api/ask 对齐
-    if ctx is None:
-        return _err_env(4001, f"知识库 '{kb}' 无效或数据缺失", start)
-    try:
-        from agents.eval_agent import EvalAgent
-        r = EvalAgent().run({"questions": questions, "nt_file": ctx["nt_file"],
-                             "lexicon": ctx["lex_file"], "mode": "isolate"})
-    except Exception as e:
-        logger.warning(f"API内部错误[评测引擎不可用]: {e}")
-        return _err_env(5001, "评测引擎不可用(内部错误已记录)", start)
-    if not r.ok:
-        return _err_env(5001, r.error, start)
-    data = r.data or {}
-    per = data.get("per_question", [])
-    answers = [{"q": p.get("q"), "answer": p.get("answer"), "hit": p.get("hit")} for p in per]
-    return _ok_env({"kb": kb, "questions_n": len(answers), "answers": answers}, start)
-
 
 # ── 3. assets ──
 
@@ -3287,106 +2913,6 @@ def kb_active_set(req: ActiveKbReq):
     return {"ok": True, "kb": kb, "switched": True, "file": ACTIVE_FILE}
 
 
-@app.get("/api/industry/list", dependencies=[Depends(require_key)])
-def industry_dict_list():
-    """列出公共工业本体词典集(00基础+01泵阀+02化工+03地质)及各规模。"""
-    try:
-        from industrial_dict_loader import _DICT_DIR
-        items = []
-        for fn in sorted(os.listdir(_DICT_DIR)):
-            if not fn.endswith(".json") or fn == "index.json":
-                continue
-            fp = os.path.join(_DICT_DIR, fn)
-            d = json.load(open(fp, encoding="utf-8"))
-            items.append({
-                "file": fn,
-                "description": d.get("description", ""),
-                "type": len(d.get("type_cn2en", {})),
-                "status": len(d.get("status_cn2en", {})),
-                "synonym": len(d.get("synonym_map", {})),
-                "entity": len(d.get("entity_cn2en", {})),
-            })
-        return {"ok": True, "items": items}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
-@app.post("/api/industry/absorb", dependencies=[Depends(require_key)])
-async def industry_dict_absorb(req: Request):
-    """吸收企业词典 → 候选池 → 行业层（按「独立来源数」判定，默认阈值 3）。
-
-    body: {lexicon: 企业词典路径, industry: 行业名, threshold?: int}
-    行业名: 泵阀/精细化工/地球物理/基础。
-    单一企业来源通常不足以升级进行业层，词会先进候选池等待后续企业确认。
-    """
-    try:
-        body = await req.json()
-    except Exception:
-        body = {}
-    lexicon = body.get("lexicon", "")
-    industry = body.get("industry", "基础")
-    if not lexicon or not os.path.exists(lexicon):
-        return {"ok": False, "error": f"企业词典不存在: {lexicon}"}
-    try:
-        from absorb_public_dict import learn_from_kb, load_candidates, CROSS_KB_THRESHOLD
-        res = learn_from_kb(lexicon, industry=industry,
-                            threshold=int(body.get("threshold", CROSS_KB_THRESHOLD)), verbose=False)
-        if res.get("ok"):
-            res["candidates"] = len(load_candidates())
-        return res
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
-@app.get("/api/industry/export", dependencies=[Depends(require_key)])
-def industry_dict_export(industry: str = Query("泵阀"), download: bool = Query(False)):
-    """导出行业词典。industry: 泵阀/精细化工/地球物理/基础。
-    download=true 返回文件下载, 否则返回 JSON。"""
-    try:
-        from absorb_public_dict import load_public, INDUSTRY_FILES
-        fn = INDUSTRY_FILES.get(industry, "00_basis.json")
-        pub = load_public(industry)
-        export_dir = os.path.join(ROOT, "..", "dict_export")
-        os.makedirs(export_dir, exist_ok=True)
-        out = os.path.join(export_dir, fn)
-        with open(out, "w", encoding="utf-8") as f:
-            json.dump(pub, f, ensure_ascii=False, indent=2)
-        if download:
-            return FileResponse(out, filename=fn, media_type="application/json")
-        return {"ok": True, "file": out, "industry": industry, "type": len(pub.get("type_cn2en", {}))}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
-@app.get("/api/industry/candidates", dependencies=[Depends(require_key)])
-def industry_dict_candidates(limit: int = Query(50)):
-    """候选池：服务过的企业里出现、但独立来源数尚未达阈值的概念。
-
-    返回 {threshold, similarity, file, total, items:[{word, sources, n, key, first_seen, last_seen}]}
-    """
-    try:
-        from absorb_public_dict import load_candidates, CAND_PATH, CROSS_KB_THRESHOLD, SAME_SOURCE_JACCARD
-        cand = load_candidates()
-        items = sorted(cand.items(), key=lambda x: -len(x[1].get("sources", [])))
-        return {
-            "ok": True,
-            "threshold": CROSS_KB_THRESHOLD,
-            "similarity": SAME_SOURCE_JACCARD,
-            "file": CAND_PATH,
-            "total": len(cand),
-            "items": [{
-                "word": w,
-                "sources": e.get("sources", []),
-                "n": len(e.get("sources", [])),
-                "key": e.get("key", ""),
-                "first_seen": e.get("first_seen", ""),
-                "last_seen": e.get("last_seen", ""),
-            } for w, e in items[:limit]],
-        }
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
 @app.get("/api/kb/{kb}/lexicon/export", dependencies=[Depends(require_key)])
 def kb_lexicon_export(kb: str, download: bool = Query(True), bundle: bool = Query(False)):
     """导出工厂词典 lexicon_<kb>.json。
@@ -3487,53 +3013,6 @@ class FlowRunReq(BaseModel):
     params: dict = {}
 
 
-@app.get("/api/flows")
-def flows_list():
-    """只读：列出可用流程、预设卡与**流程加载失败的真实原因**。"""
-    try:
-        fr = _flow_registry()
-        return {"ok": True, **fr.status()}
-    except Exception as e:
-        return {"ok": False, "error": f"流程注册表不可用: {type(e).__name__}: {e}"}
-
-
-@app.get("/api/flows/presets")
-def flows_presets():
-    """只读：预设卡列表（放配置不放代码，与流程定义一一对应）。"""
-    try:
-        fr = _flow_registry()
-        return {"ok": True, "presets": fr.presets(),
-                "preset_config": fr.presets_file, "preset_error": fr._preset_error}
-    except Exception as e:
-        return {"ok": False, "error": f"读取预设失败: {type(e).__name__}: {e}"}
-
-
-@app.post("/api/flows/{flow_id}/run", dependencies=[Depends(require_key)])
-def flows_run(flow_id: str, req: FlowRunReq = None):
-    """触发：按 flow_id 一键运行某流程，返回每步状态与事件/审计结果。"""
-    import flow_engine as fe
-    try:
-        eng = _flow_engine()
-        fr = _flow_registry()
-        params = dict(req.params) if (req and req.params) else {}
-    except Exception as e:
-        return {"ok": False, "error": f"流程引擎不可用: {type(e).__name__}: {e}"}
-    try:
-        flow = fr.get(flow_id)
-    except fe.FlowError as e:
-        # 流程不存在/加载失败 → 如实输出真实原因
-        return {"ok": False, "flow_id": flow_id, "error": str(e),
-                "load_errors": list(fr.errors)}
-    try:
-        return {"ok": True, **eng.run(flow, params)}
-    except fe.FlowError as e:
-        return {"ok": False, "flow_id": flow_id, "error": f"流程执行失败: {e}"}
-    except Exception as e:
-        logger.exception("流程执行异常: %s", flow_id)
-        return {"ok": False, "flow_id": flow_id,
-                "error": f"流程执行异常: {type(e).__name__}: {e}"}
-
-
 if __name__ == "__main__":
     import uvicorn
     # 安全加固(架构师审计 P0-1): fail-closed 鉴权 + 默认仅本机可访问。
@@ -3556,7 +3035,15 @@ if __name__ == "__main__":
     uvicorn.run(app, host=host, port=port)
 
 
-# ── 路由族挂载（P1-1 拆分试点）：standard 族已移入 routes/standard_routes.py ──
-from routes.standard_routes import router as _standard_router  # noqa: E402
+# ── 路由族挂载：见文件末尾的 _ROUTE_FAMILIES 循环（P1-1 拆分） ──
 
-app.include_router(_standard_router)
+
+# ── 路由族挂载（P1-1 拆分）：各族已移入 codes/routes/<family>_routes.py ──
+from fastapi import APIRouter as _APIRouter  # noqa: E402,F401
+import importlib as _importlib  # noqa: E402
+
+_ROUTE_FAMILIES = ['audit', 'eval', 'export', 'flows', 'industry', 'knowledge', 'standard', 'stats', 'trace']
+
+for _fam in _ROUTE_FAMILIES:
+    _m = _importlib.import_module('routes.%s_routes' % _fam)
+    app.include_router(_m.router)

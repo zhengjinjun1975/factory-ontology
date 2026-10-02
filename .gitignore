@@ -80,3 +80,6 @@ codes/config/api_keys.json
 
 # 本地微调编译缓存（与本项目无关）
 unsloth_compiled_cache/
+
+# Hermes agent 的本地验证配方目录（非产品内容；审查 P2-4 起不入库）
+.hermes/

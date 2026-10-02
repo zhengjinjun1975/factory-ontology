@@ -104,6 +104,12 @@ def fuzzy_match(answer, gt):
     except ValueError:
         pass
     # 文本匹配兜底
+    # 代码审查 P2-2：原来无条件 `return g in answer`，"1200" 会命中 "12000"（假命中）。
+    # 纯数字类型的 GT 已在上面按数值容错比对，故这里对数字型 GT 要求**数字边界完全相等**；
+    # 只有真正的文本型 GT 才用子串匹配（保持原文案判定不变）。
+    if re.fullmatch(r"-?\d+(?:,\d{3})*(?:\.\d+)?%?", g):
+        return re.search(r"(?<!\d)" + re.escape(g.rstrip("%")) + r"(?!\d)",
+                         answer.replace("，", ",")) is not None
     return g in answer
 
 

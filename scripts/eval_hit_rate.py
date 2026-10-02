@@ -148,7 +148,17 @@ def judge(q, answer):
                 return True
         return False
     if q["check"] == "contains_all":
-        return all(str(v) in answer for v in q["golden_vals"])
+        # 代码审查 P2-2：原来是 `all(str(v) in answer ...)` 纯子串，数字型 golden 会假命中
+        # （"1200" 命中 "12000"）。规则：数字型 golden 要求**数字边界完全相等**，
+        # 文本型 golden 仍用子串匹配（与既有口径一致）。
+        def _hit(v):
+            s = str(v)
+            if re.fullmatch(r"-?\d+(?:\.\d+)?", s):
+                return re.search(r"(?<!\d)" + re.escape(s) + r"(?!\d)",
+                                 answer.replace(",", "")) is not None
+            return s in answer
+
+        return all(_hit(v) for v in q["golden_vals"])
     return False
 
 
