@@ -49,14 +49,13 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("food-api")
 
-from fastapi import FastAPI, HTTPException, Query, Header, Request, Depends, UploadFile, File, Form
-from fastapi.responses import HTMLResponse, FileResponse, PlainTextResponse, JSONResponse
+from fastapi import FastAPI, HTTPException, Query, Header, Request, Depends, UploadFile, File
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 import tenant  # 多租户: 租户解析/注册表/请求级上下文(纯标准库)
 import graph_rag as gr
 import ontology_qa_v3 as v3
-import multi_table as mt
 import schema_ontology as so
 import fusion
 import query_understand
@@ -2903,11 +2902,18 @@ def kb_active_get():
 
 @app.post("/api/kb/active", dependencies=[Depends(require_key)])
 def kb_active_set(req: ActiveKbReq):
-    """A1: 切库即更新持久态。非法 kb 名 / 越权 → 拒绝（不静默通过）。"""
+    """A1: 切库即更新持久态。非法 kb 名 / 未知 kb / 越权 → 拒绝（不静默通过）。
+
+    契约测试(2026-10-02)发现: 原来只挡了路径穿越形态的非法名，**没校验 kb 是否存在**，
+    传一个不存在的库名也会返回 switched=True 并写进激活态（静默切到不存在的库，
+    后续问答/统计全部落空）。此处补存在性校验：不在可见 kb 集合里 → ok=False 且**不落盘**。
+    """
     kb = (req.kb or "").strip()
     if not kb or kb.startswith(".") or any(c in kb for c in ("/", "\\", "..")):
         return {"ok": False, "error": "非法 kb 名"}
     _kb_guard(kb)
+    if kb not in KBS:
+        return {"ok": False, "error": "未知知识库: %r（不在已注册 kb 中，未切换）" % kb}
     _set_active_kb(kb, source="switch")
     _invalidate_kb(kb)
     return {"ok": True, "kb": kb, "switched": True, "file": ACTIVE_FILE}
@@ -3035,11 +3041,7 @@ if __name__ == "__main__":
     uvicorn.run(app, host=host, port=port)
 
 
-# ── 路由族挂载：见文件末尾的 _ROUTE_FAMILIES 循环（P1-1 拆分） ──
-
-
 # ── 路由族挂载（P1-1 拆分）：各族已移入 codes/routes/<family>_routes.py ──
-from fastapi import APIRouter as _APIRouter  # noqa: E402,F401
 import importlib as _importlib  # noqa: E402
 
 _ROUTE_FAMILIES = ['audit', 'eval', 'export', 'flows', 'industry', 'knowledge', 'standard', 'stats', 'trace']
