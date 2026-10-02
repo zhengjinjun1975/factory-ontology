@@ -51,7 +51,7 @@ logger = logging.getLogger("food-api")
 
 from fastapi import FastAPI, HTTPException, Query, Header, Request, Depends, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, FileResponse, PlainTextResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 import tenant  # 多租户: 租户解析/注册表/请求级上下文(纯标准库)
 import graph_rag as gr
@@ -73,6 +73,8 @@ from ask_service import (  # noqa: E402
     _doc_rag_fallback,
     _fuse_chunk_relevant,
 )
+
+from logging_util import note_swallow  # noqa: E402  （P1-2 容错留痕统一出口）
 
 # ── 食品知识库配置 ──
 NS = "http://factory.example/ontology#"   # 与 multi_table 建本体一致
@@ -188,12 +190,37 @@ def _data_dir_conflict(kb, data_dir):
     return None
 
 
+_TAIL_INDEX: dict = {}          # tail(本地名) -> uri；随 graph 重载失效（见 _invalidate_tail_index）
+_TAIL_INDEX_READY = False
+
+
+def _invalidate_tail_index():
+    """graph 被换掉（切库 / 重建 / 确认落库）时必须清空尾部名索引。
+
+    调用点：`_reload()`（三处切库路径都经由它赋值 global graph）。
+    """
+    global _TAIL_INDEX_READY
+    _TAIL_INDEX.clear()
+    _TAIL_INDEX_READY = False
+
+
 def _find(tail_name):
-    """按尾部名找图内实体 URI（跨命名空间）。"""
-    for k in graph:
-        if gr.tail(k) == tail_name:
-            return k
-    return None
+    """按尾部名找图内实体 URI（跨命名空间）。
+
+    代码审查 P1-3：原实现每次调用都 `for k in graph` 线性遍历整图，而问答主路径一次
+    问句会多次命中它（1510 溯源、1605/1625 批次与原料）。改为**按需建一次** tail→uri
+    映射并缓存，由 `_invalidate_tail_index()` 在 graph 被替换时清空。
+    语义与原实现一致：同名取**遍历顺序里第一个**（索引用 setdefault 保持同一口径）。
+    """
+    global _TAIL_INDEX_READY
+    if not _TAIL_INDEX_READY:
+        idx = {}
+        for k in graph:
+            idx.setdefault(gr.tail(k), k)
+        _TAIL_INDEX.clear()
+        _TAIL_INDEX.update(idx)
+        _TAIL_INDEX_READY = True
+    return _TAIL_INDEX.get(tail_name)
 
 
 def _nt_path_for(kb):
@@ -252,6 +279,7 @@ def _reload(kb=None):
     """
     kb = (kb or KB_NAME).strip()
     _invalidate_kb(kb)
+    _invalidate_tail_index()      # P1-3：graph 即将被替换，尾部名索引必须失效
     return _load(kb)
 
 
@@ -276,7 +304,8 @@ def _warm_embedding():
         from vector_retrieval import embed_text, EMBED_MODEL
         embed_text("预热 embedding 模型", model=EMBED_MODEL)
         logger.info(f"embedding 模型预热完成: {EMBED_MODEL}")
-    except Exception:
+    except Exception as e:
+        note_swallow("_warm_embedding", e)
         pass  # 预热失败静默, 不阻塞服务启动
 
 app = FastAPI(title="食品企业知识库 API", version=APP_VERSION,
@@ -537,6 +566,7 @@ def _get_kb_ctx(kb=None):
         D = v3.load_dict(lex_file)
         QD = v3.build_data(v3.parse_nt(nt_file), D)
     except Exception as e:
+        note_swallow("_get_kb_ctx", e)
         logger.warning(f"kb '{kb}' 加载失败: {e}")
         return None
     ctx = {"graph": g, "labels": lb, "vi": v, "rev": rv,
@@ -689,7 +719,8 @@ def _parse_expires(v):
     try:
         from datetime import datetime as _dt
         return _dt.fromisoformat(v.replace("Z", "+00:00")).timestamp()
-    except Exception:
+    except Exception as e:
+        note_swallow("_parse_expires", e)
         logger.warning("无法解析 key 过期时间(忽略, 视为不过期): %r", v)
         return None
 
@@ -886,7 +917,8 @@ def _principal(key):
 def _client_ip(request):
     try:
         return (request.client.host if request and request.client else "") or ""
-    except Exception:
+    except Exception as e:
+        note_swallow("_client_ip", e)
         return ""
 
 
@@ -1063,9 +1095,11 @@ def _prune_audit_archives():
             try:
                 if os.path.getmtime(p) < cutoff:
                     os.remove(p)
-            except Exception:
+            except Exception as e:
+                note_swallow("_prune_audit_archives", e)
                 pass
-    except Exception:
+    except Exception as e:
+        note_swallow("_prune_audit_archives", e)
         pass
 
 
@@ -1077,12 +1111,14 @@ def _audit(record):
             if os.path.exists(AUDIT_FILE) and os.path.getsize(AUDIT_FILE) > _AUDIT_MAX_BYTES:
                 try:
                     os.replace(AUDIT_FILE, AUDIT_FILE + "." + datetime.now().strftime("%Y%m%d_%H%M%S"))
-                except Exception:
+                except Exception as e:
+                    note_swallow("_audit", e)
                     pass
                 _prune_audit_archives()
             with open(AUDIT_FILE, "a", encoding="utf-8") as f:
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
-    except Exception:
+    except Exception as e:
+        note_swallow("_audit", e)
         pass
 
 
@@ -1110,7 +1146,8 @@ def _audit_access_chain(subject, action, result, role="", detail="", tenant_id=N
             return
         ac.record_access(subject=subject, action=action, result=result,
                          role=role, detail=detail, tenant=tenant_id)
-    except Exception:
+    except Exception as e:
+        note_swallow("_audit_access_chain", e)
         pass
 
 
@@ -1384,7 +1421,8 @@ def auth_sso_status():
     try:
         import sso as _sso_mod
         st["config_path"] = _sso_mod.config_path()
-    except Exception:
+    except Exception as e:
+        note_swallow("auth_sso_status", e)
         pass
     return st
 
@@ -1583,7 +1621,8 @@ def _audit_trace(direction, query, result):
         summary = result.get("affected_batches") or result.get("product") or ""
         ac.record_trace(source=query, relation="trace_" + direction,
                         target=str(summary)[:500], detail="")
-    except Exception:
+    except Exception as e:
+        note_swallow("_audit_trace", e)
         pass  # 审计失败不影响溯源主结果
 
 
@@ -1981,7 +2020,8 @@ def ask(req: AskReq):
     if not (getattr(req, "kb", "") or "").strip():
         try:
             req.kb = _active_kb()
-        except Exception:
+        except Exception as e:
+            note_swallow("ask", e)
             pass
     result = _ask_impl(req)
     # 统一出口净化: 任何引擎的 LLM 出口都可能把推理独白当答案(见 _strip_reasoning_leak)。
@@ -1999,14 +2039,16 @@ def ask(req: AskReq):
             result["mode"] = "miss"
         elif result is not None and _clean is not None:
             result["answer"] = _clean
-    except Exception:
+    except Exception as e:
+        note_swallow("ask", e)
         pass
     # P1 跨域拦截兜底: 任何引擎若产出"空答案", 一律判为无据(no_basis=True)——
     # no_basis=False + 空答案 是"看似有据实则空答"的假命中, 必须归为无据, 防绕过跨域拦截。
     try:
         if result and not str(result.get("answer") or "").strip():
             result["no_basis"] = True
-    except Exception:
+    except Exception as e:
+        note_swallow("ask", e)
         pass
     # 问答审计: 记录问题/知识库/命中引擎/模式, 供追溯与质量分析
     try:
@@ -2015,7 +2057,8 @@ def ask(req: AskReq):
                      no_basis=result.get("no_basis"),
                      ans_len=len(str(result.get("answer", ""))),
                      ms=int((time.time() - start) * 1000))
-    except Exception:
+    except Exception as e:
+        note_swallow("ask", e)
         pass
     # 批 2 信封接线（主控 2026-09-24）：统一出口补 hit / reason / evidence_trace / advisory，
     # 只新增字段，老字段一个不动（envelope_from_result 内部保证）。接线失败**不静默**——
@@ -2030,7 +2073,8 @@ def ask(req: AskReq):
     except Exception as _env_err:
         try:
             result["envelope_error"] = f"{type(_env_err).__name__}: {_env_err}"
-        except Exception:
+        except Exception as e:
+            note_swallow("ask", e)
             pass
     return result
 
@@ -2156,176 +2200,6 @@ def stats(kb: str = Query("", description="知识库名")):
 _EXPORT_ALLOW = {"ontology.ttl", "shapes.ttl", "ontology.jsonld"}
 
 
-@app.get("/api/standard/compliance", dependencies=[Depends(require_key)])
-def standard_compliance():
-    """本体标准合规度（GB/T 48000.3 描述项齐备率 + 命名空间 + SHACL + 类层次 + 导出物）。
-
-    A2(2026-09-25): 按**当前激活 KB 的本体**计算；找不到该库本体时明确报错，
-    绝不静默回落到全局 config/ontology_schema.json。
-    """
-    kb = _active_kb()
-    schema_path, err = _kb_ontology_schema(kb)
-    if err:
-        return {"ok": False, "kb": kb, "error": f"按当前激活库计算合规度失败: {err}"}
-    try:
-        import ontology_check as oc
-        root = os.path.dirname(os.path.abspath(__file__))
-        r = oc._check_standard(root, schema_path=schema_path)
-        st = r.get("state") or {}
-        return {
-            "ok": True,
-            "kb": kb,
-            "ontology": os.path.relpath(schema_path, root).replace("\\", "/"),
-            "standard_rate": st.get("standard_rate"),
-            "ent_core_rate": st.get("ent_core_rate"),
-            "ent_rate": st.get("ent_rate"),
-            "attr_rate": st.get("attr_rate"),
-            "ns_ok": st.get("ns_ok"),
-            "subclass_count": st.get("subclass_count"),
-            "has_export": st.get("has_export"),
-            "issues": [{"severity": s, "message": m} for s, m in r.get("issues", [])],
-            "standards": ["GB/T 48000.3-2026", "GB/T 42131-2022", "GB/T 41472.2-2022",
-                          "ISO/IEC 21838", "IEEE 知识图谱评估标准"],
-        }
-    except Exception as e:
-        return {"ok": False, "kb": kb, "error": f"合规度计算失败: {e}"}
-
-
-@app.post("/api/standard/export", dependencies=[Depends(require_key)])
-def standard_export():
-    """生成标准导出物（ontology.ttl / shapes.ttl / ontology.jsonld），返回文件名与大小。
-
-    A3(2026-09-25): 按**当前激活 KB 的本体**导出；找不到该库本体时明确报错，
-    绝不静默回落到全局 config/ontology_schema.json。
-    """
-    kb = _active_kb()
-    schema_path, err = _kb_ontology_schema(kb)
-    if err:
-        return {"ok": False, "kb": kb, "error": f"按当前激活库导出失败: {err}"}
-    try:
-        import ontology_export as ox
-        root = os.path.dirname(os.path.abspath(__file__))
-        outs = ox.export(schema_path, os.path.join(root, "export"))
-        return {"ok": True, "kb": kb,
-                "schema": os.path.relpath(schema_path, root).replace("\\", "/"),
-                "files": [{"name": k, "size": os.path.getsize(v)}
-                          for k, v in sorted(outs.items())]}
-    except Exception as e:
-        return {"ok": False, "kb": kb, "error": f"导出失败: {e}"}
-
-
-@app.get("/api/standard/export/{fname}", dependencies=[Depends(require_key)])
-def standard_export_download(fname: str):
-    """下载标准导出物（白名单文件名，防路径穿越）。"""
-    from fastapi.responses import FileResponse
-    if fname not in _EXPORT_ALLOW:
-        return {"ok": False, "error": "不允许的文件名"}
-    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "export", fname)
-    if not os.path.exists(p):
-        return {"ok": False, "error": "导出物不存在，请先生成"}
-    return FileResponse(p, filename=fname,
-                        media_type="text/turtle" if fname.endswith(".ttl") else "application/ld+json")
-
-
-@app.get("/api/standard/quality", dependencies=[Depends(require_key)])
-def standard_quality(kb: str = Query("")):
-    """本体建模质量门：标签/定义/外键关系/结构 体检 + 阈值判定。
-
-    kb 配了 schema 就用配置的；没配则从该 kb 数据自动推断(FDE 现场主场景：
-    CSV 丢进来就能体检, 不用先手写 schema)。
-    """
-    kb = (kb or "").strip() or _active_kb()   # A2 同口径: 缺省跟随当前激活 kb
-    _kb_guard(kb)  # 多租户: 越权 KB → 403(拒绝)
-    try:
-        import ontology_quality as oq
-        kbc = KBS.get(kb) or {}
-        root = os.path.dirname(os.path.abspath(__file__))
-        data_dir = kbc.get("data_dir", "data")
-        data_dir = data_dir if os.path.isabs(data_dir) else os.path.join(root, data_dir)
-        data = so.load_all(data_dir) if os.path.isdir(data_dir) else {}
-        schema_rel = kbc.get("schema")
-        if schema_rel and os.path.exists(os.path.join(root, schema_rel)):
-            schema, source = so.load_schema(os.path.join(root, schema_rel)), "configured"
-        else:
-            # 快速模式: 质量门只需结构体检, 不调 LLM(否则每次 19s)
-            schema, source = so.suggest_schema(data, use_llm=False), "auto-inferred"
-        rep = oq.inspect(schema, data)
-        return {"ok": True, "kb": kb, "source": source, **rep, "verdict": oq.judge(rep)}
-    except Exception as e:
-        return {"ok": False, "error": f"质量门执行失败: {e}"}
-
-
-
-@app.get("/api/standard/roundtrip", dependencies=[Depends(require_key)])
-def standard_roundtrip():
-    """导入层自检：把导出的 ontology.ttl 读回来，与 schema 核对是否无损往返。
-
-    这是导出物质量的可重跑门 —— 导出/导入任一侧退化都会立刻暴露。
-    外部本体对齐（--align）走 CLI：python ontology_import.py --in <外部文件> --schema ... --align
-    """
-    try:
-        import ontology_import as oim
-        root = os.path.dirname(os.path.abspath(__file__))
-        # A3 同口径: 往返自检对的是**当前激活 kb** 导出的 ttl ↔ 该 kb 的 schema
-        kb = _active_kb()
-        schema_path, _err = _kb_ontology_schema(kb)
-        if _err:
-            return {"ok": False, "kb": kb, "error": "按当前激活库往返自检失败: " + _err}
-        ttl = os.path.join(root, "export", "ontology.ttl")
-        if not os.path.exists(ttl):
-            return {"ok": False, "error": "导出物不存在，请先生成标准导出物"}
-        fmt, data = oim.parse_input(ttl)
-        model = oim.graph_to_model(data[1])
-        rt = oim.roundtrip(model, schema_path)
-        return {"ok": bool(rt.get("ok")), "kb": kb, **rt,
-                "classes_note": f"{rt.get('classes_imported')}/{rt.get('classes_expected')}",
-                "props_note": f"{rt.get('dataprops_imported')}/{rt.get('props_expected')}"}
-    except Exception as e:
-        return {"ok": False, "error": f"往返自检失败: {e}"}
-
-
-@app.post("/api/standard/import-align", dependencies=[Depends(require_key)])
-def standard_import_align(payload: dict | None = None):
-    """外部本体对齐：入参 {"path": "外部 .ttl"} 或 {"content": "Turtle 文本"}，
-    与 schema 做对齐报告（同名类匹配、外部独有类），供"对标国标"落到可核对清单。"""
-    try:
-        import ontology_import as oim
-        import tempfile
-        root = os.path.dirname(os.path.abspath(__file__))
-        payload = payload or {}
-        path = payload.get("path")
-        tmp = None
-        if not path and payload.get("content"):
-            # 按内容探测后缀：JSON-LD 原文是 JSON，若写成 .ttl 会被按 Turtle 解析(曾静默出 0 类)
-            content = payload["content"]
-            suffix = ".jsonld" if content.lstrip().startswith(("{", "[")) else ".ttl"
-            fd, tmp = tempfile.mkstemp(suffix=suffix, text=True)
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(content)
-            path = tmp
-        if not path or not os.path.exists(path):
-            return {"ok": False, "error": "需提供存在的 path 或 content"}
-        try:
-            fmt, data = oim.parse_input(path)
-            triples = oim.graph_from_jsonld(data)[0] if fmt == "jsonld" else data[1]
-            model = oim.graph_to_model(triples)
-            al = oim.align_report(model, os.path.join(root, "config", "ontology_schema.json"))
-            out = {"ok": True, "format": fmt, "external_classes": len(model["classes"]), **al}
-            # 无类可对齐时给出可操作提示（常见误操作：喂了 SHACL 约束文件而非本体文件）
-            if not model["classes"]:
-                n_shapes = sum(1 for t in triples if "shacl#" in str(t[1]))
-                out["hint"] = ("该文件未含 owl:Class，无法对齐。"
-                               + ("看起来是 SHACL 约束文件（shapes.ttl），请改喂本体文件（ontology.ttl / .jsonld）。"
-                                  if n_shapes else "请确认是本体文件（含 owl:Class 的 .ttl / .jsonld）。"))
-                out["ok"] = False
-            return out
-        finally:
-            if tmp and os.path.exists(tmp):
-                os.remove(tmp)
-    except Exception as e:
-        return {"ok": False, "error": f"对齐失败: {e}"}
-
-
 # ── 溯源审计链 API(可选, 审核可追责) ──────────────
 @app.get("/api/audit/chain", dependencies=[Depends(require_key)])
 def audit_chain_status():
@@ -2418,7 +2292,8 @@ def _asset_manifest(kb="food"):
             with open(p, encoding="utf-8") as f:
                 m = json.load(f)
                 return m if isinstance(m, dict) else {}
-    except Exception:
+    except Exception as e:
+        note_swallow("_asset_manifest", e)
         pass
     return {}
 
@@ -2429,7 +2304,8 @@ def _asset_save_manifest(man, kb="food"):
         os.makedirs(kb_dir, exist_ok=True)
         with open(os.path.join(kb_dir, "manifest.json"), "w", encoding="utf-8") as f:
             json.dump(man, f, ensure_ascii=False, indent=2)
-    except Exception:
+    except Exception as e:
+        note_swallow("_asset_save_manifest", e)
         pass
 
 
@@ -2439,7 +2315,8 @@ def _asset_active(kb="food"):
         if os.path.exists(p):
             with open(p, encoding="utf-8") as f:
                 return f.read().strip() or None
-    except Exception:
+    except Exception as e:
+        note_swallow("_asset_active", e)
         pass
     return None
 
@@ -2449,7 +2326,8 @@ def _asset_set_active(v, kb="food"):
         os.makedirs(_asset_dir(kb), exist_ok=True)
         with open(os.path.join(_asset_dir(kb), "active.txt"), "w", encoding="utf-8") as f:
             f.write(v)
-    except Exception:
+    except Exception as e:
+        note_swallow("_asset_set_active", e)
         pass
 
 
@@ -2466,7 +2344,8 @@ def _hash_dir(d):
             with open(p, "rb") as f:
                 h.update(rel.encode("utf-8"))
                 h.update(f.read())
-        except Exception:
+        except Exception as e:
+            note_swallow("_hash_dir", e)
             pass
     return h.hexdigest()[:16]
 
@@ -2484,12 +2363,14 @@ def _asset_snapshot(kb="food"):
     if os.path.exists(lex_file):
         try:
             shutil.copy2(lex_file, os.path.join(vdir, "lexicon.json")); copied["lexicon"] = True
-        except Exception:
+        except Exception as e:
+            note_swallow("_asset_snapshot", e)
             pass
     if os.path.exists(nt_file):
         try:
             shutil.copy2(nt_file, os.path.join(vdir, "ontology.nt")); copied["ontology"] = True
-        except Exception:
+        except Exception as e:
+            note_swallow("_asset_snapshot", e)
             pass
     try:
         os.makedirs(os.path.join(vdir, "knowledge"), exist_ok=True)
@@ -2624,7 +2505,8 @@ async def knowledge_ingest(file: UploadFile = File(...),
             if os.path.exists(tmp):
                 try:
                     os.remove(tmp)
-                except Exception:
+                except Exception as e:
+                    note_swallow("knowledge_ingest", e)
                     pass
     except Exception as e:
         logger.warning(f"API内部错误[文档接入失败]: {e}")
@@ -2993,7 +2875,8 @@ def ontology_suggest(req: OntologySuggestReq):
                 if f.lower().endswith((".csv", ".xlsx", ".json")):
                     try:
                         _name, _cols, rows = dl.load_table(os.path.join(src_abs, f))
-                    except Exception:
+                    except Exception as e:
+                        note_swallow("ontology_suggest", e)
                         continue
                     if rows:
                         data[_name] = rows
@@ -3046,8 +2929,15 @@ def ontology_suggest(req: OntologySuggestReq):
 
 class OntologyConfirmReq(BaseModel):
     """③ 人拍板：把人工确认/修改后的 schema 提交生效。"""
+    # 字段不能直接叫 schema：那会遮蔽 BaseModel.schema()（pydantic v2 起动即报
+    # UserWarning: Field name "schema" shadows an attribute in parent "BaseModel"，
+    # 且实例上的 .schema 变成 dict —— 任何按 BaseModel 约定调用它的地方都会 AttributeError）。
+    # 修法：Python 侧改叫 schema_，用 alias 把**对外 JSON 字段名保持为 "schema"**，
+    # 接口契约不变；populate_by_name 让按字段名传也照样解析（向后兼容）。
+    model_config = ConfigDict(populate_by_name=True)
+
     kb: str
-    schema: dict
+    schema_: dict = Field(alias="schema")
     data_dir: str = None      # 数据源目录（缺省从 kbs.json 该 kb 的 data_dir 取）
     # ③ 人在环：类层次与 Definition 必须在「层次与定义确认」里显式拍板后才允许落库。
     #    未确认 → confirm 直接拒绝（不静默通过），避免模型/规则建议瞒过人写进本体。
@@ -3067,7 +2957,7 @@ def ontology_confirm(req: OntologyConfirmReq):
     kb = (req.kb or "").strip()
     if not kb or kb.startswith(".") or any(c in kb for c in ("/", "\\", "..")):
         return _err_env(4001, "非法 kb 名", start)
-    sch = req.schema or {}
+    sch = req.schema_ or {}
     if not sch.get("entities"):
         return _err_env(4001, "schema 缺少 entities", start)
     # A4(2026-09-25): data_dir 占用冲突校验 —— 同一数据目录已被别的(非本 kb、非备案清理项)
@@ -3231,7 +3121,8 @@ async def ontology_self_onboard(request: Request):
             continue  # 只接受表格/文本类数据文件
         try:
             data = await f.read()
-        except Exception:
+        except Exception as e:
+            note_swallow("ontology_self_onboard", e)
             continue
         try:
             with open(os.path.join(dest, fname), "wb") as fh:
@@ -3343,7 +3234,8 @@ def _set_active_kb(kb, nt_rel=None, lex_rel=None, source="build"):
         sp, _err = _kb_ontology_schema(kb)
         if sp:
             rec["schema"] = os.path.relpath(sp, ROOT).replace("\\", "/")
-    except Exception:
+    except Exception as e:
+        note_swallow("_set_active_kb", e)
         pass
     try:
         os.makedirs(os.path.dirname(ACTIVE_FILE), exist_ok=True)
@@ -3559,7 +3451,8 @@ async def kb_lexicon_import(kb: str, req: Request):
         if tmp and os.path.exists(tmp):
             try:
                 os.remove(tmp)
-            except Exception:
+            except Exception as e:
+                note_swallow("kb_lexicon_import", e)
                 pass
 
 
@@ -3661,3 +3554,9 @@ if __name__ == "__main__":
     # 后台预热 embedding 模型(不阻塞服务启动)
     threading.Thread(target=_warm_embedding, daemon=True).start()
     uvicorn.run(app, host=host, port=port)
+
+
+# ── 路由族挂载（P1-1 拆分试点）：standard 族已移入 routes/standard_routes.py ──
+from routes.standard_routes import router as _standard_router  # noqa: E402
+
+app.include_router(_standard_router)

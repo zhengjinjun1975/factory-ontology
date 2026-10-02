@@ -20,6 +20,7 @@ from collections import defaultdict, deque
 
 # 词典数据收敛到 lexicon.py 唯一数据源（P1-7），仅持有只读引用，消除跨文件重复漂移。
 from lexicon import get_synonym_groups, get_unit_aliases
+from logging_util import note_swallow
 
 
 def parse_nt(nt_file):
@@ -184,7 +185,8 @@ def find_seeds(question, graph, labels, value_index, top=8, lexicon=None, ontolo
                         if any(_norm(en) in _norm(str(v)) for v in props.get("deviceType", [])) or \
                            any(_norm(en) in _norm(str(v)) for v in props.get("category", [])):
                             scored[ent] += 0.5
-        except Exception:
+        except Exception as e:
+            note_swallow("find_seeds", e)
             pass
     # 4. 本体关系路径引导(OG-RAG): 问题含某关系 label/id 时, 沿该关系把连接的目标实体并入种子
     if ontology:
@@ -202,7 +204,8 @@ def find_seeds(question, graph, labels, value_index, top=8, lexicon=None, ontolo
                             for t in targets:
                                 if _is_entity(t):
                                     scored[t] += 1.0
-        except Exception:
+        except Exception as e:
+            note_swallow("find_seeds", e)
             pass
     ranked = sorted(scored.items(), key=lambda x: -x[1])
     return [e for e, _ in ranked[:top]]
@@ -278,7 +281,8 @@ def _rewrite_query(question, model_key=None):
         if not rq or len(rq) > 80:
             return None
         return rq
-    except Exception:
+    except Exception as e:
+        note_swallow("_rewrite_query", e)
         return None
 
 
@@ -350,7 +354,8 @@ def _schema_context(nt_file, lexicon=None):
             parts = [f"{c}({', '.join(a)})" for c, a in cls_attrs.items()]
             return (_SCHEMA_HINT + "知识图谱包含以下实体/属性: "
                     + ", ".join(parts) + " 等，请据此理解问题回答。")
-    except Exception:
+    except Exception as e:
+        note_swallow("_schema_context", e)
         pass
     # 回落：lexicon 词典（attr_cn2en 属性中文名 + type_cn2en 实体类型中文名）
     if lexicon:
@@ -365,7 +370,8 @@ def _schema_context(nt_file, lexicon=None):
             if seg:
                 return (_SCHEMA_HINT + "知识图谱包含以下实体/属性: "
                         + "; ".join(seg) + " 等，请据此理解问题回答。")
-        except Exception:
+        except Exception as e:
+            note_swallow("_schema_context", e)
             pass
     return ""
 
@@ -382,7 +388,8 @@ def answer_graph(question, nt_file, depth=1, max_nodes=40, model_key=None, lexic
             r_seeds = find_seeds(rq, graph, labels, value_index, lexicon=lexicon)
             if len(r_seeds) > len(seeds):
                 seeds = r_seeds
-        except Exception:
+        except Exception as e:
+            note_swallow("answer_graph", e)
             pass
     if not seeds:
         return "[图检索] 未定位到相关实体，请换种问法", ""

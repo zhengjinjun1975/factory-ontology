@@ -10,6 +10,7 @@ PDF 优先 pymupdf(fitz)，缺失则试 pdfplumber；docx 用 python-docx；txt 
     doc = extract_text("甲方技术协议.pdf")   # {title, raw_text} 或 None
 """
 import os
+from logging_util import note_swallow
 
 
 def extract_text(path):
@@ -33,7 +34,8 @@ def extract_text(path):
         if not raw or not raw.strip():
             return None
         return {"title": title, "raw_text": raw.strip()}
-    except Exception:
+    except Exception as e:
+        note_swallow("extract_text", e)
         return None
 
 
@@ -49,7 +51,8 @@ def _get_rapid_ocr():
         from rapidocr_onnxruntime import RapidOCR
         _rapid_ocr = RapidOCR()  # 首次初始化，之后复用
         return _rapid_ocr
-    except Exception:
+    except Exception as e:
+        note_swallow("_get_rapid_ocr", e)
         return None
 
 
@@ -75,7 +78,8 @@ def _winsdk_ocr(png_path):
             result = await engine.recognize_async(bitmap)
             return result.text.strip() if result and result.text else None
         return asyncio.run(_ocr())
-    except Exception:
+    except Exception as e:
+        note_swallow("_winsdk_ocr", e)
         return None
 
 
@@ -99,7 +103,8 @@ def _ocr_page_image(page, dpi=150):
                 os.unlink(tmp.name)
             except OSError:
                 pass
-    except Exception:
+    except Exception as e:
+        note_swallow("_ocr_page_image", e)
         pass
     # 回退 RapidOCR
     try:
@@ -118,7 +123,8 @@ def _ocr_page_image(page, dpi=150):
                 if txt:
                     lines.append(str(txt))
         return "\n".join(lines)
-    except Exception:
+    except Exception as e:
+        note_swallow("_ocr_page_image", e)
         return None
 
 
@@ -145,7 +151,8 @@ def _extract_pdf(path):
         return "\n".join(p for p in text_parts if p and p.strip())
     except ImportError:
         pass
-    except Exception:
+    except Exception as e:
+        note_swallow("_extract_pdf", e)
         return None
     try:
         import pdfplumber
@@ -153,7 +160,8 @@ def _extract_pdf(path):
             return "\n".join((p.extract_text() or "") for p in pdf.pages)
     except ImportError:
         return None
-    except Exception:
+    except Exception as e:
+        note_swallow("_extract_pdf", e)
         return None
 
 
@@ -167,7 +175,8 @@ def _extract_docx(path):
             for row in t.rows:
                 parts.append("\t".join(c.text for c in row.cells))
         return "\n".join(parts)
-    except Exception:
+    except Exception as e:
+        note_swallow("_extract_docx", e)
         return None
 
 
@@ -179,6 +188,7 @@ def _extract_txt(path):
                 return f.read()
         except UnicodeDecodeError:
             continue
-        except Exception:
+        except Exception as e:
+            note_swallow("_extract_txt", e)
             return None
     return None

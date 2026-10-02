@@ -19,6 +19,7 @@ PersistentClient 目录下的同名 collection，用 HNSW 索引做余弦语义�
 """
 import os
 import time
+from logging_util import note_swallow
 
 try:
     import chromadb
@@ -31,7 +32,8 @@ def _sim(distance):
     """ChromaDB 余弦距离 → 相似度（cosine 空间距离 ∈ [0,2]，相似度 = 1 - 距离）。"""
     try:
         return 1.0 - float(distance)
-    except Exception:
+    except Exception as e:
+        note_swallow("_sim", e)
         return 0.0
 
 
@@ -48,7 +50,8 @@ class KnowledgeStore:
         self._ready = False
         try:
             os.makedirs(kb_dir, exist_ok=True)
-        except Exception:
+        except Exception as e:
+            note_swallow("__init__", e)
             pass
         if not _CHROMA:
             return
@@ -83,7 +86,8 @@ class KnowledgeStore:
             # 幂等覆盖：先删该文档旧向量，再整体 upsert
             try:
                 self._col.delete(where={"doc_id": doc_id})
-            except Exception:
+            except Exception as e:
+                note_swallow("add_doc", e)
                 pass
             ids = ["%s#%s" % (doc_id, i) for i in range(len(chunks))]
             docs = []
@@ -105,7 +109,8 @@ class KnowledgeStore:
             self._col.upsert(
                 ids=ids, embeddings=embs, documents=docs, metadatas=metas)
             return True
-        except Exception:
+        except Exception as e:
+            note_swallow("add_doc", e)
             return False
 
     def search(self, query_vec, top_k=5, min_score=0.0):
@@ -175,5 +180,6 @@ class KnowledgeStore:
                 return False
             self._col.delete(where={"doc_id": doc_id})
             return True
-        except Exception:
+        except Exception as e:
+            note_swallow("delete", e)
             return False
